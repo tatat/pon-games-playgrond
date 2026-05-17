@@ -1,7 +1,9 @@
 import { Application } from 'pixi.js'
 import { useEffect, useRef } from 'react'
+import { defaultUiTheme } from '../engine/ui-theme'
 import { type GameId, games } from '../games/registry'
 import type { GameHandle, GameResult } from '../games/types'
+import { useRuntimeStore } from '../store/runtime'
 import { useSettingsStore } from '../store/settings'
 
 export interface GameMountProps {
@@ -50,6 +52,11 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
         containerRef.current.appendChild(app.canvas)
         const gameModule = await games[gameId]()
         ctrl.signal.throwIfAborted()
+
+        // Publish the game's UI theme before its `start()` runs so any
+        // engine UI built during `start()` (settings modal, dev FPS
+        // counter) picks up the right fonts.
+        useRuntimeStore.getState().setUiTheme(gameModule.uiTheme ?? defaultUiTheme)
 
         const search = new URLSearchParams(window.location.search)
         const resolvedSeed = seed ?? (Number.parseInt(search.get('seed') ?? '', 10) || Date.now())

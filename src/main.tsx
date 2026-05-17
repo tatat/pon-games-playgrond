@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { initAudio } from './engine/audio/index'
+import { useRuntimeStore } from './store/runtime'
 import { useSettingsStore } from './store/settings'
 import { useUserStore } from './store/user'
 
@@ -18,6 +19,7 @@ async function bootstrap(): Promise<void> {
     ;(window as unknown as { __stores: unknown }).__stores = {
       settings: useSettingsStore,
       user: useUserStore,
+      runtime: useRuntimeStore,
     }
   }
   createRoot(rootEl as HTMLElement).render(

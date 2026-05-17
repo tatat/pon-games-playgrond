@@ -1,4 +1,5 @@
 import type { Ticker } from 'pixi.js'
+import { useRuntimeStore } from '../store/runtime'
 import type { GameLayout } from './layout'
 import type { Rng } from './rng'
 import type { Scene } from './scene'
@@ -12,9 +13,15 @@ export class SceneManager {
   private current?: Scene
   private currentSceneCtrl?: AbortController
   private currentReady = false
+  private paused = useRuntimeStore.getState().gamePaused
+  private readonly unsubPaused: () => void
   private transition: Promise<void> = Promise.resolve()
   private destroyed = false
   private readonly tickHandler = (ticker: Ticker): void => {
+    // Skip onUpdate while the runtime store says the game is paused — used
+    // by the settings modal so opening it freezes gameplay without stopping
+    // the render loop (settings UI itself still needs to tick).
+    if (this.paused) return
     // Only tick a scene whose onEnter has fully resolved. Without this gate
     // the ticker can fire onUpdate during onEnter's async preload, before the
     // scene has bound input / created entities.
@@ -29,6 +36,9 @@ export class SceneManager {
     private readonly rng: Rng,
   ) {
     ticker.add(this.tickHandler)
+    this.unsubPaused = useRuntimeStore.subscribe((s) => {
+      this.paused = s.gamePaused
+    })
     signal.addEventListener('abort', () => this.destroy(), { once: true })
   }
 
@@ -74,6 +84,7 @@ export class SceneManager {
     if (this.destroyed) return
     this.destroyed = true
     this.currentReady = false
+    this.unsubPaused()
     this.ticker.remove(this.tickHandler)
     this.currentSceneCtrl?.abort()
     // Queue teardown onto the serialized transition chain so it never races

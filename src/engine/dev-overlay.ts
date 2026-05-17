@@ -1,4 +1,5 @@
 import { type Container, Text, type Ticker } from 'pixi.js'
+import { useRuntimeStore } from '../store/runtime'
 import { useSettingsStore } from '../store/settings'
 import { DESIGN_W } from './constants'
 
@@ -16,11 +17,16 @@ export function attachFpsCounter(
     style: {
       fill: 0x00ff00,
       fontSize: 14,
-      fontFamily: 'Courier, "Courier New", monospace',
+      // Numeric readout → mono. Read at attach time; theme is set by
+      // GameMount before `attachLayout` runs, so this picks up the active
+      // game's typography.
+      fontFamily: useRuntimeStore.getState().uiTheme.fontMono,
     },
   })
-  text.anchor.set(1, 0)
-  text.position.set(DESIGN_W - 8, 8)
+  // Vertical-center anchor so this aligns with the larger gear glyph next to
+  // it. y=16 is the shared center used by both this and the gear button.
+  text.anchor.set(1, 0.5)
+  text.position.set(DESIGN_W - 40, 16)
   text.zIndex = 10000
   text.visible = useSettingsStore.getState().showFps
   gameContainer.addChild(text)

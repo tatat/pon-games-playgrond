@@ -1,6 +1,7 @@
 import { type Application, Container, Graphics } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from './constants'
 import { attachFpsCounter } from './dev-overlay'
+import { attachSettingsUi } from './settings-ui'
 
 export interface LayoutMetrics {
   viewportW: number
@@ -40,6 +41,7 @@ export function attachLayout(app: Application, signal: AbortSignal): GameLayout 
   app.stage.addChild(uiLayer)
 
   if (import.meta.env.DEV) attachFpsCounter(gameContainer, app.ticker, signal)
+  attachSettingsUi(gameContainer, signal)
 
   const subscribers = new Set<(m: LayoutMetrics) => void>()
   let metrics!: LayoutMetrics

@@ -1,8 +1,12 @@
 import type { Application } from 'pixi.js'
+import type { UiTheme } from '../engine/ui-theme'
 
 /** A game ships an object of this shape and the portal calls its `start`. */
 export interface GameModule {
   start(app: Application, ctx: GameContext, signal: AbortSignal): Promise<GameHandle>
+  /** Optional typography theme for engine-level UI (settings modal, dev
+   * overlays). When omitted the engine default is used. */
+  uiTheme?: UiTheme
 }
 
 /** Session-only values + game → portal callbacks. Persistent settings live

@@ -11,6 +11,13 @@ import { MainScene, type MainSceneOptions } from './scene'
 /** Sticker Drift is an endless avoidance game — no save state, no per-game
  * Zustand store. The displayed high score lives in `useUserStore`. */
 export const stickerDriftGame: GameModule = {
+  uiTheme: {
+    // Match the in-game HUD's Phaser-era monospace look across all engine UI
+    // (settings modal, dev FPS counter).
+    fontSans: 'Courier, "Courier New", monospace',
+    fontMono: 'Courier, "Courier New", monospace',
+  },
+
   async start(app: Application, ctx: GameContext, signal: AbortSignal): Promise<GameHandle> {
     const rng = new Rng(ctx.config.seed)
     const layout = attachLayout(app, signal)
