@@ -9,6 +9,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<Lobby />} />
         <Route path="/sticker-drift" element={<GameMount gameId="sticker-drift" />} />
+        <Route path="/breakout-clone" element={<GameMount gameId="breakout-clone" />} />
       </Routes>
     </BrowserRouter>
   )
@@ -35,6 +36,14 @@ function Lobby() {
             style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
           >
             Sticker Drift
+          </Link>
+        </li>
+        <li>
+          <Link
+            to="/breakout-clone"
+            style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
+          >
+            Breakout Clone (skeleton)
           </Link>
         </li>
       </ul>
