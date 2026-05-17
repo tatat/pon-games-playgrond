@@ -23,6 +23,7 @@
     "no_proxy": "localhost,127.0.0.1",
     "NO_PROXY": "localhost,127.0.0.1"
   },
+  "privileged": true,
   "capAdd": ["NET_ADMIN", "NET_RAW"],
   "postStartCommand": "${containerWorkspaceFolder}/.devcontainer/postStart.sh",
   "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/postCreate.sh",
