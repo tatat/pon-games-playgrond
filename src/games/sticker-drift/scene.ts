@@ -13,6 +13,7 @@ import {
 } from './constants'
 import { Debris } from './debris'
 import { gameSpeedIncrement, scoreIncrement, spawnIntervalMs } from './difficulty'
+import { makeFloatPad } from './float-pad'
 import { HUD } from './hud'
 import { Obstacle } from './obstacle'
 import { Player } from './player'
@@ -115,6 +116,18 @@ export class MainScene extends Scene {
       },
       { once: true },
     )
+
+    // Touch buttons. Two attach points:
+    //  - `uiMargin` → uiLayer, visible when a letterbox margin has room.
+    //  - `gameOverlay` → inside the game viewport, holds the small fallback
+    //    pause button shown when the margin pad isn't visible.
+    const floatPad = makeFloatPad(this.input, this.layout, signal)
+    floatPad.gameOverlay.zIndex = 50
+    this.addChild(floatPad.gameOverlay)
+    this.layout.uiLayer.addChild(floatPad.uiMargin)
+    signal.addEventListener('abort', () => this.layout.uiLayer.removeChild(floatPad.uiMargin), {
+      once: true,
+    })
 
     if (this.options.startImmediately) this.startPlaying()
   }
