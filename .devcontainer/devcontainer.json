@@ -27,6 +27,7 @@
   "postStartCommand": "${containerWorkspaceFolder}/.devcontainer/postStart.sh",
   "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/postCreate.sh",
   "forwardPorts": [5173],
+  "appPort": ["5173:5173"],
   "customizations": {
     "vscode": {
       "extensions": ["EditorConfig.EditorConfig", "biomejs.biome"]

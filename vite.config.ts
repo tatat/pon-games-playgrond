@@ -5,6 +5,12 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   base: '/pon-games-playgrond/',
   plugins: [react()],
+  server: {
+    // Bind to 0.0.0.0 so the devcontainer's published port (appPort 5173) is
+    // reachable from the host. Vite's default 127.0.0.1 only listens inside
+    // the container.
+    host: true,
+  },
   optimizeDeps: {
     // Inline-WASM package; Vite's prebundle breaks its init path.
     exclude: ['@dimforge/rapier2d-compat'],
