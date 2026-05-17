@@ -114,7 +114,7 @@ export const breakoutGame: GameModule = {
       destroy: () => {
         sm.destroy();
         stopBgm();
-        unloadGameAssets(GAME_ID);
+        void unloadGameAssets(GAME_ID);   // async; fire and forget
       },
     };
   },

@@ -53,6 +53,7 @@ export class SceneManager {
 - **Serialization.** Consecutive `changeTo` calls run in order via a chained promise. No two scenes are on the stage simultaneously.
 - **Per-scene signal.** Each `changeTo` derives a fresh `AbortSignal` (linked to the manager's signal) and passes it to `next.onEnter`. When the scene exits, that signal aborts — so listeners and per-scene work attached to it are cleaned up automatically. Game-scope subscriptions (the one passed in the constructor) survive across scene changes.
 - **Exit before destroy.** `destroy()` calls the current scene's `onExit()` to completion, then detaches the ticker and removes the scene from the stage. Required for physics worlds, audio handles, store subscriptions, etc.
+- **Destroy is race-safe.** `destroy()` queues its teardown onto the same serialized transition chain that `changeTo` uses, so calling `destroy()` while a transition is in flight never runs `onExit()` twice on the same scene.
 - **Abort = destroy.** When the constructor signal aborts, the manager calls `destroy()` once. Subsequent `changeTo` calls become no-ops that immediately destroy the passed-in scene.
 
 ## Auto-pause on tab visibility

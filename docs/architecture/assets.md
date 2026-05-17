@@ -22,15 +22,16 @@ export function loadAssets(
   signal: AbortSignal,
 ): Promise<void>;
 
-export function unloadGameAssets(gameId: string): void;
+export function unloadGameAssets(gameId: string): Promise<void>;
 ```
 
 ## Contract
 
+- Each entry's `src` is resolved against Vite's `import.meta.env.BASE_URL` before being handed to `Assets.add`. A relative path like `games/breakout/sprites/ball.png` becomes `/<base>/games/breakout/sprites/ball.png` regardless of the current SPA route. Absolute URLs (`http(s)://…`, `data:`, `blob:`, leading `/`) are left alone.
 - `loadAssets` calls `Assets.add(...)` then `Assets.load(...)`. Pixi does not currently expose an abort-capable loader, so the load itself runs to completion; the function checks `signal.throwIfAborted()` only at boundaries.
 - Aliases are tracked in `loadedByGame[gameId]` inside a `finally` block, so an aborted call still records what it brought into the cache. `unloadGameAssets` can then clean up regardless of how the load ended.
-- `GameModule.destroy` calls `unloadGameAssets(gameId)`. The lifetime of every alias loaded for a game ends with the game module.
-- Asset paths are relative to Vite's `BASE_URL`, so the same manifest works on the GH Pages subpath without changes. Asset files live under `public/games/<gameId>/`.
+- `unloadGameAssets` is **async**: Pixi v8's `Assets.unload` returns a promise. The function clears its tracking before awaiting the bulk unload so a subsequent reload races correctly. `GameModule.destroy` typically fires it without awaiting (`void unloadGameAssets(GAME_ID)`); callers that need to know it finished can `await` instead.
+- Asset files live under `public/games/<gameId>/`.
 
 ## Dynamic asset names
 

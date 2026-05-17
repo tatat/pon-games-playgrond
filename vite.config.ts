@@ -11,6 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['./src/test/setup.ts'],
     // Use `// @vitest-environment happy-dom` at the top of DOM-touching tests.
   },
 })
