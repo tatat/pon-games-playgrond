@@ -22,32 +22,40 @@ export const stickerDriftGame: GameModule = {
     const autoPause = attachAutoPause(app)
     const sm = new SceneManager(layout, app.ticker, GAME_ID, rng)
 
-    const sceneOptions: MainSceneOptions = {
-      onScoreChange: (s) => ctx.onScoreChange(s),
-      onGameOver: (score) => ctx.onGameOver({ score }),
-      onRequestRestart: () => {
-        void sm.changeTo(
-          new MainScene({
-            ...sceneOptions,
-            startImmediately: true,
-          }),
-        )
-      },
+    const teardown = async (): Promise<void> => {
+      // Reverse-construction order. SceneManager first so the active scene's
+      // onExit / runTeardown completes before layout (which owns gameContainer).
+      await sm.dispose()
+      autoPause.dispose()
+      layout.dispose()
+      await unloadGameAssets(GAME_ID)
     }
 
-    await sm.changeTo(new MainScene(sceneOptions))
-    signal.throwIfAborted()
+    try {
+      const sceneOptions: MainSceneOptions = {
+        onScoreChange: (s) => ctx.onScoreChange(s),
+        onGameOver: (score) => ctx.onGameOver({ score }),
+        onRequestRestart: () => {
+          void sm.changeTo(
+            new MainScene({
+              ...sceneOptions,
+              startImmediately: true,
+            }),
+          )
+        },
+      }
 
-    return {
-      destroy: async () => {
-        // Tear down in reverse-construction order. SceneManager goes first
-        // so the active scene's onExit / runTeardown completes before the
-        // layout (which owns its gameContainer) gets disposed.
-        await sm.dispose()
-        autoPause.dispose()
-        layout.dispose()
-        await unloadGameAssets(GAME_ID)
-      },
+      await sm.changeTo(new MainScene(sceneOptions))
+      signal.throwIfAborted()
+    } catch (e) {
+      // Mid-startup abort or any other failure before we return the handle
+      // would otherwise leak layout / autoPause / sm. Run the same teardown
+      // chain the handle would run, then rethrow so the caller sees the
+      // original error.
+      await teardown()
+      throw e
     }
+
+    return { destroy: teardown }
   },
 }
