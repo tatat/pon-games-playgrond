@@ -30,6 +30,10 @@ export async function loadAssets(
 ): Promise<void> {
   signal.throwIfAborted()
   for (const e of entries) {
+    // Pixi's resolver warns ("already has key: <alias> overwriting") when an
+    // alias is re-added, which happens whenever a scene preloads the same
+    // assets across a restart. Skip aliases already known to the resolver.
+    if (Assets.resolver.hasKey(e.alias)) continue
     Assets.add({ ...e, src: resolveSrc(e.src) } as UnresolvedAsset)
   }
   try {
