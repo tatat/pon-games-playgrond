@@ -63,4 +63,15 @@ export class InputManager implements Disposable {
     this.justPressed.clear()
     this.justPressedVirtual.clear()
   }
+
+  /** Drop all currently-pressed / just-pressed state without removing the
+   * underlying listeners. Used by `SceneManager` around pause transitions
+   * so a press collected while the game is paused doesn't fire as "just
+   * pressed" on resume. */
+  clearTransientState(): void {
+    this.pressed.clear()
+    this.justPressed.clear()
+    this.virtual.clear()
+    this.justPressedVirtual.clear()
+  }
 }
