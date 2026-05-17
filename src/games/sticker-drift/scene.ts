@@ -25,14 +25,12 @@ const BACKGROUND_COLOR = 0x1a1a2e
 
 export interface MainSceneOptions {
   /** When true, skip the start screen and begin playing immediately. Used by
-   * the restart path so a still-held SPACE/tap carries through. */
+   * the restart path. */
   startImmediately?: boolean
-  /** Carry the floating state through restart. */
-  initialFloating?: boolean
   /** Called when the user presses (or taps) while the game-over screen is up.
    * The owner (GameModule.start) restarts the scene by handing a fresh
    * MainScene instance to its SceneManager. */
-  onRequestRestart?: (currentlyFloating: boolean) => void
+  onRequestRestart?: () => void
   /** Fires once when this run ends. */
   onGameOver?: (score: number) => void
   /** Fires when the displayed (floored) score changes. */
@@ -118,10 +116,7 @@ export class MainScene extends Scene {
       { once: true },
     )
 
-    if (this.options.startImmediately) {
-      this.startPlaying()
-      if (this.options.initialFloating) this.input.press('float')
-    }
+    if (this.options.startImmediately) this.startPlaying()
   }
 
   override onUpdate(ticker: Ticker): void {
@@ -132,7 +127,7 @@ export class MainScene extends Scene {
     if (this.phase === 'waiting' && justPressed) {
       this.startPlaying()
     } else if (this.phase === 'gameover' && justPressed) {
-      this.options.onRequestRestart?.(this.input.isDown('float'))
+      this.options.onRequestRestart?.()
       // The manager will swap us out shortly; nothing more to do this frame.
     }
 

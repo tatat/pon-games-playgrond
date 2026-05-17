@@ -28,12 +28,11 @@ export const stickerDriftGame: GameModule = {
     const sceneOptions: MainSceneOptions = {
       onScoreChange: (s) => ctx.onScoreChange(s),
       onGameOver: (score) => ctx.onGameOver({ score }),
-      onRequestRestart: (currentlyFloating) => {
+      onRequestRestart: () => {
         void sm.changeTo(
           new MainScene({
             ...sceneOptions,
             startImmediately: true,
-            initialFloating: currentlyFloating,
           }),
         )
       },
