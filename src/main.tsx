@@ -10,6 +10,11 @@ import { useUserStore } from './store/user'
 const rootEl = document.getElementById('root')
 if (!rootEl) throw new Error('#root not found')
 
+// Suppress the browser context menu globally so a long-press on a vkeypad
+// button (or right-click on desktop) never opens a system menu over the
+// game. Gameplay does not need a context menu anywhere.
+window.addEventListener('contextmenu', (e) => e.preventDefault())
+
 async function bootstrap(): Promise<void> {
   await RAPIER.init()
   initAudio()

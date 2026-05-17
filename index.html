@@ -20,6 +20,12 @@
         overflow: hidden;
         font-family: system-ui, sans-serif;
         color: #fff;
+        /* Suppress iOS Safari's long-press callout (image / link preview,
+           copy menu) so holding a vkeypad button doesn't open a system
+           overlay over the game. */
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
       }
     </style>
   </head>
