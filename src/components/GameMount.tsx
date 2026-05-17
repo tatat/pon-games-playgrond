@@ -15,6 +15,10 @@ export interface GameMountProps {
 
 export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMountProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // Background-teardown promise from a previous mount cycle. React doesn't
+  // await `useEffect` cleanups, so without serializing here a new mount can
+  // race the old `app.destroy()` / `unloadGameAssets` and lose its assets.
+  const previousTeardown = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     const ctrl = new AbortController()
@@ -23,6 +27,10 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
     let unsubMaxFps: (() => void) | null = null
 
     void (async () => {
+      // Wait for the previous mount's async teardown to settle before
+      // touching shared resources (Pixi `Assets`, the runtime store, …).
+      await previousTeardown.current
+
       try {
         if (!containerRef.current) return
         // Build into a local first; only publish `app` after init resolves so
@@ -79,21 +87,30 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
         handle = started
       } catch (e) {
         if ((e as Error).name !== 'AbortError') throw e
+        // Aborted mid-startup. Dispose what we've already published — we
+        // can't rely solely on the cleanup function in case the abort
+        // came from somewhere other than that cleanup in the future.
+        // Null the locals so the cleanup pass is a no-op on these.
+        unsubMaxFps?.()
+        unsubMaxFps = null
+        app?.destroy(true, { children: true })
+        app = null
       }
     })()
 
     return () => {
-      // React doesn't await the cleanup function, so we kick off async
-      // teardown and let it run to completion in the background. The order
-      // is important: handle.destroy() awaits scene onExit + registered
-      // disposables, after which the Pixi Application can safely go away.
       ctrl.abort()
-      const teardown = (async () => {
+      // Clear any pause state held by this mount so a fresh mount doesn't
+      // open already paused. Runtime store is shared engine-wide.
+      useRuntimeStore.getState().setGamePaused(false)
+      // Kick off async teardown and record it for the next mount to await.
+      // The order serializes scene cleanup before Pixi's Application destroy
+      // so resources referenced by onExit / runTeardown are still alive.
+      previousTeardown.current = (async () => {
         unsubMaxFps?.()
         if (handle) await handle.destroy()
         app?.destroy(true, { children: true })
       })()
-      void teardown
     }
   }, [gameId, onScoreChange, onGameOver, seed])
 
