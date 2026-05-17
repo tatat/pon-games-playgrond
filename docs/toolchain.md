@@ -54,14 +54,14 @@ Three layered defenses, configured in a single `.npmrc`:
 ```ini
 # .npmrc
 registry=https://<takumi-guard-proxy-url>/
-minimum-release-age=7
+min-release-age=3
 ignore-scripts=true
 ```
 
 | Setting | Defends against | Mechanism |
 |---|---|---|
 | `registry=` Takumi Guard proxy | Known-malicious packages | Registry-layer block (returns 403 for flagged versions) |
-| `minimum-release-age=7` | Freshly-published malicious versions (smash-and-grab) | Refuses to install versions younger than 7 days |
+| `min-release-age=3` | Freshly-published malicious versions (smash-and-grab) | Refuses to install versions younger than 3 days |
 | `ignore-scripts=true` | `preinstall` / `postinstall` worms (e.g. Shai-Hulud-class) | Skips lifecycle scripts from all dependencies |
 
 ### Consequence: husky `prepare` runs manually
@@ -112,7 +112,7 @@ When the architecture is ported to another project, only the `base` value and th
 ## Setup Order
 
 1. Scaffold with `npm create pixi.js@latest` (Vite + TS template).
-2. Write `.npmrc` with the Takumi Guard registry, `minimum-release-age=7`, and `ignore-scripts=true`.
+2. Write `.npmrc` with the Takumi Guard registry, `min-release-age=3`, and `ignore-scripts=true`.
 3. `npx biome init` and `npx husky init`; commit the generated configs. `husky init` is what adds the `prepare` script to `package.json`, so it has to come before any `npm run prepare`.
 4. `npm install` then `npm run prepare` (the latter installs the husky hooks, which `ignore-scripts=true` skipped during install).
 5. Update `index.html`: viewport meta, full-screen `html`/`body`/`#root`, `touch-action: none` on the body so Pixi receives pointer events cleanly. Safe-area padding is **not** applied to `#root` — it is applied inside each React shell route's own wrapper so the gameplay route still gets a true viewport-fill canvas.
