@@ -1,0 +1,34 @@
+{
+  "remoteUser": "ubuntu",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "mounts": [
+    "source=node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
+    "source=user-config,target=/home/ubuntu/.config,type=volume",
+    "source=claude-config,target=/home/ubuntu/.claude,type=volume",
+    "source=codex-config,target=/home/ubuntu/.codex,type=volume",
+    "source=${localEnv:HOME}/.ssh/devcontainer,target=/tmp/host-ssh,type=bind,readonly",
+    "source=${localEnv:HOME}/.gitconfig,target=/tmp/host-gitconfig,type=bind,readonly"
+  ],
+  "remoteEnv": {
+    "DEVCONTAINER_SSH_KEY": "${localEnv:DEVCONTAINER_SSH_KEY}",
+    "WORKSPACE_FOLDER": "${containerWorkspaceFolder}",
+    "http_proxy": "http://127.0.0.1:3128",
+    "https_proxy": "http://127.0.0.1:3128",
+    "HTTP_PROXY": "http://127.0.0.1:3128",
+    "HTTPS_PROXY": "http://127.0.0.1:3128",
+    "no_proxy": "localhost,127.0.0.1",
+    "NO_PROXY": "localhost,127.0.0.1"
+  },
+  "capAdd": ["NET_ADMIN", "NET_RAW"],
+  "postStartCommand": "${containerWorkspaceFolder}/.devcontainer/postStart.sh",
+  "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/postCreate.sh",
+  "forwardPorts": [5173],
+  "customizations": {
+    "vscode": {
+      "extensions": ["EditorConfig.EditorConfig", "biomejs.biome"]
+    }
+  }
+}
