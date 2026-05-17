@@ -14,6 +14,14 @@ cd ~
 # inside the container can fill it in later.
 cp /tmp/host-gitconfig ~/.gitconfig
 
+# Drop any host-only signer program (e.g. 1Password's op-ssh-sign on macOS)
+# — its binary does not exist inside the container.
+git config --global --unset gpg.ssh.program 2>/dev/null || true
+
+# Bind-mounted workspace is owned by the host user (UID/GID differ from
+# the container's `ubuntu`), so git refuses operations without this.
+git config --global --add safe.directory "${WORKSPACE_FOLDER}"
+
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
 ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
