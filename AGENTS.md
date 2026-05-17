@@ -72,7 +72,7 @@ Strict-mode TS is on (see `tsconfig.app.json`). A few choices worth knowing:
 A typical change cycle in this repo:
 
 1. Make the change. Prefer the dedicated tools (Read / Edit / Write) over shell text-manipulation.
-2. Run `npm run lint && npm run type-check && npm test` locally — these are also enforced by the husky pre-commit hook on staged files.
+2. Run `npm run lint && npm run type-check && npm test` locally before committing. The husky pre-commit hook runs `lint-staged` (Biome on staged files) + `npm run type-check`; `npm test` is **not** in the hook (kept off so the hook stays fast) but is part of the workflow above — don't skip it.
 3. For non-trivial changes (new subsystem, engine refactor, new game port) consider asking Codex for a code review before committing:
    - `/codex:rescue` for investigation or focused review
    - `/codex:review` for a code review of the working tree

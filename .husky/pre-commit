@@ -1,1 +1,6 @@
+# Format / lint staged files (fast, scoped).
 npx lint-staged
+
+# Full-project type-check (`tsc -b` walks the project references so root
+# tsconfig's empty `files: []` doesn't silently skip everything).
+npm run type-check
