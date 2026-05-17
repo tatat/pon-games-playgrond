@@ -11,10 +11,14 @@ import type { Scene } from './scene'
 export class SceneManager {
   private current?: Scene
   private currentSceneCtrl?: AbortController
+  private currentReady = false
   private transition: Promise<void> = Promise.resolve()
   private destroyed = false
   private readonly tickHandler = (ticker: Ticker): void => {
-    this.current?.onUpdate(ticker)
+    // Only tick a scene whose onEnter has fully resolved. Without this gate
+    // the ticker can fire onUpdate during onEnter's async preload, before the
+    // scene has bound input / created entities.
+    if (this.currentReady) this.current?.onUpdate(ticker)
   }
 
   constructor(
@@ -37,6 +41,7 @@ export class SceneManager {
       }
       // Exit the previous scene first (cleanup runs to completion, no signal).
       if (this.current) {
+        this.currentReady = false
         this.currentSceneCtrl?.abort()
         await this.current.onExit()
         this.layout.gameContainer.removeChild(this.current)
@@ -47,10 +52,18 @@ export class SceneManager {
         next.destroy({ children: true })
         return
       }
+      // Set current early so onExit during a subsequent destroy can find it,
+      // but keep `currentReady = false` until onEnter resolves so the ticker
+      // does not invoke onUpdate on an uninitialized scene.
       this.current = next
       this.currentSceneCtrl = new AbortController()
       this.layout.gameContainer.addChild(next)
       await next.onEnter(this.currentSceneCtrl.signal)
+      // Only mark ready if this scene is still the current one (i.e. destroy
+      // didn't unmount it during the await).
+      if (this.current === next && !this.destroyed) {
+        this.currentReady = true
+      }
     }
     // Serialize: each call waits for the previous to finish before running.
     this.transition = this.transition.catch(() => {}).then(run)
@@ -60,6 +73,7 @@ export class SceneManager {
   destroy(): void {
     if (this.destroyed) return
     this.destroyed = true
+    this.currentReady = false
     this.ticker.remove(this.tickHandler)
     this.currentSceneCtrl?.abort()
     // Queue teardown onto the serialized transition chain so it never races
