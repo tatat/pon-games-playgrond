@@ -22,6 +22,7 @@ import {
 } from './constants'
 import { HUD } from './hud'
 import { Paddle } from './paddle'
+import { SoundManager } from './sound-manager'
 import { Starfield } from './starfield'
 import { BreakoutState } from './state'
 import { createWalls } from './walls'
@@ -56,6 +57,7 @@ export class MainScene extends Scene {
   private hud!: HUD
   private bricks!: BrickGenerator
   private starfield!: Starfield
+  private sounds!: SoundManager
   private phase: Phase = 'waiting'
   private resetCountdownMs = 0
   private brickSpawnAccumulatorMs = 0
@@ -82,14 +84,19 @@ export class MainScene extends Scene {
     this.addChild(this.starfield)
 
     await this.preload(
-      BRICK_NAMES.flatMap((name) =>
-        BRICK_SIZES.map((size) => ({
-          alias: `brick-${name}-${size}`,
-          src: `games/breakout-clone/stickers/${name}-${size}@2x.png`,
-        })),
-      ),
+      [
+        ...BRICK_NAMES.flatMap((name) =>
+          BRICK_SIZES.map((size) => ({
+            alias: `brick-${name}-${size}`,
+            src: `games/breakout-clone/stickers/${name}-${size}@2x.png`,
+          })),
+        ),
+        ...SoundManager.assetEntries(),
+      ],
       signal,
     )
+
+    this.sounds = new SoundManager(this.rng)
 
     // Zero-gravity world: breakout has no falling-ball gravity.
     this.world = new RAPIER.World({ x: 0, y: 0 })
@@ -222,9 +229,14 @@ export class MainScene extends Scene {
 
       if (other === this.paddleColliderHandle) {
         this.shapePaddleBounce()
+        this.sounds.playRandomHit()
       } else {
         const brick = this.brickByCollider.get(other)
         if (brick) this.onBrickHit(brick)
+        else {
+          // Wall hit — also chime, like the Phaser original.
+          this.sounds.playRandomHit()
+        }
       }
     })
   }
@@ -240,6 +252,7 @@ export class MainScene extends Scene {
   private onBrickHit(brick: Brick): void {
     this.state.addScore(brick.scoreValue)
     this.bricks.destroyBrick(brick)
+    this.sounds.playRandomHit()
     this.reportScore()
     if (this.bricks.count === 0) this.allBricksCleared()
   }
