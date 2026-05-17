@@ -57,6 +57,36 @@ After every install (or first checkout) run `npm run prepare` to install the hus
 - **No `Math.random()`** in simulation code — use the seeded `Rng` from `engine/rng`. See `docs/architecture/rng.md`.
 - **No raw `MouseEvent` / `TouchEvent`** in game code — everything goes through Pixi's `pointerdown` / `pointerup` etc. See `docs/architecture/input.md`.
 
+## TypeScript notes
+
+Strict-mode TS is on (see `tsconfig.app.json`). A few choices worth knowing:
+
+- **`noUncheckedIndexedAccess: true`** — any `record[key]` / `array[i]` is typed `T | undefined`. Handle the `undefined` case (`?? default`, narrowing, or `at()` for arrays). This is the main "safety net" for dynamic-key access.
+- **`noPropertyAccessFromIndexSignature: false`** — dot notation against an index-signature type is allowed. You don't need to use bracket notation for known keys; the `| undefined` from the previous rule still applies.
+- **`noUnusedLocals` / `noUnusedParameters: true`** — unused imports / variables / params fail the build. Prefix intentionally unused parameters with `_` (e.g. `_signal`) to opt out.
+- **`verbatimModuleSyntax: true`** — type-only imports must use `import type` syntax. Biome's organize-imports keeps these tidy automatically.
+- **No path aliases** (`@/...`). Use relative imports.
+
+## Recommended workflow
+
+A typical change cycle in this repo:
+
+1. Make the change. Prefer the dedicated tools (Read / Edit / Write) over shell text-manipulation.
+2. Run `npm run lint && npm run type-check && npm test` locally — these are also enforced by the husky pre-commit hook on staged files.
+3. For non-trivial changes (new subsystem, engine refactor, new game port) consider asking Codex for a code review before committing:
+   - `/codex:rescue` for investigation or focused review
+   - `/codex:review` for a code review of the working tree
+   - Findings are advisory — pick the ones worth applying.
+4. Commit using **Conventional Commits**-style subjects (used throughout this repo's history):
+   - `feat(engine): ...` — new functionality
+   - `fix(scene): ...` — bug fix
+   - `docs: ...` — documentation only
+   - `chore: ...` — toolchain, infra, hooks, deps
+   - `refactor: ...` — no behaviour change
+   - `test: ...` — test-only changes
+   - Keep the subject under ~70 chars; put detail in the body.
+   - Include the `Co-Authored-By` trailer for AI agents per the agent's defaults.
+
 ## Scope reminders
 
 The following are explicitly **out of scope** for this playground (see `web-arcade-architecture.md § Scope`); do not propose adding them unless asked:
@@ -98,3 +128,32 @@ Use cases:
 - Inspecting library internals (read package source into `tmp/` if needed).
 
 No cleanup obligation — `tmp/` is gitignored, so leftover files do not affect the repo. Tidy when it helps; otherwise leave them.
+
+## Troubleshooting
+
+### `npm install` fails with `ETARGET ... date before <today minus 3 days>`
+
+`.npmrc` has `min-release-age=3`, so npm refuses to install package versions younger than 3 days (a supply-chain hygiene measure). When a fresh release of a dep falls inside the window, the install errors with:
+
+```
+npm error notarget No matching version found for <pkg>@^X.Y.Z with a date before <DATE>.
+```
+
+Fix: drop the affected entry in `package.json` by one patch (or one minor) and retry. **Do not** lower `min-release-age` to bypass this.
+
+### Vitest reports `localStorage` undefined despite `// @vitest-environment happy-dom`
+
+Node 26 + happy-dom 20 + Vitest 4 have a broken integration where Node's experimental `localStorage` global shadows happy-dom's. This project sidesteps it with a manual shim in `src/test/setup.ts`, wired up via `test.setupFiles`. Use `globalThis.localStorage` (the default name) — it works under the node environment.
+
+### `useXxxStore.persist` is `undefined`
+
+Zustand v5's `persist` middleware silently drops its namespace if the storage factory throws on the first call. The repo standard is to always pass explicit storage:
+
+```typescript
+persist(initializer, {
+  name: '...',
+  storage: createJSONStorage(() => globalThis.localStorage),
+})
+```
+
+Don't omit `storage`; the default `() => window.localStorage` breaks under Vitest and SSR-style environments.
