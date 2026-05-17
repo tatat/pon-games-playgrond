@@ -33,6 +33,15 @@ export function unloadGameAssets(gameId: string): Promise<void>;
 - `unloadGameAssets` is **async**: Pixi v8's `Assets.unload` returns a promise. The function clears its tracking before awaiting the bulk unload so a subsequent reload races correctly. `GameModule.destroy` typically fires it without awaiting (`void unloadGameAssets(GAME_ID)`); callers that need to know it finished can `await` instead.
 - Asset files live under `public/games/<gameId>/`.
 
+## `@2x` resolution auto-detection
+
+Pixi v8's `Assets` parses filenames for a `@<n>x` suffix and sets `texture.source.resolution = n` automatically. As a result:
+
+- `texture.width` / `texture.height` return the **logical** size (physical pixels ÷ resolution), not the file's pixel dimensions.
+- `sprite.scale.set(1)` against an `@2x` asset renders at half the file's pixel size — which is usually what you want for crisp HiDPI display.
+
+This matters when porting from Phaser (which does not auto-detect `@2x`): a Phaser source that does `setScale(0.5)` against `foo@2x.png` becomes `setScale(1.0)` in Pixi, and any formula that assumed "image is 2× target size" loses its ×2 factor. Sanity-check by spawning two known-size sprites side-by-side and comparing to the original build.
+
 ## Dynamic asset names
 
 `preload` is called from `onEnter`, so the entry list can be built with normal JS expressions — useful for level-indexed levels, character skins, procedurally chosen variants:
