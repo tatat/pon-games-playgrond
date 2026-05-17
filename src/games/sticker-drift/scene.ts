@@ -90,7 +90,7 @@ export class MainScene extends Scene {
     this.addChild(this.hud)
     this.hud.showStart()
 
-    this.bindInput({ float: ['Space'] }, signal)
+    this.bindInput({ float: ['Space'] })
 
     // Full-viewport hit area for tap/click. Doubles as the "any new press"
     // detector for Start and Restart.
@@ -105,27 +105,23 @@ export class MainScene extends Scene {
     tap.on('pointerup', onUp)
     tap.on('pointerupoutside', onUp)
     tap.on('pointercancel', onUp)
-    signal.addEventListener(
-      'abort',
-      () => {
-        tap.off('pointerdown', onDown)
-        tap.off('pointerup', onUp)
-        tap.off('pointerupoutside', onUp)
-        tap.off('pointercancel', onUp)
-      },
-      { once: true },
-    )
+    this.use(() => {
+      tap.off('pointerdown', onDown)
+      tap.off('pointerup', onUp)
+      tap.off('pointerupoutside', onUp)
+      tap.off('pointercancel', onUp)
+    })
 
     // Touch buttons. Two attach points:
     //  - `uiMargin` → uiLayer, visible when a letterbox margin has room.
     //  - `gameOverlay` → inside the game viewport, holds the small fallback
     //    pause button shown when the margin pad isn't visible.
-    const floatPad = makeFloatPad(this.input, this.layout, signal)
+    const floatPad = this.use(makeFloatPad(this.input, this.layout))
     floatPad.gameOverlay.zIndex = 50
     this.addChild(floatPad.gameOverlay)
     this.layout.uiLayer.addChild(floatPad.uiMargin)
-    signal.addEventListener('abort', () => this.layout.uiLayer.removeChild(floatPad.uiMargin), {
-      once: true,
+    this.use(() => {
+      this.layout.uiLayer.removeChild(floatPad.uiMargin)
     })
 
     if (this.options.startImmediately) this.startPlaying()

@@ -12,18 +12,15 @@ import { MainScene, type MainSceneOptions } from './scene'
  * Zustand store. The displayed high score lives in `useUserStore`. */
 export const stickerDriftGame: GameModule = {
   uiTheme: {
-    // Match the in-game HUD's Phaser-era monospace look across all engine UI
-    // (settings modal, dev FPS counter).
     fontSans: 'Courier, "Courier New", monospace',
     fontMono: 'Courier, "Courier New", monospace',
   },
 
   async start(app: Application, ctx: GameContext, signal: AbortSignal): Promise<GameHandle> {
     const rng = new Rng(ctx.config.seed)
-    const layout = attachLayout(app, signal)
-    attachAutoPause(app, signal)
-
-    const sm = new SceneManager(layout, app.ticker, signal, GAME_ID, rng)
+    const layout = attachLayout(app)
+    const autoPause = attachAutoPause(app)
+    const sm = new SceneManager(layout, app.ticker, GAME_ID, rng)
 
     const sceneOptions: MainSceneOptions = {
       onScoreChange: (s) => ctx.onScoreChange(s),
@@ -42,9 +39,14 @@ export const stickerDriftGame: GameModule = {
     signal.throwIfAborted()
 
     return {
-      destroy: () => {
-        sm.destroy()
-        void unloadGameAssets(GAME_ID)
+      destroy: async () => {
+        // Tear down in reverse-construction order. SceneManager goes first
+        // so the active scene's onExit / runTeardown completes before the
+        // layout (which owns its gameContainer) gets disposed.
+        await sm.dispose()
+        autoPause.dispose()
+        layout.dispose()
+        await unloadGameAssets(GAME_ID)
       },
     }
   },

@@ -1,4 +1,5 @@
 import type { Container, FederatedPointerEvent } from 'pixi.js'
+import type { Disposable } from '../util/disposable'
 
 export interface SwipeOptions {
   onUp?: () => void
@@ -11,8 +12,8 @@ export interface SwipeOptions {
 
 /** Attaches a swipe gesture detector to a Pixi `Container`. The container must
  * already have `eventMode` and a `hitArea` set so it actually receives pointer
- * events. Listeners are released when `signal` aborts. */
-export function attachSwipe(target: Container, options: SwipeOptions, signal: AbortSignal): void {
+ * events. Caller invokes the returned `dispose` to release listeners. */
+export function attachSwipe(target: Container, options: SwipeOptions): Disposable {
   let downX = 0
   let downY = 0
   const threshold = options.threshold ?? 30
@@ -34,12 +35,11 @@ export function attachSwipe(target: Container, options: SwipeOptions, signal: Ab
 
   target.on('pointerdown', onDown)
   target.on('pointerup', onUp)
-  signal.addEventListener(
-    'abort',
-    () => {
+
+  return {
+    dispose: () => {
       target.off('pointerdown', onDown)
       target.off('pointerup', onUp)
     },
-    { once: true },
-  )
+  }
 }

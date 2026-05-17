@@ -1,20 +1,22 @@
-import { CheckBox, FancyButton, Slider } from '@pixi/ui'
+import { CheckBox, Slider } from '@pixi/ui'
 import { Container, Graphics, Rectangle, Text } from 'pixi.js'
 import { useRuntimeStore } from '../store/runtime'
 import { useSettingsStore } from '../store/settings'
 import { DESIGN_H, DESIGN_W } from './constants'
+import { makeSegmentedControl, type SegmentedControl } from './ui/segmented-control'
 import type { UiTheme } from './ui-theme'
+import type { Disposable } from './util/disposable'
 
-export interface SettingsUiHandle {
+export interface SettingsUi extends Disposable {
   /** Open the settings modal. Used by the pause menu's "Settings" button. */
   openSettings(): void
 }
 
 /** Attaches the settings modal (no on-screen trigger of its own) and returns
- * a handle. Callers wire `openSettings` into wherever the user can request
+ * a handle. Caller wires `openSettings` into wherever the user can request
  * it (typically the pause menu). The modal lives in logical 1280×720
  * coords, captured from the active `uiTheme` at build time. */
-export function attachSettingsUi(gameContainer: Container, signal: AbortSignal): SettingsUiHandle {
+export function attachSettingsUi(gameContainer: Container): SettingsUi {
   const theme = useRuntimeStore.getState().uiTheme
   const root = new Container()
   // Above the pause menu overlay (z=9500) so the panel stays interactive
@@ -42,27 +44,19 @@ export function attachSettingsUi(gameContainer: Container, signal: AbortSignal):
   }
   window.addEventListener('keydown', onKey)
 
-  signal.addEventListener(
-    'abort',
-    () => {
+  return {
+    openSettings: () => modal.open(),
+    dispose: () => {
       window.removeEventListener('keydown', onKey)
       modal.dispose()
       gameContainer.removeChild(root)
       root.destroy({ children: true })
     },
-    { once: true },
-  )
-
-  return {
-    openSettings: () => modal.open(),
   }
 }
 
 // ── Tokens ─────────────────────────────────────────────────────────────────
 
-// Monochrome flat palette. Black → white only; no accent hue. Picks the
-// contrast band intentionally so an inactive button reads as "off" but is
-// still visible against the panel background.
 const PANEL_BG = 0x1a1a1c
 const ROW_LABEL = 0xe0e0e0
 const SUBDUED = 0xa0a0a0
@@ -83,14 +77,11 @@ const SLIDER_KNOB_R = 8
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 
-class SettingsModal extends Container {
+class SettingsModal extends Container implements Disposable {
   private readonly overlay: Graphics
   private readonly panel: Container
   private readonly theme: UiTheme
-  private readonly unsubs: Array<() => void> = []
-  /** Remembers whether the game was already paused (e.g. via ESC) when the
-   * modal opened, so closing the modal restores the prior state instead of
-   * always force-resuming. */
+  private readonly disposables: Array<() => void> = []
   private pauseSnapshot = false
 
   constructor(theme: UiTheme) {
@@ -100,8 +91,6 @@ class SettingsModal extends Container {
     this.zIndex = 9999
     this.eventMode = 'static'
 
-    // Full-viewport dim. Clicking the dim closes the modal; the panel below
-    // stops propagation so clicks inside don't.
     this.overlay = new Graphics()
       .rect(0, 0, DESIGN_W, DESIGN_H)
       .fill({ color: 0x000000, alpha: 0.6 })
@@ -136,8 +125,8 @@ class SettingsModal extends Container {
   }
 
   dispose(): void {
-    for (const u of this.unsubs) u()
-    this.unsubs.length = 0
+    for (let i = this.disposables.length - 1; i >= 0; i--) this.disposables[i]?.()
+    this.disposables.length = 0
   }
 
   private buildRows(): void {
@@ -170,10 +159,10 @@ class SettingsModal extends Container {
     y += SECTION_GAP
     addSection('Display')
     addRow('Show FPS Counter', this.makeShowFpsCheckbox())
-    addRow('FPS Limit', this.makeMaxFpsGroup())
+    addRow('FPS Limit', this.makeMaxFpsGroup().view)
     y += SECTION_GAP
     addSection('Controls')
-    addRow('Virtual Pad', this.makeVirtualPadGroup())
+    addRow('Virtual Pad', this.makeVirtualPadGroup().view)
   }
 
   private makeVolumeSlider(key: 'masterVolume' | 'bgmVolume' | 'sfxVolume'): Container {
@@ -207,7 +196,7 @@ class SettingsModal extends Container {
     slider.onChange.connect(set)
 
     // Reflect external state changes (e.g. console writes) back into the UI.
-    this.unsubs.push(
+    this.disposables.push(
       useSettingsStore.subscribe((s) => {
         const next = s[key] * 100
         if (Math.abs(slider.value - next) >= 0.5) slider.value = next
@@ -223,7 +212,7 @@ class SettingsModal extends Container {
       checked: useSettingsStore.getState().showFps,
     })
     cb.onCheck.connect((state) => useSettingsStore.getState().setShowFps(state))
-    this.unsubs.push(
+    this.disposables.push(
       useSettingsStore.subscribe((s) => {
         if (cb.checked !== s.showFps) cb.forceCheck(s.showFps)
       }),
@@ -231,79 +220,37 @@ class SettingsModal extends Container {
     return cb
   }
 
-  private makeMaxFpsGroup(): Container {
-    const group = new Container()
-    const choices: Array<{ label: string; value: number }> = [
-      { label: '∞', value: 0 },
-      { label: '30', value: 30 },
-      { label: '60', value: 60 },
-      { label: '120', value: 120 },
-    ]
-    const buttons: FancyButton[] = []
-    let x = 0
-    for (const choice of choices) {
-      const btn = new FancyButton({
-        defaultView: makeChoiceView(choice.label, false, false, this.theme),
-        hoverView: makeChoiceView(choice.label, false, true, this.theme),
-        pressedView: makeChoiceView(choice.label, true, false, this.theme),
-      })
-      btn.onPress.connect(() => useSettingsStore.getState().setMaxFps(choice.value))
-      btn.position.set(x, 0)
-      buttons.push(btn)
-      group.addChild(btn)
-      x += 60
-    }
-
-    // Rebuild each button's defaultView so the currently-active choice reads
-    // as "filled". FancyButton has no built-in toggle state, so we swap views
-    // on state change rather than relying on alpha.
-    const refresh = (current: number): void => {
-      buttons.forEach((b, i) => {
-        const c = choices[i]
-        if (!c) return
-        const active = c.value === current
-        b.defaultView = makeChoiceView(c.label, active, false, this.theme)
-        b.hoverView = makeChoiceView(c.label, active, true, this.theme)
-      })
-    }
-    refresh(useSettingsStore.getState().maxFps)
-    this.unsubs.push(useSettingsStore.subscribe((s) => refresh(s.maxFps)))
-    return group
+  private makeMaxFpsGroup(): SegmentedControl {
+    const sc = makeSegmentedControl<number>({
+      choices: [
+        { label: '∞', value: 0 },
+        { label: '30', value: 30 },
+        { label: '60', value: 60 },
+        { label: '120', value: 120 },
+      ],
+      getValue: () => useSettingsStore.getState().maxFps,
+      onChange: (v) => useSettingsStore.getState().setMaxFps(v),
+      subscribe: (cb) => useSettingsStore.subscribe(cb),
+      theme: this.theme,
+    })
+    this.disposables.push(() => sc.dispose())
+    return sc
   }
 
-  private makeVirtualPadGroup(): Container {
-    const group = new Container()
-    const choices: Array<{ label: string; value: 'auto' | 'on' | 'off' }> = [
-      { label: 'Auto', value: 'auto' },
-      { label: 'On', value: 'on' },
-      { label: 'Off', value: 'off' },
-    ]
-    const buttons: FancyButton[] = []
-    let x = 0
-    for (const choice of choices) {
-      const btn = new FancyButton({
-        defaultView: makeChoiceView(choice.label, false, false, this.theme),
-        hoverView: makeChoiceView(choice.label, false, true, this.theme),
-        pressedView: makeChoiceView(choice.label, true, false, this.theme),
-      })
-      btn.onPress.connect(() => useSettingsStore.getState().setVirtualPad(choice.value))
-      btn.position.set(x, 0)
-      buttons.push(btn)
-      group.addChild(btn)
-      x += 60
-    }
-    const refresh = (current: 'auto' | 'on' | 'off'): void => {
-      buttons.forEach((b, i) => {
-        const c = choices[i]
-        if (!c) return
-        const active = c.value === current
-        b.defaultView = makeChoiceView(c.label, active, false, this.theme)
-        b.hoverView = makeChoiceView(c.label, active, true, this.theme)
-      })
-    }
-    refresh(useSettingsStore.getState().virtualPad)
-    this.unsubs.push(useSettingsStore.subscribe((s) => refresh(s.virtualPad)))
-    return group
+  private makeVirtualPadGroup(): SegmentedControl {
+    const sc = makeSegmentedControl<'auto' | 'on' | 'off'>({
+      choices: [
+        { label: 'Auto', value: 'auto' },
+        { label: 'On', value: 'on' },
+        { label: 'Off', value: 'off' },
+      ],
+      getValue: () => useSettingsStore.getState().virtualPad,
+      onChange: (v) => useSettingsStore.getState().setVirtualPad(v),
+      subscribe: (cb) => useSettingsStore.subscribe(cb),
+      theme: this.theme,
+    })
+    this.disposables.push(() => sc.dispose())
+    return sc
   }
 }
 
@@ -364,26 +311,6 @@ function makeCheckedBox(): Container {
 function makeUncheckedBox(): Container {
   const c = new Container()
   c.addChild(new Graphics().roundRect(0, 0, CHECKBOX_SIZE, CHECKBOX_SIZE, 3).fill(INACTIVE))
-  return c
-}
-
-function makeChoiceView(
-  label: string,
-  active: boolean,
-  hovered: boolean,
-  theme: UiTheme,
-): Container {
-  const c = new Container()
-  const fill = active ? WHITE : hovered ? 0x4a4a4e : INACTIVE
-  const textFill = active ? PANEL_BG : WHITE
-  c.addChild(new Graphics().roundRect(0, 0, 52, 26, 3).fill(fill))
-  const t = new Text({
-    text: label,
-    style: { fill: textFill, fontSize: 12, fontFamily: theme.fontSans },
-  })
-  t.anchor.set(0.5)
-  t.position.set(26, 13)
-  c.addChild(t)
   return c
 }
 

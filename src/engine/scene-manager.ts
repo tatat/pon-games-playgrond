@@ -4,13 +4,15 @@ import { MAX_DT_SEC } from './constants'
 import type { GameLayout } from './layout'
 import type { Rng } from './rng'
 import type { Scene } from './scene'
+import type { Disposable } from './util/disposable'
 
 /** Orchestrates scene lifecycle for one game:
  *  - serializes `changeTo` calls via a chained transition promise
- *  - per-scene `AbortSignal` derived from the manager's signal
- *  - calls `onExit()` to completion before destroying a scene
- *  - self-destructs when the manager's signal aborts */
-export class SceneManager {
+ *  - per-scene `AbortSignal` derived internally (for async-op cancel only)
+ *  - calls `onExit()` + `runTeardown()` to completion before destroying a scene
+ *  - `dispose()` finalises the manager: aborts the in-flight scene, exits it,
+ *    runs its teardown, then removes the ticker handler. */
+export class SceneManager implements Disposable {
   private current?: Scene
   private currentSceneCtrl?: AbortController
   private currentReady = false
@@ -19,18 +21,8 @@ export class SceneManager {
   private transition: Promise<void> = Promise.resolve()
   private destroyed = false
   private readonly tickHandler = (ticker: Ticker): void => {
-    // Skip onUpdate while the runtime store says the game is paused — used
-    // by the settings modal so opening it freezes gameplay without stopping
-    // the render loop (settings UI itself still needs to tick).
     if (this.paused) return
-    // Only tick a scene whose onEnter has fully resolved. Without this gate
-    // the ticker can fire onUpdate during onEnter's async preload, before the
-    // scene has bound input / created entities.
     if (!this.currentReady || !this.current) return
-    // Cap the frame delta engine-wide so every subsystem in a scene sees the
-    // same upper-bounded dt (physics, sprite movement, score, spawn timers).
-    // Without this the per-subsystem cap convention drifts and a low-fps
-    // device gets mixed real-time / simulated-time updates.
     const dtMs = Math.min(ticker.deltaMS, MAX_DT_SEC * 1000)
     this.current.onUpdate({ dtMs, dtSec: dtMs / 1000 })
   }
@@ -38,7 +30,6 @@ export class SceneManager {
   constructor(
     private readonly layout: GameLayout,
     private readonly ticker: Ticker,
-    signal: AbortSignal,
     private readonly gameId: string,
     private readonly rng: Rng,
   ) {
@@ -46,65 +37,60 @@ export class SceneManager {
     this.unsubPaused = useRuntimeStore.subscribe((s) => {
       this.paused = s.gamePaused
     })
-    signal.addEventListener('abort', () => this.destroy(), { once: true })
   }
 
   changeTo(next: Scene): Promise<void> {
-    next.attach(this.gameId, this.rng, this.layout)
     const run = async (): Promise<void> => {
       if (this.destroyed) {
         next.destroy({ children: true })
         return
       }
-      // Exit the previous scene first (cleanup runs to completion, no signal).
       if (this.current) {
-        this.currentReady = false
-        this.currentSceneCtrl?.abort()
-        await this.current.onExit()
-        this.layout.gameContainer.removeChild(this.current)
-        this.current.destroy({ children: true })
-        this.current = undefined
+        await this.tearDownCurrent()
       }
       if (this.destroyed) {
         next.destroy({ children: true })
         return
       }
-      // Set current early so onExit during a subsequent destroy can find it,
-      // but keep `currentReady = false` until onEnter resolves so the ticker
-      // does not invoke onUpdate on an uninitialized scene.
       this.current = next
       this.currentSceneCtrl = new AbortController()
+      next.attach(this.gameId, this.rng, this.layout, this.currentSceneCtrl.signal)
       this.layout.gameContainer.addChild(next)
       await next.onEnter(this.currentSceneCtrl.signal)
-      // Only mark ready if this scene is still the current one (i.e. destroy
-      // didn't unmount it during the await).
       if (this.current === next && !this.destroyed) {
         this.currentReady = true
       }
     }
-    // Serialize: each call waits for the previous to finish before running.
     this.transition = this.transition.catch(() => {}).then(run)
     return this.transition
   }
 
-  destroy(): void {
-    if (this.destroyed) return
+  async dispose(): Promise<void> {
+    if (this.destroyed) {
+      await this.transition.catch(() => {})
+      return
+    }
     this.destroyed = true
     this.currentReady = false
     this.unsubPaused()
     this.ticker.remove(this.tickHandler)
-    this.currentSceneCtrl?.abort()
     // Queue teardown onto the serialized transition chain so it never races
     // with an in-flight changeTo's onExit on the same scene.
-    this.transition = this.transition
-      .catch(() => {})
-      .then(async () => {
-        if (this.current) {
-          await this.current.onExit()
-          this.layout.gameContainer.removeChild(this.current)
-          this.current.destroy({ children: true })
-          this.current = undefined
-        }
-      })
+    this.transition = this.transition.catch(() => {}).then(() => this.tearDownCurrent())
+    await this.transition
+  }
+
+  /** Tear down the active scene: cancel its async ops, exit it, and run
+   * its registered cleanups, then detach + destroy the Pixi container. */
+  private async tearDownCurrent(): Promise<void> {
+    const scene = this.current
+    if (!scene) return
+    this.currentReady = false
+    this.currentSceneCtrl?.abort()
+    await scene.onExit()
+    await scene.runTeardown()
+    this.layout.gameContainer.removeChild(scene)
+    scene.destroy({ children: true })
+    this.current = undefined
   }
 }

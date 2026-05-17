@@ -3,6 +3,7 @@ import { Container, Graphics, Rectangle, Text } from 'pixi.js'
 import { useRuntimeStore } from '../store/runtime'
 import { DESIGN_H, DESIGN_W } from './constants'
 import type { UiTheme } from './ui-theme'
+import type { Disposable } from './util/disposable'
 
 export interface PauseMenuOptions {
   /** Called when the user picks "Settings" in the menu. */
@@ -13,11 +14,7 @@ export interface PauseMenuOptions {
  * the small set of meta-actions a player needs mid-run. Today: Resume +
  * Settings. ESC toggles the menu open / closed; the same is wired up
  * elsewhere (vkeypad menu button) by setting `gamePaused` directly. */
-export function attachPauseMenu(
-  gameContainer: Container,
-  opts: PauseMenuOptions,
-  signal: AbortSignal,
-): void {
+export function attachPauseMenu(gameContainer: Container, opts: PauseMenuOptions): Disposable {
   const theme = useRuntimeStore.getState().uiTheme
 
   const overlay = new Container()
@@ -88,16 +85,14 @@ export function attachPauseMenu(
   }
   window.addEventListener('keydown', onKey)
 
-  signal.addEventListener(
-    'abort',
-    () => {
+  return {
+    dispose: () => {
       window.removeEventListener('keydown', onKey)
       unsubscribe()
       gameContainer.removeChild(overlay)
       overlay.destroy({ children: true })
     },
-    { once: true },
-  )
+  }
 }
 
 // ── Menu link (text-only, hover-highlight) ────────────────────────────────

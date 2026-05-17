@@ -3,6 +3,7 @@ import { DESIGN_H, DESIGN_W } from './constants'
 import { attachFpsCounter } from './dev-overlay'
 import { attachPauseMenu } from './pause-menu'
 import { attachSettingsUi } from './settings-ui'
+import type { Disposable } from './util/disposable'
 
 export interface LayoutMetrics {
   viewportW: number
@@ -16,7 +17,7 @@ export interface LayoutMetrics {
   area: 'sides' | 'bottom' | 'overlay'
 }
 
-export interface GameLayout {
+export interface GameLayout extends Disposable {
   /** Scenes mount into this container; uses logical 0..DESIGN_W × 0..DESIGN_H coords. */
   gameContainer: Container
   /** Viewport-coordinate container for on-screen UI in the letterbox area. */
@@ -26,11 +27,11 @@ export interface GameLayout {
 }
 
 /** Letterboxes the logical 1280×720 game viewport inside the full-viewport
- * canvas. The leftover area is available to `uiLayer` for on-screen controls. */
-export function attachLayout(app: Application, signal: AbortSignal): GameLayout {
+ * canvas. Internally attaches the settings UI, pause menu, and dev FPS
+ * overlay — these share the same lifetime as the layout. Caller invokes
+ * the returned `dispose` (typically chained from a `GameHandle.destroy`). */
+export function attachLayout(app: Application): GameLayout {
   const gameContainer = new Container()
-  // Honour zIndex so dev overlays (and any HUD that wants it) can sit above
-  // scene content regardless of addChild order.
   gameContainer.sortableChildren = true
   // Clip anything drawn outside the logical 1280×720 viewport so off-screen
   // obstacles / parallax stars don't leak into the letterbox margins.
@@ -41,9 +42,11 @@ export function attachLayout(app: Application, signal: AbortSignal): GameLayout 
   app.stage.addChild(gameContainer)
   app.stage.addChild(uiLayer)
 
-  if (import.meta.env.DEV) attachFpsCounter(gameContainer, app.ticker, signal)
-  const settings = attachSettingsUi(gameContainer, signal)
-  attachPauseMenu(gameContainer, { openSettings: settings.openSettings }, signal)
+  const inner: Disposable[] = []
+  if (import.meta.env.DEV) inner.push(attachFpsCounter(gameContainer, app.ticker))
+  const settings = attachSettingsUi(gameContainer)
+  inner.push(settings)
+  inner.push(attachPauseMenu(gameContainer, { openSettings: settings.openSettings }))
 
   const subscribers = new Set<(m: LayoutMetrics) => void>()
   let metrics!: LayoutMetrics
@@ -69,14 +72,6 @@ export function attachLayout(app: Application, signal: AbortSignal): GameLayout 
 
   recompute()
   window.addEventListener('resize', recompute)
-  signal.addEventListener(
-    'abort',
-    () => {
-      window.removeEventListener('resize', recompute)
-      subscribers.clear()
-    },
-    { once: true },
-  )
 
   return {
     gameContainer,
@@ -85,6 +80,16 @@ export function attachLayout(app: Application, signal: AbortSignal): GameLayout 
     onChange: (cb) => {
       subscribers.add(cb)
       return () => subscribers.delete(cb)
+    },
+    dispose: () => {
+      window.removeEventListener('resize', recompute)
+      subscribers.clear()
+      // Dispose inner attachments in reverse-attach order.
+      for (let i = inner.length - 1; i >= 0; i--) inner[i]?.dispose()
+      app.stage.removeChild(uiLayer)
+      app.stage.removeChild(gameContainer)
+      uiLayer.destroy({ children: true })
+      gameContainer.destroy({ children: true })
     },
   }
 }

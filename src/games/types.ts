@@ -28,6 +28,8 @@ export interface GameResult {
 }
 
 export interface GameHandle {
-  /** Cleanup. Runs to completion; not abortable. */
-  destroy(): void
+  /** Cleanup. Awaited by the caller so async teardown (scene `onExit`,
+   * registered disposables, asset unload) can complete before the Pixi
+   * `Application` itself is torn down. Not abortable. */
+  destroy(): Promise<void> | void
 }

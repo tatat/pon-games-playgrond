@@ -20,6 +20,7 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
     const ctrl = new AbortController()
     let app: Application | null = null
     let handle: GameHandle | null = null
+    let unsubMaxFps: (() => void) | null = null
 
     void (async () => {
       try {
@@ -44,18 +45,16 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
         // Bind the render-loop cap to settings — `maxFps = 0` is Pixi's
         // documented "no cap" value.
         app.ticker.maxFPS = useSettingsStore.getState().maxFps
-        const unsubMaxFps = useSettingsStore.subscribe((s) => {
+        unsubMaxFps = useSettingsStore.subscribe((s) => {
           if (app) app.ticker.maxFPS = s.maxFps
         })
-        ctrl.signal.addEventListener('abort', unsubMaxFps, { once: true })
 
         containerRef.current.appendChild(app.canvas)
         const gameModule = await games[gameId]()
         ctrl.signal.throwIfAborted()
 
         // Publish the game's UI theme before its `start()` runs so any
-        // engine UI built during `start()` (settings modal, dev FPS
-        // counter) picks up the right fonts.
+        // engine UI built during `start()` picks up the right fonts.
         useRuntimeStore.getState().setUiTheme(gameModule.uiTheme ?? defaultUiTheme)
 
         const search = new URLSearchParams(window.location.search)
@@ -70,11 +69,11 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
           },
           ctrl.signal,
         )
-        // Cleanup may have fired during `start()`; if so, the outer `handle`
-        // is still null and tearing down only `app` would leak whatever this
-        // resolved handle owns. Destroy it here instead of publishing.
+        // Cleanup may have fired during `start()`; if so, dispose the just-
+        // resolved handle here instead of publishing — the outer cleanup
+        // path won't know about it.
         if (ctrl.signal.aborted) {
-          started.destroy()
+          await started.destroy()
           return
         }
         handle = started
@@ -84,9 +83,17 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
     })()
 
     return () => {
+      // React doesn't await the cleanup function, so we kick off async
+      // teardown and let it run to completion in the background. The order
+      // is important: handle.destroy() awaits scene onExit + registered
+      // disposables, after which the Pixi Application can safely go away.
       ctrl.abort()
-      handle?.destroy()
-      app?.destroy(true, { children: true })
+      const teardown = (async () => {
+        unsubMaxFps?.()
+        if (handle) await handle.destroy()
+        app?.destroy(true, { children: true })
+      })()
+      void teardown
     }
   }, [gameId, onScoreChange, onGameOver, seed])
 
