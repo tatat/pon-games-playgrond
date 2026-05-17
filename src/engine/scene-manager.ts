@@ -1,5 +1,6 @@
 import type { Ticker } from 'pixi.js'
 import { useRuntimeStore } from '../store/runtime'
+import { MAX_DT_SEC } from './constants'
 import type { GameLayout } from './layout'
 import type { Rng } from './rng'
 import type { Scene } from './scene'
@@ -25,7 +26,13 @@ export class SceneManager {
     // Only tick a scene whose onEnter has fully resolved. Without this gate
     // the ticker can fire onUpdate during onEnter's async preload, before the
     // scene has bound input / created entities.
-    if (this.currentReady) this.current?.onUpdate(ticker)
+    if (!this.currentReady || !this.current) return
+    // Cap the frame delta engine-wide so every subsystem in a scene sees the
+    // same upper-bounded dt (physics, sprite movement, score, spawn timers).
+    // Without this the per-subsystem cap convention drifts and a low-fps
+    // device gets mixed real-time / simulated-time updates.
+    const dtMs = Math.min(ticker.deltaMS, MAX_DT_SEC * 1000)
+    this.current.onUpdate({ dtMs, dtSec: dtMs / 1000 })
   }
 
   constructor(

@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier2d-compat'
-import { Assets, Container, Graphics, Rectangle, type Ticker } from 'pixi.js'
-import { DESIGN_H, DESIGN_W, FIXED_DT, MAX_STEPS_PER_FRAME } from '../../engine/constants'
-import { Scene } from '../../engine/scene'
+import { Assets, Container, Graphics, Rectangle } from 'pixi.js'
+import { DESIGN_H, DESIGN_W } from '../../engine/constants'
+import { Scene, type SceneDelta } from '../../engine/scene'
 import { useUserStore } from '../../store/user'
 import {
   GAME_ID,
@@ -41,7 +41,6 @@ export interface MainSceneOptions {
 export class MainScene extends Scene {
   private phase: Phase = 'waiting'
   private world!: RAPIER.World
-  private accumulator = 0
   private player!: Player
   private starfield!: Starfield
   private hud!: HUD
@@ -75,9 +74,9 @@ export class MainScene extends Scene {
     )
 
     // Rapier world treats pixels as meters. Gravity 500 px/s² ≈ feel of the
-    // original Phaser game without any unit conversion.
+    // original Phaser game without any unit conversion. The world's timestep
+    // is overwritten per frame in onUpdate (variable-step physics).
     this.world = new RAPIER.World({ x: 0, y: GRAVITY })
-    this.world.timestep = FIXED_DT
 
     this.starfield = new Starfield(this.rng)
     this.addChild(this.starfield)
@@ -132,9 +131,8 @@ export class MainScene extends Scene {
     if (this.options.startImmediately) this.startPlaying()
   }
 
-  override onUpdate(ticker: Ticker): void {
-    const dtMs = ticker.deltaMS
-    const dtSec = dtMs / 1000
+  override onUpdate(dt: SceneDelta): void {
+    const { dtMs, dtSec } = dt
     const justPressed = this.input.wasJustPressed('float')
 
     if (this.phase === 'waiting' && justPressed) {
@@ -163,16 +161,11 @@ export class MainScene extends Scene {
         this.timeSinceSpawnMs -= interval
       }
 
-      // Fixed-step physics for the player only.
-      this.accumulator += dtSec
-      let steps = 0
-      while (this.accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
-        this.player.applyInput(FIXED_DT)
-        this.world.step()
-        this.accumulator -= FIXED_DT
-        steps++
-      }
-      if (steps === MAX_STEPS_PER_FRAME) this.accumulator = 0
+      // Variable-step physics for the player. `dtSec` is already capped by
+      // SceneManager (MAX_DT_SEC), so we just hand it straight to Rapier.
+      this.player.applyInput(dtSec)
+      this.world.timestep = dtSec
+      this.world.step()
 
       for (const o of this.obstacles) o.update(dtSec, this.player.y, this.gameSpeed)
       this.cullObstacles()

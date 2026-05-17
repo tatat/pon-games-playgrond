@@ -1,8 +1,19 @@
-import { Container, type Ticker } from 'pixi.js'
+import { Container } from 'pixi.js'
 import { type AssetEntry, loadAssets } from './assets'
 import { type InputBindings, InputManager } from './input/index'
 import type { GameLayout } from './layout'
 import type { Rng } from './rng'
+
+/** Per-frame delta handed to `Scene.onUpdate`. Capped at the engine level
+ * (see `MAX_DT_SEC`) so a single huge frame can't be propagated to
+ * physics / movement code path-by-path — every subsystem in a scene sees
+ * the same capped value. */
+export interface SceneDelta {
+  /** Frame delta in milliseconds (capped). */
+  dtMs: number
+  /** Frame delta in seconds (capped). */
+  dtSec: number
+}
 
 export abstract class Scene extends Container {
   protected input!: InputManager
@@ -22,7 +33,7 @@ export abstract class Scene extends Container {
   }
 
   abstract onEnter(signal: AbortSignal): void | Promise<void>
-  abstract onUpdate(ticker: Ticker): void
+  abstract onUpdate(dt: SceneDelta): void
   onExit(): void | Promise<void> {}
 
   /** @internal — called by `SceneManager.changeTo`. */
