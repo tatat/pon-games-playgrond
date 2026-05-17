@@ -1,5 +1,6 @@
-import { type Application, Container } from 'pixi.js'
+import { type Application, Container, Graphics } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from './constants'
+import { attachFpsCounter } from './dev-overlay'
 
 export interface LayoutMetrics {
   viewportW: number
@@ -26,9 +27,19 @@ export interface GameLayout {
  * canvas. The leftover area is available to `uiLayer` for on-screen controls. */
 export function attachLayout(app: Application, signal: AbortSignal): GameLayout {
   const gameContainer = new Container()
+  // Honour zIndex so dev overlays (and any HUD that wants it) can sit above
+  // scene content regardless of addChild order.
+  gameContainer.sortableChildren = true
+  // Clip anything drawn outside the logical 1280×720 viewport so off-screen
+  // obstacles / parallax stars don't leak into the letterbox margins.
+  const mask = new Graphics().rect(0, 0, DESIGN_W, DESIGN_H).fill(0xffffff)
+  gameContainer.addChild(mask)
+  gameContainer.mask = mask
   const uiLayer = new Container()
   app.stage.addChild(gameContainer)
   app.stage.addChild(uiLayer)
+
+  if (import.meta.env.DEV) attachFpsCounter(gameContainer, app.ticker, signal)
 
   const subscribers = new Set<(m: LayoutMetrics) => void>()
   let metrics!: LayoutMetrics

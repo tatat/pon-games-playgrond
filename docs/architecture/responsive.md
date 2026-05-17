@@ -65,7 +65,8 @@ export interface LayoutMetrics {
 
 - Computes `scale`, position, and `area` on mount and on every `window` resize.
 - Sets `gameContainer.scale` and `gameContainer.position` so the logical 1280×720 sits centered in the viewport.
-- `uiLayer` is added to `app.stage` after `gameContainer` and is **not** transformed — its children use viewport coordinates.
+- **Clips `gameContainer` to the logical 1280×720 rectangle** via a Pixi mask, so scene content that exits the logical viewport (off-screen obstacles, parallax stars wrapping at the edge) does not leak into the letterbox margins. Scenes can draw freely at any coordinate; only what falls inside `[0..DESIGN_W, 0..DESIGN_H]` is visible.
+- `uiLayer` is added to `app.stage` after `gameContainer` and is **not** transformed (and **not** clipped) — its children use viewport coordinates and live outside the logical viewport on purpose.
 - Subscribes via `onChange` notify pad / debug helpers when layout shifts.
 - On signal abort, removes the resize listener and clears all subscribers. Scene-level callers should additionally unsubscribe in their own `onExit` if their subscription is shorter-lived than the layout itself.
 
