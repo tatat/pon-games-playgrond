@@ -25,9 +25,27 @@ export function attachSettingsUi(gameContainer: Container, signal: AbortSignal):
   const modal = new SettingsModal(theme)
   root.addChild(modal)
 
+  // Keyboard shortcuts:
+  //  ,    → open the settings modal directly
+  //  ESC  → close the modal if it's open. `stopImmediatePropagation` keeps
+  //         the pause-menu listener (which is attached after this one) from
+  //         also handling the same ESC and resuming the game underneath.
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.code === 'Comma') {
+      e.preventDefault()
+      modal.open()
+    } else if (e.code === 'Escape' && modal.visible) {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      modal.close()
+    }
+  }
+  window.addEventListener('keydown', onKey)
+
   signal.addEventListener(
     'abort',
     () => {
+      window.removeEventListener('keydown', onKey)
       modal.dispose()
       gameContainer.removeChild(root)
       root.destroy({ children: true })
@@ -53,7 +71,7 @@ const INACTIVE = 0x3a3a3e
 const WHITE = 0xffffff
 
 const PANEL_W = 560
-const PANEL_H = 460
+const PANEL_H = 520
 const PANEL_RADIUS = 6
 const PANEL_PADDING_X = 32
 const ROW_GAP = 44
@@ -153,6 +171,9 @@ class SettingsModal extends Container {
     addSection('Display')
     addRow('Show FPS Counter', this.makeShowFpsCheckbox())
     addRow('FPS Limit', this.makeMaxFpsGroup())
+    y += SECTION_GAP
+    addSection('Controls')
+    addRow('Virtual Pad', this.makeVirtualPadGroup())
   }
 
   private makeVolumeSlider(key: 'masterVolume' | 'bgmVolume' | 'sfxVolume'): Container {
@@ -247,6 +268,41 @@ class SettingsModal extends Container {
     }
     refresh(useSettingsStore.getState().maxFps)
     this.unsubs.push(useSettingsStore.subscribe((s) => refresh(s.maxFps)))
+    return group
+  }
+
+  private makeVirtualPadGroup(): Container {
+    const group = new Container()
+    const choices: Array<{ label: string; value: 'auto' | 'on' | 'off' }> = [
+      { label: 'Auto', value: 'auto' },
+      { label: 'On', value: 'on' },
+      { label: 'Off', value: 'off' },
+    ]
+    const buttons: FancyButton[] = []
+    let x = 0
+    for (const choice of choices) {
+      const btn = new FancyButton({
+        defaultView: makeChoiceView(choice.label, false, false, this.theme),
+        hoverView: makeChoiceView(choice.label, false, true, this.theme),
+        pressedView: makeChoiceView(choice.label, true, false, this.theme),
+      })
+      btn.onPress.connect(() => useSettingsStore.getState().setVirtualPad(choice.value))
+      btn.position.set(x, 0)
+      buttons.push(btn)
+      group.addChild(btn)
+      x += 60
+    }
+    const refresh = (current: 'auto' | 'on' | 'off'): void => {
+      buttons.forEach((b, i) => {
+        const c = choices[i]
+        if (!c) return
+        const active = c.value === current
+        b.defaultView = makeChoiceView(c.label, active, false, this.theme)
+        b.hoverView = makeChoiceView(c.label, active, true, this.theme)
+      })
+    }
+    refresh(useSettingsStore.getState().virtualPad)
+    this.unsubs.push(useSettingsStore.subscribe((s) => refresh(s.virtualPad)))
     return group
   }
 }
