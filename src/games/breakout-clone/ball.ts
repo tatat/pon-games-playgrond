@@ -3,10 +3,11 @@ import { Container, Graphics } from 'pixi.js'
 import { BALL_RADIUS } from './constants'
 
 /** Dynamic-body ball. Restitution-1 + zero friction means walls and the
- * paddle act as perfect elastic bouncers; gravity is left off (the world
- * uses zero gravity for breakout-style play). */
+ * paddle act as perfect elastic bouncers; gravity is off so the ball
+ * keeps its launch speed indefinitely. */
 export class Ball extends Container {
   readonly body: RAPIER.RigidBody
+  readonly colliderHandle: number
 
   constructor(world: RAPIER.World, startX: number, startY: number) {
     super()
@@ -21,10 +22,11 @@ export class Ball extends Container {
         .setLinearDamping(0)
         .setGravityScale(0),
     )
-    world.createCollider(
+    const collider = world.createCollider(
       RAPIER.ColliderDesc.ball(BALL_RADIUS).setRestitution(1).setFriction(0),
       this.body,
     )
+    this.colliderHandle = collider.handle
 
     this.position.set(startX, startY)
   }
@@ -38,19 +40,8 @@ export class Ball extends Container {
     this.body.setLinvel({ x: vx, y: vy }, true)
   }
 
-  get velocity(): { x: number; y: number } {
-    return this.body.linvel()
-  }
-
-  get x(): number {
-    return this.body.translation().x
-  }
-  override get y(): number {
-    return this.body.translation().y
-  }
-
-  /** Pause / resume by toggling body type (so it stops responding to forces
-   * and stays in place between rounds). */
+  /** Pause / resume by toggling body type. Stops the ball in place and
+   * stops responding to forces until `unfreeze()`. */
   freeze(): void {
     this.body.setBodyType(RAPIER.RigidBodyType.Fixed, true)
     this.body.setLinvel({ x: 0, y: 0 }, true)
@@ -59,7 +50,9 @@ export class Ball extends Container {
     this.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true)
   }
 
-  sync(): void {
+  /** Copy the Rapier translation onto the Pixi container. Pure view sync —
+   * does not mutate body state. */
+  syncView(): void {
     const t = this.body.translation()
     this.position.set(t.x, t.y)
   }

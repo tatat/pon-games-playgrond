@@ -10,10 +10,11 @@ import {
 
 /** Player-controlled paddle. Implemented as a kinematic Rapier body so its
  * velocity drives ball bounces (via restitution + a small velocity transfer
- * applied in the contact handler) without the paddle itself being shoved by
- * the ball. Movement is x-only — y stays clamped to the floor. */
+ * applied on contact) without the paddle itself being shoved. Movement is
+ * x-only — y stays clamped to the floor. */
 export class Paddle extends Container {
   readonly body: RAPIER.RigidBody
+  readonly colliderHandle: number
 
   constructor(
     world: RAPIER.World,
@@ -29,19 +30,17 @@ export class Paddle extends Container {
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicVelocityBased().setTranslation(startX, PADDLE_GROUND_Y),
     )
-    world.createCollider(
+    const collider = world.createCollider(
       RAPIER.ColliderDesc.cuboid(PADDLE_WIDTH / 2, PADDLE_HEIGHT / 2)
         .setRestitution(1)
         .setFriction(0),
       this.body,
     )
+    this.colliderHandle = collider.handle
 
     this.position.set(startX, PADDLE_GROUND_Y)
   }
 
-  /** Set horizontal velocity. Bounds-clamping happens in `sync()` after the
-   * world step, so the body can take a small over-shoot in one frame and
-   * then snap back; the visual never reflects an out-of-bounds frame. */
   setVelocityX(vx: number): void {
     this.body.setLinvel({ x: vx, y: 0 }, true)
   }
@@ -50,26 +49,29 @@ export class Paddle extends Container {
     return this.body.linvel().x
   }
 
-  /** Copy the body's translation to the Pixi position, clamping x into
-   * the playfield bounds (the body itself stays where Rapier left it,
-   * but the visual + downstream collision checks read clamped values). */
-  sync(): void {
+  /** Clamp the Rapier body's x into the playfield bounds and zero out the
+   * outward-going velocity. Mutates simulation state (body + linvel). */
+  clampToBounds(): void {
     let x = this.body.translation().x
-    const left = PADDLE_BOUNDS_LEFT
-    const right = PADDLE_BOUNDS_RIGHT
     let vx = this.body.linvel().x
-    if (x < left) {
-      x = left
+    if (x < PADDLE_BOUNDS_LEFT) {
+      x = PADDLE_BOUNDS_LEFT
       if (vx < 0) vx = 0
-      this.body.setTranslation({ x, y: PADDLE_GROUND_Y }, true)
-      this.body.setLinvel({ x: vx, y: 0 }, true)
-    } else if (x > right) {
-      x = right
+    } else if (x > PADDLE_BOUNDS_RIGHT) {
+      x = PADDLE_BOUNDS_RIGHT
       if (vx > 0) vx = 0
-      this.body.setTranslation({ x, y: PADDLE_GROUND_Y }, true)
-      this.body.setLinvel({ x: vx, y: 0 }, true)
+    } else {
+      return // already in bounds; no body mutation needed
     }
-    this.position.set(x, PADDLE_GROUND_Y)
+    this.body.setTranslation({ x, y: PADDLE_GROUND_Y }, true)
+    this.body.setLinvel({ x: vx, y: 0 }, true)
+  }
+
+  /** Copy the Rapier translation onto the Pixi container. Pure view sync. */
+  syncView(): void {
+    const t = this.body.translation()
+    this.position.set(t.x, PADDLE_GROUND_Y)
+    void t.y // y is pinned to PADDLE_GROUND_Y; we don't read it.
   }
 
   removeFromWorld(world: RAPIER.World): void {
