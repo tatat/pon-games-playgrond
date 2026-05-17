@@ -50,19 +50,18 @@ export function attachPauseMenu(
   title.position.set(PANEL_W / 2, 84)
   panel.addChild(title)
 
-  // Thin divider between the title and the link list.
-  panel.addChild(new Graphics().rect(48, 144, PANEL_W - 96, 1).fill({ color: 0x3a3a3e }))
-
+  // y=168 puts ~60px of breathing room below the title (the same as the
+  // gap from the panel top to the title's visual top).
   const resume = makeMenuButton('Resume', 'P', theme, () => {
     useRuntimeStore.getState().setGamePaused(false)
   })
-  resume.position.set((PANEL_W - MENU_BTN_W) / 2, 180)
+  resume.position.set((PANEL_W - MENU_BTN_W) / 2, 168)
   panel.addChild(resume)
 
   const settings = makeMenuButton('Settings', ',', theme, () => {
     opts.openSettings()
   })
-  settings.position.set((PANEL_W - MENU_BTN_W) / 2, 244)
+  settings.position.set((PANEL_W - MENU_BTN_W) / 2, 232)
   panel.addChild(settings)
 
   const unsubscribe = useRuntimeStore.subscribe((s) => {
@@ -109,8 +108,8 @@ const PANEL_W = 480
 const PANEL_H = 360
 const PANEL_BG = 0x1a1a1c
 
-const MENU_BTN_W = 380
-const MENU_BTN_H = 40
+const MENU_BTN_W = 300
+const MENU_BTN_H = 48
 const MENU_BTN_PADDING_X = 8
 const LABEL_DEFAULT = 0xcfcfd4
 const LABEL_HOVER = 0xffffff
@@ -153,7 +152,7 @@ function makeBtnView(
   const labelColor = state === 'hover' ? LABEL_HOVER : LABEL_DEFAULT
   const labelText = new Text({
     text: label,
-    style: { fill: labelColor, fontSize: 16, fontFamily: theme.fontSans },
+    style: { fill: labelColor, fontSize: 20, fontFamily: theme.fontSans },
   })
   labelText.anchor.set(0, 0.5)
   labelText.position.set(MENU_BTN_PADDING_X, MENU_BTN_H / 2)
@@ -172,7 +171,7 @@ function makeBtnView(
 
   const shortcutText = new Text({
     text: `[${shortcut}]`,
-    style: { fill: SHORTCUT_COLOR, fontSize: 12, fontFamily: theme.fontMono },
+    style: { fill: SHORTCUT_COLOR, fontSize: 14, fontFamily: theme.fontMono },
   })
   shortcutText.anchor.set(1, 0.5)
   shortcutText.position.set(MENU_BTN_W - MENU_BTN_PADDING_X, MENU_BTN_H / 2)
