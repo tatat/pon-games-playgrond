@@ -1,6 +1,8 @@
 import RAPIER from '@dimforge/rapier2d-compat'
 import { Container, Graphics } from 'pixi.js'
 import {
+  JUMP_GRAVITY,
+  JUMP_VELOCITY,
   PADDLE_BOUNDS_LEFT,
   PADDLE_BOUNDS_RIGHT,
   PADDLE_GROUND_Y,
@@ -8,13 +10,17 @@ import {
   PADDLE_WIDTH,
 } from './constants'
 
-/** Player-controlled paddle. Implemented as a kinematic Rapier body so its
- * velocity drives ball bounces (via restitution + a small velocity transfer
- * applied on contact) without the paddle itself being shoved. Movement is
- * x-only — y stays clamped to the floor. */
+/** Player-controlled paddle. Kinematic Rapier body driven by velocity:
+ * the ball bounces off (restitution + a small post-contact velocity
+ * transfer) without the paddle being shoved. X moves with input; Y is
+ * pinned to the floor except during a jump, which integrates its own
+ * gravity-affected `jumpVy`. */
 export class Paddle extends Container {
   readonly body: RAPIER.RigidBody
   readonly colliderHandle: number
+
+  private jumping = false
+  private jumpVy = 0
 
   constructor(
     world: RAPIER.World,
@@ -42,15 +48,52 @@ export class Paddle extends Container {
   }
 
   setVelocityX(vx: number): void {
-    this.body.setLinvel({ x: vx, y: 0 }, true)
+    this.body.setLinvel({ x: vx, y: this.body.linvel().y }, true)
   }
 
   get velocityX(): number {
     return this.body.linvel().x
   }
 
-  /** Clamp the Rapier body's x into the playfield bounds and zero out the
-   * outward-going velocity. Mutates simulation state (body + linvel). */
+  get isJumping(): boolean {
+    return this.jumping
+  }
+
+  /** Start a jump if grounded. No-op while already airborne. */
+  startJump(): void {
+    if (this.jumping) return
+    this.jumping = true
+    this.jumpVy = JUMP_VELOCITY
+  }
+
+  /** Integrate jump physics; call before `world.step()`. */
+  updateJump(dtSec: number): void {
+    if (!this.jumping) {
+      // Pin y velocity to zero while grounded.
+      const vx = this.body.linvel().x
+      this.body.setLinvel({ x: vx, y: 0 }, true)
+      return
+    }
+    this.jumpVy += JUMP_GRAVITY * dtSec
+    const vx = this.body.linvel().x
+    this.body.setLinvel({ x: vx, y: this.jumpVy }, true)
+  }
+
+  /** Snap back to ground if the body crossed it on the way down; call
+   * after `world.step()`. */
+  checkLanding(): void {
+    if (!this.jumping) return
+    const y = this.body.translation().y
+    if (y >= PADDLE_GROUND_Y && this.jumpVy >= 0) {
+      const x = this.body.translation().x
+      this.body.setTranslation({ x, y: PADDLE_GROUND_Y }, true)
+      const vx = this.body.linvel().x
+      this.body.setLinvel({ x: vx, y: 0 }, true)
+      this.jumping = false
+      this.jumpVy = 0
+    }
+  }
+
   clampToBounds(): void {
     let x = this.body.translation().x
     let vx = this.body.linvel().x
@@ -61,17 +104,16 @@ export class Paddle extends Container {
       x = PADDLE_BOUNDS_RIGHT
       if (vx > 0) vx = 0
     } else {
-      return // already in bounds; no body mutation needed
+      return
     }
-    this.body.setTranslation({ x, y: PADDLE_GROUND_Y }, true)
-    this.body.setLinvel({ x: vx, y: 0 }, true)
+    const y = this.body.translation().y
+    this.body.setTranslation({ x, y }, true)
+    this.body.setLinvel({ x: vx, y: this.body.linvel().y }, true)
   }
 
-  /** Copy the Rapier translation onto the Pixi container. Pure view sync. */
   syncView(): void {
     const t = this.body.translation()
-    this.position.set(t.x, PADDLE_GROUND_Y)
-    void t.y // y is pinned to PADDLE_GROUND_Y; we don't read it.
+    this.position.set(t.x, t.y)
   }
 
   removeFromWorld(world: RAPIER.World): void {

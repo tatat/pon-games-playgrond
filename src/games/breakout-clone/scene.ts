@@ -22,6 +22,7 @@ import {
 } from './constants'
 import { HUD } from './hud'
 import { Paddle } from './paddle'
+import { Starfield } from './starfield'
 import { BreakoutState } from './state'
 import { createWalls } from './walls'
 
@@ -54,6 +55,7 @@ export class MainScene extends Scene {
   private ball!: Ball
   private hud!: HUD
   private bricks!: BrickGenerator
+  private starfield!: Starfield
   private phase: Phase = 'waiting'
   private resetCountdownMs = 0
   private brickSpawnAccumulatorMs = 0
@@ -74,6 +76,10 @@ export class MainScene extends Scene {
     const bg = new Graphics().rect(0, 0, DESIGN_W, DESIGN_H).fill(BACKGROUND_COLOR)
     bg.zIndex = -100
     this.addChild(bg)
+
+    this.starfield = new Starfield(this.rng)
+    this.starfield.zIndex = -90
+    this.addChild(this.starfield)
 
     await this.preload(
       BRICK_NAMES.flatMap((name) =>
@@ -157,9 +163,13 @@ export class MainScene extends Scene {
       this.startGame()
     } else if (this.phase === 'gameover' && jumpJustPressed) {
       this.options.onRequestRestart?.()
+    } else if (this.phase === 'playing' && jumpJustPressed) {
+      this.paddle.startJump()
     }
 
+    this.starfield.update(dtSec)
     this.updatePaddle()
+    this.paddle.updateJump(dtSec)
 
     // Step physics with the event queue so contact-start events come back
     // via `drainCollisionEvents` below. The earlier per-frame AABB scan
@@ -168,8 +178,9 @@ export class MainScene extends Scene {
     this.world.timestep = dtSec
     this.world.step(this.eventQueue)
     this.drainContacts()
-    this.paddle.syncView()
+    this.paddle.checkLanding()
     this.paddle.clampToBounds()
+    this.paddle.syncView()
     this.ball.syncView()
 
     if (this.phase === 'playing') {
