@@ -43,8 +43,9 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'arcade-settings',
-      // Explicit storage so the middleware attaches in non-browser contexts
-      // (Vitest / SSR) where `window` is undefined.
+      // Always pass explicit storage — see src/store/user.ts for the full
+      // rationale (zustand v5 silently drops the persist namespace if the
+      // default `window.localStorage` factory throws).
       storage: createJSONStorage(() => globalThis.localStorage),
     },
   ),

@@ -116,7 +116,7 @@ ponpon imports each game by URL from the playground's Pages deployment. The scri
 'use client'
 import { useEffect, useRef } from 'react'
 
-const SCRIPT_URL = 'https://hdtk1011010100.github.io/pon-games-playgrond/dist/breakout-clone/index.js'
+const SCRIPT_URL = 'https://tatat.github.io/pon-games-playgrond/dist/breakout-clone/index.js'
 
 export function BreakoutGame() {
   const ref = useRef<HTMLDivElement>(null)

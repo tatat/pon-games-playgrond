@@ -11,7 +11,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Provides an in-memory localStorage / sessionStorage on globalThis so
+    // Zustand persist works under tests; see src/test/setup.ts for the why.
     setupFiles: ['./src/test/setup.ts'],
-    // Use `// @vitest-environment happy-dom` at the top of DOM-touching tests.
+    // Use `// @vitest-environment happy-dom` at the top of DOM-touching tests
+    // (e.g. input/index.test.ts needs window event dispatch).
   },
 })

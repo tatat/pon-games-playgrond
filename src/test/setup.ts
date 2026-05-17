@@ -1,9 +1,19 @@
-/** Test setup: provide a minimal in-memory `localStorage` so Zustand's
- * `persist` middleware can run under Vitest's default `node` environment.
+/** Vitest setup file (wired up via `test.setupFiles` in vite.config.ts).
  *
- * happy-dom 20 + Node 26 + Vitest 4 has a broken `localStorage` shim path
- * (Node's experimental localStorage getter shadows happy-dom's), so doing
- * this manually is the most reliable option. */
+ * Provides a minimal in-memory `localStorage` / `sessionStorage` on
+ * `globalThis` for every test. Two reasons:
+ *
+ * 1. Zustand v5's `persist` middleware silently drops its API if its storage
+ *    factory throws on first call. The stores under `src/store/` already
+ *    pin themselves to `globalThis.localStorage`, but only this shim makes
+ *    that property actually exist in the test runner.
+ * 2. happy-dom 20 + Node 26 + Vitest 4 have a broken integration where
+ *    Node's experimental `localStorage` getter shadows happy-dom's own
+ *    implementation. Even `// @vitest-environment happy-dom` will not give
+ *    you a working `localStorage`. This shim sidesteps that.
+ *
+ * Tests can write to / read from `localStorage` directly. State leaks across
+ * tests unless `localStorage.clear()` is called in `beforeEach`. */
 
 class MemoryStorage implements Storage {
   private data = new Map<string, string>()

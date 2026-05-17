@@ -25,8 +25,12 @@ export const useUserStore = create<UserState>()(
     }),
     {
       name: 'arcade-user',
-      // Explicit storage so the middleware attaches in non-browser contexts
-      // (Vitest / SSR) where `window` is undefined.
+      // Always pass explicit storage. Zustand v5's persist defaults to
+      // `createJSONStorage(() => window.localStorage)`, and in non-browser
+      // contexts (Vitest's node env, SSR) that throws — at which point the
+      // middleware *silently* drops the entire `persist` namespace from the
+      // store. Using `globalThis.localStorage` lets the manual shim in
+      // src/test/setup.ts satisfy it.
       storage: createJSONStorage(() => globalThis.localStorage),
     },
   ),

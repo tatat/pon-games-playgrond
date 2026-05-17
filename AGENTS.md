@@ -15,6 +15,22 @@ Architecture and conventions live under `docs/`:
 
 Always consult these before adding patterns; do not invent parallel ones.
 
+## File operations: prefer built-in tools
+
+When the host environment exposes structured tools, **use them in preference to shell commands**. This keeps diffs reviewable, avoids accidental destruction, and is friendlier to permission prompts.
+
+| Don't | Do |
+|---|---|
+| `cat file.ts`, `head`, `tail`, `sed -n '10,20p' file.ts` | the agent's read/view tool (with offset/limit if needed) |
+| `sed -i 's/.../.../' file.ts`, `awk` rewrites | the agent's edit/patch tool |
+| `echo … > file.ts`, here-docs piped into files | the agent's write/create tool |
+| `grep -r pattern src/` | the agent's grep/search tool |
+| `find . -name '*.ts'` | the agent's glob/find tool |
+
+**`sed` and `awk` are off-limits for both reading and writing files.** Their output is hard to review, their in-place mode silently corrupts on failure, and the read forms are exactly what the read tool's offset/limit are for.
+
+Shell is fine for things tools cannot do (running `npm`, `git`, `node`, one-off `ls` for orientation).
+
 ## Daily commands
 
 ```bash
@@ -65,8 +81,20 @@ src/                    source code
   store/                cross-game Zustand stores
   components/           React shell (dev-only lobby etc.)
 public/                 static assets served as-is by Vite
+tmp/                    scratch space (see below)
 .npmrc                  supply-chain config
 biome.json              lint + format config
 .husky/pre-commit       runs lint-staged
 release.json            (future) pinned ref + game allowlist for /dist/ deploy
 ```
+
+## `tmp/` — scratch space
+
+Anything an agent needs to write that should not survive the session goes under `./tmp/`. It is gitignored and is also outside the Biome / TypeScript include paths, so files there will not trip lint, format, or type-check.
+
+Use cases:
+- One-off probe / debug scripts while diagnosing an issue.
+- Experimental sketches before promoting code to `src/`.
+- Inspecting library internals (read package source into `tmp/` if needed).
+
+No cleanup obligation — `tmp/` is gitignored, so leftover files do not affect the repo. Tidy when it helps; otherwise leave them.
