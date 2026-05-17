@@ -2,6 +2,7 @@ import { Application } from 'pixi.js'
 import { useEffect, useRef } from 'react'
 import { type GameId, games } from '../games/registry'
 import type { GameHandle, GameResult } from '../games/types'
+import { useSettingsStore } from '../store/settings'
 
 export interface GameMountProps {
   gameId: GameId
@@ -37,6 +38,14 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
           return
         }
         app = appInstance
+
+        // Bind the render-loop cap to settings — `maxFps = 0` is Pixi's
+        // documented "no cap" value.
+        app.ticker.maxFPS = useSettingsStore.getState().maxFps
+        const unsubMaxFps = useSettingsStore.subscribe((s) => {
+          if (app) app.ticker.maxFPS = s.maxFps
+        })
+        ctrl.signal.addEventListener('abort', unsubMaxFps, { once: true })
 
         containerRef.current.appendChild(app.canvas)
         const gameModule = await games[gameId]()

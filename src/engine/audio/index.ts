@@ -4,6 +4,14 @@ import { useSettingsStore } from '../../store/settings'
 let currentBgm: string | null = null
 let unsubBgmVolume: (() => void) | null = null
 
+/** Per-channel effective volume = `masterVolume × channelVolume`. */
+export function effectiveBgmVolume(s = useSettingsStore.getState()): number {
+  return s.masterVolume * s.bgmVolume
+}
+export function effectiveSfxVolume(s = useSettingsStore.getState()): number {
+  return s.masterVolume * s.sfxVolume
+}
+
 /** Engine-startup hook. Schedules an iOS Safari `AudioContext` resume on the
  * first user gesture. Volume subscriptions are wired up by `playBgm` /
  * `playSfx` when they actually play something. */
@@ -16,20 +24,17 @@ export function initAudio(): void {
 }
 
 /** Starts looping `alias` as the current BGM. No-op if the alias is already
- * playing. Subscribes to `useSettingsStore.bgmVolume` so volume changes apply
- * live to this track. */
+ * playing. Subscribes to `masterVolume` / `bgmVolume` so changes to either
+ * channel apply live. */
 export function playBgm(alias: string): void {
   if (currentBgm === alias) return
   if (currentBgm) sound.stop(currentBgm)
   currentBgm = alias
-  sound.play(alias, {
-    loop: true,
-    volume: useSettingsStore.getState().bgmVolume,
-  })
+  sound.play(alias, { loop: true, volume: effectiveBgmVolume() })
   unsubBgmVolume?.()
   unsubBgmVolume = useSettingsStore.subscribe((s) => {
     const inst = sound.find(alias)
-    if (inst) inst.volume = s.bgmVolume
+    if (inst) inst.volume = effectiveBgmVolume(s)
   })
 }
 
@@ -42,5 +47,5 @@ export function stopBgm(): void {
 
 /** Fire-and-forget SFX. Reads volume from settings at play time. */
 export function playSfx(alias: string): void {
-  sound.play(alias, { volume: useSettingsStore.getState().sfxVolume })
+  sound.play(alias, { volume: effectiveSfxVolume() })
 }
