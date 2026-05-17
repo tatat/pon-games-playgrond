@@ -5,21 +5,22 @@ import { useSettingsStore } from '../store/settings'
 import { DESIGN_H, DESIGN_W } from './constants'
 import type { UiTheme } from './ui-theme'
 
-/** Open / close a Pixi-side settings modal driven by `useSettingsStore`.
- * Attached to `gameContainer` from `attachLayout`, so it lives in logical
- * 1280×720 coordinates and stays clipped to the game viewport. The active
- * `uiTheme` from `useRuntimeStore` is captured here at build time — the
- * theme must already be set (by `GameMount`) before this runs. */
-export function attachSettingsUi(gameContainer: Container, signal: AbortSignal): void {
+export interface SettingsUiHandle {
+  /** Open the settings modal. Used by the pause menu's "Settings" button. */
+  openSettings(): void
+}
+
+/** Attaches the settings modal (no on-screen trigger of its own) and returns
+ * a handle. Callers wire `openSettings` into wherever the user can request
+ * it (typically the pause menu). The modal lives in logical 1280×720
+ * coords, captured from the active `uiTheme` at build time. */
+export function attachSettingsUi(gameContainer: Container, signal: AbortSignal): SettingsUiHandle {
   const theme = useRuntimeStore.getState().uiTheme
   const root = new Container()
-  root.zIndex = 9000
+  // Above the pause menu overlay (z=9500) so the panel stays interactive
+  // when the user opens settings from the pause menu.
+  root.zIndex = 9700
   gameContainer.addChild(root)
-
-  const gear = makeGearButton(() => modal.open(), theme)
-  // y=16 is the shared vertical center used by the FPS counter too.
-  gear.position.set(DESIGN_W - 8, 16)
-  root.addChild(gear)
 
   const modal = new SettingsModal(theme)
   root.addChild(modal)
@@ -33,23 +34,10 @@ export function attachSettingsUi(gameContainer: Container, signal: AbortSignal):
     },
     { once: true },
   )
-}
 
-// ── Gear button ────────────────────────────────────────────────────────────
-
-function makeGearButton(onPress: () => void, theme: UiTheme): Container {
-  const c = new Container()
-  c.eventMode = 'static'
-  c.cursor = 'pointer'
-  c.hitArea = new Rectangle(-28, -14, 32, 32)
-  const glyph = new Text({
-    text: '⚙',
-    style: { fill: WHITE, fontSize: 20, fontFamily: theme.fontSans },
-  })
-  glyph.anchor.set(1, 0.5)
-  c.addChild(glyph)
-  c.on('pointertap', onPress)
-  return c
+  return {
+    openSettings: () => modal.open(),
+  }
 }
 
 // ── Tokens ─────────────────────────────────────────────────────────────────
@@ -82,6 +70,10 @@ class SettingsModal extends Container {
   private readonly panel: Container
   private readonly theme: UiTheme
   private readonly unsubs: Array<() => void> = []
+  /** Remembers whether the game was already paused (e.g. via ESC) when the
+   * modal opened, so closing the modal restores the prior state instead of
+   * always force-resuming. */
+  private pauseSnapshot = false
 
   constructor(theme: UiTheme) {
     super()
@@ -116,12 +108,13 @@ class SettingsModal extends Container {
   }
 
   open(): void {
+    this.pauseSnapshot = useRuntimeStore.getState().gamePaused
     this.visible = true
     useRuntimeStore.getState().setGamePaused(true)
   }
   close(): void {
     this.visible = false
-    useRuntimeStore.getState().setGamePaused(false)
+    useRuntimeStore.getState().setGamePaused(this.pauseSnapshot)
   }
 
   dispose(): void {

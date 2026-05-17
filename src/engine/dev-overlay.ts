@@ -1,9 +1,8 @@
 import { type Container, Text, type Ticker } from 'pixi.js'
 import { useRuntimeStore } from '../store/runtime'
 import { useSettingsStore } from '../store/settings'
-import { DESIGN_W } from './constants'
 
-/** Pins a small FPS counter to the top-right of the logical 1280×720 game
+/** Pins a small FPS counter to the top-left of the logical 1280×720 game
  * viewport. Dev-only; called from `attachLayout` under `import.meta.env.DEV`.
  * Renders inside `gameContainer` so it sits in the same coordinate system as
  * HUD elements and stays clipped to the game area by the layout's mask. */
@@ -23,10 +22,10 @@ export function attachFpsCounter(
       fontFamily: useRuntimeStore.getState().uiTheme.fontMono,
     },
   })
-  // Vertical-center anchor so this aligns with the larger gear glyph next to
-  // it. y=16 is the shared center used by both this and the gear button.
-  text.anchor.set(1, 0.5)
-  text.position.set(DESIGN_W - 40, 16)
+  // Top-left, vertical-center anchored. x=20 matches the in-game HUD's
+  // score text so the two read as one column.
+  text.anchor.set(0, 0.5)
+  text.position.set(20, 16)
   text.zIndex = 10000
   text.visible = useSettingsStore.getState().showFps
   gameContainer.addChild(text)
