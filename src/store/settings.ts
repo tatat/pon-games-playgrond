@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 
 export type Locale = 'en' | 'ja'
 export type GraphicsQuality = 'low' | 'medium' | 'high'
-export type TouchControlsMode = 'auto' | 'on' | 'off'
+export type VirtualPadMode = 'auto' | 'on' | 'off'
 
 export interface SettingsState {
   /** Master gain applied on top of `bgmVolume` / `sfxVolume`. */
@@ -19,8 +19,9 @@ export interface SettingsState {
   locale: Locale
   graphicsQuality: GraphicsQuality
   reducedMotion: boolean
-  /** 'auto' resolves to matchMedia('(pointer: coarse)') at render time. */
-  touchControls: TouchControlsMode
+  /** Game-side virtual pad visibility. 'auto' resolves to
+   * `matchMedia('(pointer: coarse)')` at render time. */
+  virtualPad: VirtualPadMode
 
   setMasterVolume(v: number): void
   setBgmVolume(v: number): void
@@ -30,7 +31,7 @@ export interface SettingsState {
   setLocale(l: Locale): void
   setGraphicsQuality(q: GraphicsQuality): void
   setReducedMotion(b: boolean): void
-  setTouchControls(m: TouchControlsMode): void
+  setVirtualPad(m: VirtualPadMode): void
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
@@ -46,7 +47,7 @@ export const useSettingsStore = create<SettingsState>()(
       locale: 'ja',
       graphicsQuality: 'high',
       reducedMotion: false,
-      touchControls: 'auto',
+      virtualPad: 'auto',
 
       setMasterVolume: (v) => set({ masterVolume: clamp01(v) }),
       setBgmVolume: (v) => set({ bgmVolume: clamp01(v) }),
@@ -56,7 +57,7 @@ export const useSettingsStore = create<SettingsState>()(
       setLocale: (l) => set({ locale: l }),
       setGraphicsQuality: (q) => set({ graphicsQuality: q }),
       setReducedMotion: (b) => set({ reducedMotion: b }),
-      setTouchControls: (m) => set({ touchControls: m }),
+      setVirtualPad: (m) => set({ virtualPad: m }),
     }),
     {
       name: 'arcade-settings',

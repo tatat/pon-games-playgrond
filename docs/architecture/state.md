@@ -51,7 +51,7 @@ interface SettingsState {
   locale: 'en' | 'ja';
   graphicsQuality: 'low' | 'medium' | 'high';
   reducedMotion: boolean;
-  touchControls: 'auto' | 'on' | 'off';   // 'auto' uses matchMedia('(pointer: coarse)')
+  virtualPad: 'auto' | 'on' | 'off';      // 'auto' uses matchMedia('(pointer: coarse)')
   // setters per field
 }
 ```

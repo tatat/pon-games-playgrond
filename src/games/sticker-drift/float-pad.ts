@@ -3,6 +3,7 @@ import { DESIGN_W } from '../../engine/constants'
 import type { InputManager } from '../../engine/input'
 import type { GameLayout } from '../../engine/layout'
 import { useRuntimeStore } from '../../store/runtime'
+import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 
 /** Equal padding around each board (the outer container) and gap between
  * the two buttons inside it. */
@@ -59,6 +60,17 @@ export function makeFloatPad(
 
   const apply = (): void => {
     const m = layout.current()
+    const padMode = useSettingsStore.getState().virtualPad
+    if (!virtualPadEnabled(padMode)) {
+      // User has touch controls disabled (manually or via 'auto' on a
+      // pointer:fine device). Hide everything and exit early.
+      leftBoard.visible = false
+      rightBoard.visible = false
+      bottomBoard.visible = false
+      uiMargin.visible = false
+      gameOverlay.visible = false
+      return
+    }
     const fitsSides = m.marginLeft >= MIN_REQUIRED_MARGIN_PX
     const fitsBottom = !fitsSides && m.marginTop >= MIN_REQUIRED_MARGIN_PX
     leftBoard.visible = fitsSides
@@ -84,15 +96,37 @@ export function makeFloatPad(
     }
   }
   apply()
-  const unsubscribe = layout.onChange(apply)
+  const unsubLayout = layout.onChange(apply)
+  // Re-apply whenever the user toggles touch controls (or anything else that
+  // matters to placement) — the apply function only reads, so a blanket
+  // subscription is cheap.
+  const unsubSettings = useSettingsStore.subscribe(apply)
 
-  signal.addEventListener('abort', unsubscribe, { once: true })
+  signal.addEventListener(
+    'abort',
+    () => {
+      unsubLayout()
+      unsubSettings()
+    },
+    { once: true },
+  )
 
   return {
     uiMargin,
     gameOverlay,
-    dispose: () => unsubscribe(),
+    dispose: () => {
+      unsubLayout()
+      unsubSettings()
+    },
   }
+}
+
+/** Resolve a `VirtualPadMode` to a boolean. 'auto' means follow the
+ * device's primary pointer capability — coarse → enabled, fine → off. */
+function virtualPadEnabled(mode: VirtualPadMode): boolean {
+  if (mode === 'on') return true
+  if (mode === 'off') return false
+  return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 }
 
 // ── Board (menu + float) ────────────────────────────────────────────────

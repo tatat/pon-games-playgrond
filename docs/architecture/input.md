@@ -83,7 +83,7 @@ export function createActionButton(
 
 ```typescript
 function padEnabled(): boolean {
-  const mode = useSettingsStore.getState().touchControls;
+  const mode = useSettingsStore.getState().virtualPad;
   if (mode === 'on') return true;
   if (mode === 'off') return false;
   return shouldShowTouchControls();   // 'auto'

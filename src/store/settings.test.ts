@@ -18,7 +18,7 @@ describe('useSettingsStore', () => {
     expect(s.locale).toBe('ja')
     expect(s.graphicsQuality).toBe('high')
     expect(s.reducedMotion).toBe(false)
-    expect(s.touchControls).toBe('auto')
+    expect(s.virtualPad).toBe('auto')
   })
 
   it('clamps maxFps to non-negative integers', () => {
@@ -51,12 +51,12 @@ describe('useSettingsStore', () => {
     s.setLocale('en')
     s.setGraphicsQuality('low')
     s.setReducedMotion(true)
-    s.setTouchControls('off')
+    s.setVirtualPad('off')
     const after = useSettingsStore.getState()
     expect(after.showFps).toBe(false)
     expect(after.locale).toBe('en')
     expect(after.graphicsQuality).toBe('low')
     expect(after.reducedMotion).toBe(true)
-    expect(after.touchControls).toBe('off')
+    expect(after.virtualPad).toBe('off')
   })
 })

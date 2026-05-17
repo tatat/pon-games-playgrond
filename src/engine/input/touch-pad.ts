@@ -11,9 +11,9 @@ export function shouldShowTouchControls(): boolean {
   return window.matchMedia('(pointer: coarse)').matches
 }
 
-/** Combines `useSettingsStore.touchControls` with `shouldShowTouchControls`. */
+/** Combines `useSettingsStore.virtualPad` with `shouldShowTouchControls`. */
 export function padEnabled(): boolean {
-  const mode = useSettingsStore.getState().touchControls
+  const mode = useSettingsStore.getState().virtualPad
   if (mode === 'on') return true
   if (mode === 'off') return false
   return shouldShowTouchControls()
