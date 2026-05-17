@@ -4,13 +4,14 @@
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.ssh/devcontainer && touch ${localEnv:HOME}/.gitconfig",
   "mounts": [
     "source=node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
     "source=user-config,target=/home/ubuntu/.config,type=volume",
     "source=claude-config,target=/home/ubuntu/.claude,type=volume",
     "source=codex-config,target=/home/ubuntu/.codex,type=volume",
-    "source=${localEnv:HOME}/.ssh/devcontainer,target=/tmp/host-ssh,type=bind,readonly",
-    "source=${localEnv:HOME}/.gitconfig,target=/tmp/host-gitconfig,type=bind,readonly"
+    "source=${localEnv:HOME}/.gitconfig,target=/tmp/host-gitconfig,type=bind,readonly",
+    "source=${localEnv:HOME}/.ssh/devcontainer,target=/tmp/host-ssh,type=bind,readonly"
   ],
   "remoteEnv": {
     "DEVCONTAINER_SSH_KEY": "${localEnv:DEVCONTAINER_SSH_KEY}",

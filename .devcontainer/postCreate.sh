@@ -9,37 +9,46 @@ sudo "${WORKSPACE_FOLDER}/.devcontainer/init-firewall.sh"
 
 cd ~
 
+# Bring the host's gitconfig (user.name / user.email / signing settings)
+# into the container. Empty file is fine — `gh auth login` and `git config`
+# inside the container can fill it in later.
 cp /tmp/host-gitconfig ~/.gitconfig
-
-SSH_KEY="${DEVCONTAINER_SSH_KEY:-id_devcontainer}"
-if [ ! -f /tmp/host-ssh/${SSH_KEY}.pub ]; then
-    echo "ERROR: ~/.ssh/devcontainer/${SSH_KEY}.pub not found." >&2
-    echo "To set up a dedicated SSH key, run on the host:" >&2
-    echo "  mkdir -p ~/.ssh/devcontainer && ssh-keygen -t ed25519 -f ~/.ssh/devcontainer/${SSH_KEY} -N \"\"" >&2
-    echo "Then register it on GitHub as both an Authentication Key and a Signing Key." >&2
-    echo "See .devcontainer/README.md for details." >&2
-    exit 1
-fi
 
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
-cp /tmp/host-ssh/${SSH_KEY} ~/.ssh/${SSH_KEY}
-cp /tmp/host-ssh/${SSH_KEY}.pub ~/.ssh/${SSH_KEY}.pub
-chmod 600 ~/.ssh/${SSH_KEY}
-ssh-keyscan github.com >> ~/.ssh/known_hosts
-chmod 600 ~/.ssh/known_hosts
+ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
 
-cat > ~/.ssh/config << EOF
+# Optional: SSH-based commit signing.
+# If the host has a dedicated key at ~/.ssh/devcontainer/${DEVCONTAINER_SSH_KEY}
+# (default name: id_devcontainer), wire it in. Signing settings are written to
+# this container's ~/.gitconfig — the host's ~/.gitconfig is untouched.
+SSH_KEY="${DEVCONTAINER_SSH_KEY:-id_devcontainer}"
+if [ -f "/tmp/host-ssh/${SSH_KEY}.pub" ] && [ -f "/tmp/host-ssh/${SSH_KEY}" ]; then
+    cp "/tmp/host-ssh/${SSH_KEY}" ~/.ssh/${SSH_KEY}
+    cp "/tmp/host-ssh/${SSH_KEY}.pub" ~/.ssh/${SSH_KEY}.pub
+    chmod 600 ~/.ssh/${SSH_KEY}
+    cat > ~/.ssh/config <<EOF
 Host github.com
     IdentityFile ~/.ssh/${SSH_KEY}
     IdentitiesOnly yes
 EOF
 
-git config --global gpg.format ssh
-git config --global user.signingKey ~/.ssh/${SSH_KEY}.pub
-git config --global commit.gpgsign true
-git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
-git config --global --unset gpg.ssh.program || true
+    # Configure signing inside this container only.
+    git config --global gpg.format ssh
+    git config --global user.signingKey ~/.ssh/${SSH_KEY}.pub
+    git config --global commit.gpgsign true
+    git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+
+    # Populate allowed_signers from the container's git identity, so
+    # `git verify-commit` works inside the container.
+    EMAIL=$(git config --global user.email || true)
+    if [ -n "$EMAIL" ]; then
+        printf '%s %s\n' "$EMAIL" "$(cat ~/.ssh/${SSH_KEY}.pub)" > ~/.ssh/allowed_signers
+    fi
+
+    echo "✓ SSH signing key configured (~/.ssh/${SSH_KEY})"
+fi
 
 cd "${WORKSPACE_FOLDER}"
 
@@ -53,3 +62,16 @@ ln -sf ~/.claude/.claude.json ~/.claude.json
 
 npm ci
 npm run prepare
+
+cat <<'NOTE'
+
+────────────────────────────────────────────────────────────────────
+Container is ready. Next steps inside the container:
+
+  gh auth login         # GitHub auth (used as git credential helper)
+  claude                # First-time Claude Code login
+  python3 .devcontainer/codex-login-helper.py   # First-time Codex login
+
+See .devcontainer/README.md for optional SSH-based commit signing.
+────────────────────────────────────────────────────────────────────
+NOTE
