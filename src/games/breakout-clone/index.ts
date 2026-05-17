@@ -6,14 +6,13 @@ import { Rng } from '../../engine/rng'
 import { SceneManager } from '../../engine/scene-manager'
 import type { GameContext, GameHandle, GameModule } from '../types'
 import { GAME_ID } from './constants'
-import { MainScene } from './scene'
+import { MainScene, type MainSceneOptions } from './scene'
 
-/** Breakout Clone — port of the Phaser original. Currently a skeleton: the
- * scene only renders a placeholder while the gameplay subsystems (paddle,
- * ball, bricks, boss, sound) come online in subsequent phases. */
+/** Breakout Clone — port of the Phaser original. Phase 2 of the port:
+ * paddle + ball + walls + HUD + start / game-over flow. Bricks, boss,
+ * sound, opening scene land in later phases. */
 export const breakoutCloneGame: GameModule = {
   uiTheme: {
-    // Match the original's Phaser-default Courier look across engine UI.
     fontSans: 'Courier, "Courier New", monospace',
     fontMono: 'Courier, "Courier New", monospace',
   },
@@ -31,12 +30,15 @@ export const breakoutCloneGame: GameModule = {
       await unloadGameAssets(GAME_ID)
     }
 
-    // Skeleton phase: callbacks unused until paddle/ball/bricks land. They
-    // stay in GameContext so the type contract doesn't change later.
-    void ctx
-
     try {
-      await sm.changeTo(new MainScene())
+      const sceneOptions: MainSceneOptions = {
+        onScoreChange: (s) => ctx.onScoreChange(s),
+        onGameOver: (score) => ctx.onGameOver({ score }),
+        onRequestRestart: () => {
+          void sm.changeTo(new MainScene({ ...sceneOptions, startImmediately: true }))
+        },
+      }
+      await sm.changeTo(new MainScene(sceneOptions))
       signal.throwIfAborted()
     } catch (e) {
       await teardown()

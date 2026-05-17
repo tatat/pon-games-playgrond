@@ -1,0 +1,70 @@
+import RAPIER from '@dimforge/rapier2d-compat'
+import { Container, Graphics } from 'pixi.js'
+import { BALL_RADIUS } from './constants'
+
+/** Dynamic-body ball. Restitution-1 + zero friction means walls and the
+ * paddle act as perfect elastic bouncers; gravity is left off (the world
+ * uses zero gravity for breakout-style play). */
+export class Ball extends Container {
+  readonly body: RAPIER.RigidBody
+
+  constructor(world: RAPIER.World, startX: number, startY: number) {
+    super()
+
+    const g = new Graphics().circle(0, 0, BALL_RADIUS).fill(0xffffff)
+    this.addChild(g)
+
+    this.body = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(startX, startY)
+        .lockRotations()
+        .setLinearDamping(0)
+        .setGravityScale(0),
+    )
+    world.createCollider(
+      RAPIER.ColliderDesc.ball(BALL_RADIUS).setRestitution(1).setFriction(0),
+      this.body,
+    )
+
+    this.position.set(startX, startY)
+  }
+
+  setPosition(x: number, y: number): void {
+    this.body.setTranslation({ x, y }, true)
+    this.position.set(x, y)
+  }
+
+  setVelocity(vx: number, vy: number): void {
+    this.body.setLinvel({ x: vx, y: vy }, true)
+  }
+
+  get velocity(): { x: number; y: number } {
+    return this.body.linvel()
+  }
+
+  get x(): number {
+    return this.body.translation().x
+  }
+  override get y(): number {
+    return this.body.translation().y
+  }
+
+  /** Pause / resume by toggling body type (so it stops responding to forces
+   * and stays in place between rounds). */
+  freeze(): void {
+    this.body.setBodyType(RAPIER.RigidBodyType.Fixed, true)
+    this.body.setLinvel({ x: 0, y: 0 }, true)
+  }
+  unfreeze(): void {
+    this.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true)
+  }
+
+  sync(): void {
+    const t = this.body.translation()
+    this.position.set(t.x, t.y)
+  }
+
+  removeFromWorld(world: RAPIER.World): void {
+    world.removeRigidBody(this.body)
+  }
+}
