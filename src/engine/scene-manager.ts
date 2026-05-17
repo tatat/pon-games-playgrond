@@ -34,8 +34,14 @@ export class SceneManager implements Disposable {
     private readonly rng: Rng,
   ) {
     ticker.add(this.tickHandler)
-    this.unsubPaused = useRuntimeStore.subscribe((s) => {
+    this.unsubPaused = useRuntimeStore.subscribe((s, prev) => {
       this.paused = s.gamePaused
+      if (s.gamePaused !== prev.gamePaused) {
+        // Drop any presses collected during the transition (or held
+        // through the paused window) so they don't fire as "just pressed"
+        // on the first frame after resume.
+        this.current?.clearInputTransientState()
+      }
     })
   }
 
@@ -81,16 +87,21 @@ export class SceneManager implements Disposable {
   }
 
   /** Tear down the active scene: cancel its async ops, exit it, and run
-   * its registered cleanups, then detach + destroy the Pixi container. */
+   * its registered cleanups, then detach + destroy the Pixi container.
+   * The detach/destroy/clear happens in `finally` so a throwing onExit or
+   * cleanup can't leave the scene stuck on the stage. */
   private async tearDownCurrent(): Promise<void> {
     const scene = this.current
     if (!scene) return
     this.currentReady = false
     this.currentSceneCtrl?.abort()
-    await scene.onExit()
-    await scene.runTeardown()
-    this.layout.gameContainer.removeChild(scene)
-    scene.destroy({ children: true })
-    this.current = undefined
+    try {
+      await scene.onExit()
+      await scene.runTeardown()
+    } finally {
+      this.layout.gameContainer.removeChild(scene)
+      scene.destroy({ children: true })
+      this.current = undefined
+    }
   }
 }

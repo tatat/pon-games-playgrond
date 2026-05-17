@@ -56,13 +56,28 @@ export abstract class Scene extends Container {
   abstract onUpdate(dt: SceneDelta): void
   onExit(): void | Promise<void> {}
 
-  /** @internal — called by `SceneManager` after `onExit`. Runs all
-   * registered cleanups in reverse order, awaiting each. */
+  /** @internal — called by `SceneManager` on every pause-state transition
+   * so presses collected while paused don't fire as "just pressed" the
+   * next frame. */
+  clearInputTransientState(): void {
+    this.input?.clearTransientState()
+  }
+
+  /** @internal — called by `SceneManager` after `onExit`. Runs every
+   * registered cleanup in reverse order. Errors are collected and thrown
+   * as an `AggregateError` at the end so a single failing cleanup can't
+   * orphan the rest. */
   async runTeardown(): Promise<void> {
+    const errors: unknown[] = []
     for (let i = this.cleanups.length - 1; i >= 0; i--) {
-      await this.cleanups[i]?.()
+      try {
+        await this.cleanups[i]?.()
+      } catch (e) {
+        errors.push(e)
+      }
     }
     this.cleanups.length = 0
+    if (errors.length > 0) throw new AggregateError(errors, 'Scene teardown failed')
   }
 
   /** @internal — called by `SceneManager.changeTo`. */
