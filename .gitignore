@@ -4,6 +4,11 @@ Thumbs.db
 .playwright-mcp
 tmp
 
+# Linux core dumps — occasionally produced when a sandboxed child gets
+# SIGABRT'd; not part of the project.
+core
+core.*
+
 # Created by https://www.toptal.com/developers/gitignore/api/node
 # Edit at https://www.toptal.com/developers/gitignore?templates=node
 
