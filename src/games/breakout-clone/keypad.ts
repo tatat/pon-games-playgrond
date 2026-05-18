@@ -297,22 +297,22 @@ class ActionsBoard extends Container {
       this.position.set(m.viewportW - m.marginLeft / 2, m.viewportH / 2)
     } else {
       // Bottom strip, right half — 2×2 grid:
-      //   [pause][jump]
-      //   [blank][fast]
-      // Mirrors the Direction board's 2-cell top row so the four boards
-      // form a single tidy 2×4 strip.
+      //   [jump][fast]
+      //   [blank][pause]
+      // Direction board fills its top row symmetrically, so Jump / Fast
+      // sit on the top row here and Pause drops to the bottom-right cell.
       const totalW = (m.viewportW - BOARD_GAP * 3) / 2
       const totalH = m.marginTop - BOARD_GAP * 2
       const cellW = (totalW - INNER_GAP) / 2
       const cellH = (totalH - INNER_GAP) / 2
-      this.pause.setShape(cellW, cellH)
       this.jump.setShape(cellW, cellH)
       this.fast.setShape(cellW, cellH)
+      this.pause.setShape(cellW, cellH)
       const left = -totalW / 2
       const top = -totalH / 2
-      this.pause.position.set(left + cellW / 2, top + cellH / 2)
-      this.jump.position.set(left + cellW + INNER_GAP + cellW / 2, top + cellH / 2)
-      this.fast.position.set(
+      this.jump.position.set(left + cellW / 2, top + cellH / 2)
+      this.fast.position.set(left + cellW + INNER_GAP + cellW / 2, top + cellH / 2)
+      this.pause.position.set(
         left + cellW + INNER_GAP + cellW / 2,
         top + cellH + INNER_GAP + cellH / 2,
       )
