@@ -1,5 +1,6 @@
 import { Application } from 'pixi.js'
 import { useEffect, useRef } from 'react'
+import { rapierReady } from '../engine/rapier'
 import { defaultUiTheme } from '../engine/ui-theme'
 import { type GameId, games } from '../games/registry'
 import type { GameHandle, GameResult } from '../games/types'
@@ -59,6 +60,7 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
 
         containerRef.current.appendChild(app.canvas)
         const gameModule = await games[gameId]()
+        await rapierReady
         ctrl.signal.throwIfAborted()
 
         // Publish the game's UI theme before its `start()` runs so any
