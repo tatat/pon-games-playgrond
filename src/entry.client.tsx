@@ -9,7 +9,6 @@ import { useRuntimeStore } from './store/runtime'
 import { useSettingsStore } from './store/settings'
 import { useUserStore } from './store/user'
 
-window.addEventListener('contextmenu', (e) => e.preventDefault())
 initAudio()
 
 if (import.meta.env.DEV) {
