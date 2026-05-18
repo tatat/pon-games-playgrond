@@ -1,4 +1,5 @@
 import type { GameSettingsPanel, SettingsRow } from '../../engine/settings-ui'
+import { makeCheckbox } from '../../engine/ui/checkbox'
 import { makeSegmentedControl } from '../../engine/ui/segmented-control'
 import type { UiTheme } from '../../engine/ui-theme'
 import { type MusicScale, useBreakoutCloneStore } from './store'
@@ -41,14 +42,24 @@ export function buildBreakoutCloneSettingsPanel(theme: UiTheme): GameSettingsPan
   })
   disposers.push(() => baseKey.dispose())
 
-  const rows: SettingsRow[] = [
+  const debug = makeCheckbox({
+    getValue: () => useBreakoutCloneStore.getState().debugMode,
+    onChange: (v) => useBreakoutCloneStore.getState().setDebugMode(v),
+    subscribe: (cb) => useBreakoutCloneStore.subscribe(cb),
+  })
+  disposers.push(() => debug.dispose())
+
+  const audioRows: SettingsRow[] = [
     { label: 'Scale', control: scale.view },
     { label: 'Base Key', control: baseKey.view },
   ]
+  const debugRows: SettingsRow[] = [{ label: 'Start at 900 points', control: debug.view }]
 
   return {
-    sectionTitle: 'Audio',
-    rows,
+    sections: [
+      { title: 'Audio', rows: audioRows },
+      { title: 'Debug', rows: debugRows },
+    ],
     dispose: () => {
       for (let i = disposers.length - 1; i >= 0; i--) disposers[i]?.()
     },

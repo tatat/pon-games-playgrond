@@ -59,11 +59,14 @@ export class Paddle extends Container {
     return this.jumping
   }
 
-  /** Start a jump if grounded. No-op while already airborne. */
-  startJump(): void {
-    if (this.jumping) return
+  /** Start a jump if grounded. Returns true if the jump actually began
+   * (caller may want to fire a visual squash tween). No-op while
+   * airborne. */
+  startJump(): boolean {
+    if (this.jumping) return false
     this.jumping = true
     this.jumpVy = JUMP_VELOCITY
+    return true
   }
 
   /** Integrate jump physics; call before `world.step()`. */
@@ -80,9 +83,10 @@ export class Paddle extends Container {
   }
 
   /** Snap back to ground if the body crossed it on the way down; call
-   * after `world.step()`. */
-  checkLanding(): void {
-    if (!this.jumping) return
+   * after `world.step()`. Returns true on the frame the paddle actually
+   * touches down — callers use that to fire a landing squash tween. */
+  checkLanding(): boolean {
+    if (!this.jumping) return false
     const y = this.body.translation().y
     if (y >= PADDLE_GROUND_Y && this.jumpVy >= 0) {
       const x = this.body.translation().x
@@ -91,7 +95,9 @@ export class Paddle extends Container {
       this.body.setLinvel({ x: vx, y: 0 }, true)
       this.jumping = false
       this.jumpVy = 0
+      return true
     }
+    return false
   }
 
   clampToBounds(): void {

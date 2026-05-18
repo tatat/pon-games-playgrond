@@ -4,6 +4,7 @@ import { type InputBindings, InputManager } from './input/index'
 import type { GameLayout } from './layout'
 import type { Rng } from './rng'
 import { asDisposeFn, type DisposableLike } from './util/disposable'
+import { Tween, type TweenSpec } from './util/tween'
 
 /** Per-frame delta handed to `Scene.onUpdate`. Capped at the engine level
  * (see `MAX_DT_SEC`) so a single huge frame can't be propagated to
@@ -27,6 +28,7 @@ export abstract class Scene extends Container {
   protected signal!: AbortSignal
 
   private readonly cleanups: Array<() => void | Promise<void>> = []
+  private readonly activeTweens: Tween[] = []
 
   /** Register a resource whose lifetime is bound to this scene. Returns the
    * resource so it can be assigned in one line:
@@ -52,6 +54,38 @@ export abstract class Scene extends Container {
     this.input = this.use(new InputManager(bindings))
   }
 
+  /** Run a tween driven by this scene's `onUpdate`. The returned promise
+   * resolves when the tween finishes (after `onComplete`); a cancellation
+   * — via `Tween.cancel()` or scene teardown — leaves the promise
+   * unresolved on purpose, matching how Phaser's `tweens.add` drops
+   * callbacks on `Tween.stop()`. Await it for sequence sequencing or
+   * ignore the return for fire-and-forget. */
+  protected tween(spec: TweenSpec): { promise: Promise<void>; tween: Tween } {
+    let resolve!: () => void
+    const promise = new Promise<void>((r) => {
+      resolve = r
+    })
+    const t = new Tween({
+      ...spec,
+      onComplete: () => {
+        spec.onComplete?.()
+        resolve()
+      },
+    })
+    this.activeTweens.push(t)
+    return { promise, tween: t }
+  }
+
+  /** Advance any active tweens by `dtMs`. Scenes call this from their
+   * `onUpdate` — tweens then automatically pause whenever the engine
+   * suppresses `onUpdate` (pause menu, settings modal, auto-pause). */
+  protected updateTweens(dtMs: number): void {
+    for (let i = this.activeTweens.length - 1; i >= 0; i--) {
+      const t = this.activeTweens[i]
+      if (t?.tick(dtMs)) this.activeTweens.splice(i, 1)
+    }
+  }
+
   abstract onEnter(signal: AbortSignal): void | Promise<void>
   abstract onUpdate(dt: SceneDelta): void
   onExit(): void | Promise<void> {}
@@ -68,6 +102,11 @@ export abstract class Scene extends Container {
    * as an `AggregateError` at the end so a single failing cleanup can't
    * orphan the rest. */
   async runTeardown(): Promise<void> {
+    // Cancel any in-flight tweens first so their callbacks can't fire
+    // against a half-destroyed scene during cleanup.
+    for (const t of this.activeTweens) t.cancel()
+    this.activeTweens.length = 0
+
     const errors: unknown[] = []
     for (let i = this.cleanups.length - 1; i >= 0; i--) {
       try {

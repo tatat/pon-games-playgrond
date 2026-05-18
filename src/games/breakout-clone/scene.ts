@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier2d-compat'
 import { Container, Graphics, Rectangle } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { Scene, type SceneDelta } from '../../engine/scene'
+import { Easings, type Tween } from '../../engine/util/tween'
 import { Ball } from './ball'
 import { BossManager } from './boss-manager'
 import type { Brick } from './brick'
@@ -30,6 +31,7 @@ import { SoundManager } from './sound-manager'
 import { SpecialBall } from './special-ball'
 import { Starfield } from './starfield'
 import { BreakoutState } from './state'
+import { useBreakoutCloneStore } from './store'
 import { createWalls } from './walls'
 
 const BACKGROUND_COLOR = 0x0a0a14
@@ -81,6 +83,9 @@ export class MainScene extends Scene {
   private ballColliderHandle = -1
   /** Boss collider handle when alive; -1 otherwise. */
   private bossColliderHandle = -1
+  /** Infinite glow/pulse tweens per special ball — cancelled when the
+   * ball is culled so they don't keep mutating destroyed sprites. */
+  private specialBallTweens = new Map<SpecialBall, Tween[]>()
 
   constructor(private readonly options: MainSceneOptions = {}) {
     super()
@@ -128,6 +133,13 @@ export class MainScene extends Scene {
     this.addChild(this.ball)
     this.ballColliderHandle = this.ball.colliderHandle
 
+    // Debug mode: seed the score near the boss threshold so the boss
+    // path is reachable without grinding bricks. Mirrors the Phaser
+    // original's `initializeDebugMode`.
+    if (useBreakoutCloneStore.getState().debugMode) {
+      this.state.addScore(900)
+    }
+
     this.hud = new HUD()
     this.addChild(this.hud)
     this.hud.setScore(this.state.score)
@@ -148,8 +160,9 @@ export class MainScene extends Scene {
 
     this.bossManager = new BossManager(this.world, this, this.rng, {
       onBossBattleWillStart: () => {
-        // Clear bricks so the boss has the playfield to itself.
-        this.bricks.clear()
+        // Fade the existing bricks out (1000ms) then destroy them. The
+        // spawn delay (BOSS_SPAWN_DELAY_MS) is sized to cover the fade.
+        this.fadeBricksOutAndClear(1000)
       },
       onBossStarted: (boss) => {
         this.bossColliderHandle = boss.colliderHandle
@@ -159,6 +172,7 @@ export class MainScene extends Scene {
         this.state.addScore(bonus)
         this.reportScore()
         this.bricks.generateInitial()
+        this.fadeBricksIn(1000)
       },
     })
 
@@ -201,7 +215,7 @@ export class MainScene extends Scene {
     } else if (this.phase === 'gameover' && jumpJustPressed) {
       this.options.onRequestRestart?.()
     } else if (this.phase === 'playing' && jumpJustPressed) {
-      this.paddle.startJump()
+      if (this.paddle.startJump()) this.tweenPaddleJumpSquash()
     }
 
     this.starfield.update(dtSec)
@@ -215,10 +229,12 @@ export class MainScene extends Scene {
     this.world.timestep = dtSec
     this.world.step(this.eventQueue)
     this.drainContacts()
-    this.paddle.checkLanding()
+    if (this.paddle.checkLanding()) this.tweenPaddleLandSquash()
     this.paddle.clampToBounds()
     this.paddle.syncView()
     this.ball.syncView()
+
+    this.updateTweens(dtMs)
 
     // Boss + special balls tick regardless of phase so defeat animations
     // can still finish during game-over screens. Special-ball physics
@@ -268,6 +284,9 @@ export class MainScene extends Scene {
   }
 
   override onExit(): void {
+    // Tweens are cancelled by `Scene.runTeardown` after `onExit`, but the
+    // map keeps Pixi refs alive until then — drop them eagerly.
+    this.specialBallTweens.clear()
     for (const sb of this.specialBalls) {
       this.removeChild(sb)
       sb.removeFromWorld(this.world)
@@ -286,7 +305,9 @@ export class MainScene extends Scene {
   // ── Special balls ───────────────────────────────────────────────────────
 
   /** Spawn a single secondary ball at the paddle, fired at a random angle.
-   * Doesn't cost a life when it falls past the death line. */
+   * Doesn't cost a life when it falls past the death line. The Phaser
+   * original adds two infinite tweens for visual flair (alpha pulse +
+   * scale pulse) — we mirror both via Scene.tween. */
   private spawnSpecialBall(): void {
     const px = this.paddle.position.x
     const py = this.paddle.position.y - 30
@@ -300,16 +321,113 @@ export class MainScene extends Scene {
     this.addChild(sb)
     this.specialBalls.push(sb)
     this.specialBallHandles.add(sb.colliderHandle)
+
+    const alphaTween = this.tween({
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: Easings.easeInOutSine,
+      onUpdate: (t) => {
+        sb.alpha = 1 - t * 0.6
+      },
+    }).tween
+    const scaleTween = this.tween({
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: Easings.easeInOutSine,
+      onUpdate: (t) => {
+        const s = 1 + t * 0.3
+        sb.scale.set(s)
+      },
+    }).tween
+    this.specialBallTweens.set(sb, [alphaTween, scaleTween])
   }
 
   private removeSpecialBall(index: number): void {
     const sb = this.specialBalls[index]
     if (!sb) return
+    const tweens = this.specialBallTweens.get(sb)
+    if (tweens) for (const t of tweens) t.cancel()
+    this.specialBallTweens.delete(sb)
     this.specialBallHandles.delete(sb.colliderHandle)
     this.removeChild(sb)
     sb.removeFromWorld(this.world)
     sb.destroy({ children: true })
     this.specialBalls.splice(index, 1)
+  }
+
+  // ── Animation helpers ───────────────────────────────────────────────────
+
+  /** Fade every current brick to alpha 0 over `durationMs` (Phaser Power2)
+   * and destroy them once the tween completes. Used as the boss-battle
+   * intro so the playfield smoothly empties for the boss spawn. */
+  private fadeBricksOutAndClear(durationMs: number): void {
+    const snapshot = [...this.bricks.bricks]
+    if (snapshot.length === 0) return
+    const startAlpha = snapshot.map((b) => b.alpha)
+    void this.tween({
+      duration: durationMs,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        for (let i = 0; i < snapshot.length; i++) {
+          const b = snapshot[i]
+          const a = startAlpha[i]
+          // `b.parent` is `null` after a ball hit destroyed the brick
+          // mid-fade — skip those so we don't write to a freed sprite.
+          if (b?.parent && a !== undefined) b.alpha = a * (1 - t)
+        }
+      },
+      onComplete: () => {
+        for (const b of snapshot) {
+          // Same guard: only finish off the bricks the ball didn't
+          // already clear during the fade window. Without it we'd
+          // double-free the Rapier body and crash WASM.
+          if (b.parent) this.bricks.destroyBrick(b)
+        }
+      },
+    }).promise
+  }
+
+  /** Fade newly-spawned bricks in from alpha 0. Pair with the boss
+   * defeat handler (which calls `generateInitial` first). */
+  private fadeBricksIn(durationMs: number): void {
+    const snapshot = [...this.bricks.bricks]
+    if (snapshot.length === 0) return
+    for (const b of snapshot) b.alpha = 0
+    void this.tween({
+      duration: durationMs,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        for (const b of snapshot) {
+          if (b.parent) b.alpha = t
+        }
+      },
+    }).promise
+  }
+
+  /** Squash-and-stretch on jump start: scaleY 1 → 1.2 → 1. */
+  private tweenPaddleJumpSquash(): void {
+    void this.tween({
+      duration: 150,
+      yoyo: true,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        this.paddle.scale.y = 1 + t * 0.2
+      },
+    }).promise
+  }
+
+  /** Squash on landing: scaleY 1 → 0.9 → 1. */
+  private tweenPaddleLandSquash(): void {
+    void this.tween({
+      duration: 120,
+      yoyo: true,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        this.paddle.scale.y = 1 - t * 0.1
+      },
+    }).promise
   }
 
   // ── Contact events ──────────────────────────────────────────────────────

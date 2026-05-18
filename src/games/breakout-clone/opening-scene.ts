@@ -1,6 +1,7 @@
 import { Assets, Container, Graphics, Rectangle, Sprite, Text } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { Scene, type SceneDelta } from '../../engine/scene'
+import { Easings } from '../../engine/util/tween'
 import { BRICK_NAMES } from './constants'
 import { Starfield } from './starfield'
 
@@ -32,6 +33,8 @@ export class OpeningScene extends Scene {
   private starfield!: Starfield
   private elapsedMs = 0
   private floatingBricks: { sprite: Sprite; baseY: number; phase: number }[] = []
+  private title!: Text
+  private subtitle!: Text
   private startText!: Text
   private transitioned = false
 
@@ -84,7 +87,7 @@ export class OpeningScene extends Scene {
       this.floatingBricks.push({ sprite, baseY: pos.y, phase: i * 0.7 })
     })
 
-    const title = new Text({
+    this.title = new Text({
       text: 'BLOCK BREAK',
       style: {
         fill: 0xffffff,
@@ -93,18 +96,18 @@ export class OpeningScene extends Scene {
         letterSpacing: 4,
       },
     })
-    title.anchor.set(0, 0.5)
-    title.position.set(50, 220)
-    title.zIndex = 10
-    this.addChild(title)
+    this.title.anchor.set(0, 0.5)
+    this.title.position.set(50, 220)
+    this.title.zIndex = 10
+    this.addChild(this.title)
 
-    const subtitle = new Text({
+    this.subtitle = new Text({
       text: 'ブロック崩し',
       style: { fill: 0xd8d8d8, fontSize: 26, fontFamily: 'serif' },
     })
-    subtitle.position.set(50, 256)
-    subtitle.zIndex = 10
-    this.addChild(subtitle)
+    this.subtitle.position.set(50, 256)
+    this.subtitle.zIndex = 10
+    this.addChild(this.subtitle)
 
     this.startText = new Text({
       text: 'SPACE OR TAP/CLICK TO ENTER',
@@ -152,14 +155,44 @@ export class OpeningScene extends Scene {
       fb.sprite.alpha = 0.4 + Math.sin(t * 0.7 + fb.phase) * 0.2
     }
 
-    // Pulse the start prompt.
-    this.startText.alpha = 0.65 + Math.sin(this.elapsedMs / 600) * 0.35
+    // Pulse the start prompt — suspend it once the transition begins so
+    // the fade-out tween isn't fighting the per-frame alpha mutation.
+    if (!this.transitioned) {
+      this.startText.alpha = 0.65 + Math.sin(this.elapsedMs / 600) * 0.35
+    }
 
     if (!this.transitioned && this.input.wasJustPressed('start')) {
       this.transitioned = true
-      this.options.onRequestStart()
+      void this.playStartTransition()
     }
 
+    this.updateTweens(dtMs)
     this.input.endFrame()
+  }
+
+  /** Phaser-original transition: fade the title + prompt out (500ms),
+   * then fade the whole scene to black (500ms), then hand control to the
+   * game module to swap in `MainScene`. */
+  private async playStartTransition(): Promise<void> {
+    const targets: { obj: Text; from: number }[] = [
+      { obj: this.title, from: this.title.alpha },
+      { obj: this.subtitle, from: this.subtitle.alpha },
+      { obj: this.startText, from: this.startText.alpha },
+    ]
+    await this.tween({
+      duration: 500,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        for (const { obj, from } of targets) obj.alpha = from * (1 - t)
+      },
+    }).promise
+    await this.tween({
+      duration: 500,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        this.alpha = 1 - t
+      },
+    }).promise
+    this.options.onRequestStart()
   }
 }

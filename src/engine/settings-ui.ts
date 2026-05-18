@@ -15,14 +15,20 @@ export interface SettingsRow {
   control: Container
 }
 
-/** Game-specific settings rows + section header. Built by the game module
- * (typically via `pixi.js` controls + the per-game store) and handed to
+/** One subsection within a `GameSettingsPanel` — an optional UPPERCASE
+ * header rendered above its rows, matching the System tab's
+ * Audio / Display / Controls layout. */
+export interface GameSettingsSection {
+  /** UPPERCASE header label. Omit to render the rows flush, no header. */
+  title?: string
+  rows: SettingsRow[]
+}
+
+/** Game-specific settings sections. Built by the game module (typically
+ * via `pixi.js` controls + the per-game store) and handed to
  * `attachLayout` so the engine settings modal can render a "Game" tab. */
 export interface GameSettingsPanel extends Disposable {
-  /** Section header shown above the rows in the Game tab. Optional —
-   * games with a single bag of settings can leave it off. */
-  sectionTitle?: string
-  rows: SettingsRow[]
+  sections: GameSettingsSection[]
 }
 
 export interface SettingsUi extends Disposable {
@@ -266,30 +272,35 @@ class SettingsModal extends Container implements Disposable {
       return
     }
     let y = CONTENT_TOP_Y
-    if (this.gameSettings.sectionTitle) {
-      const t = new Text({
-        text: this.gameSettings.sectionTitle.toUpperCase(),
-        style: {
-          fill: SUBDUED,
-          fontSize: 11,
-          fontFamily: this.theme.fontSans,
-          letterSpacing: 2,
-        },
-      })
-      t.position.set(PANEL_PADDING_X, y)
-      c.addChild(t)
-      y += 24
-    }
-    for (const row of this.gameSettings.rows) {
-      const t = new Text({
-        text: row.label,
-        style: { fill: ROW_LABEL, fontSize: 14, fontFamily: this.theme.fontSans },
-      })
-      t.position.set(PANEL_PADDING_X, y + 6)
-      c.addChild(t)
-      row.control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
-      c.addChild(row.control)
-      y += ROW_GAP
+    let first = true
+    for (const section of this.gameSettings.sections) {
+      if (!first) y += SECTION_GAP
+      first = false
+      if (section.title) {
+        const t = new Text({
+          text: section.title.toUpperCase(),
+          style: {
+            fill: SUBDUED,
+            fontSize: 11,
+            fontFamily: this.theme.fontSans,
+            letterSpacing: 2,
+          },
+        })
+        t.position.set(PANEL_PADDING_X, y)
+        c.addChild(t)
+        y += 24
+      }
+      for (const row of section.rows) {
+        const t = new Text({
+          text: row.label,
+          style: { fill: ROW_LABEL, fontSize: 14, fontFamily: this.theme.fontSans },
+        })
+        t.position.set(PANEL_PADDING_X, y + 6)
+        c.addChild(t)
+        row.control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
+        c.addChild(row.control)
+        y += ROW_GAP
+      }
     }
   }
 
