@@ -87,7 +87,7 @@ jobs:
           # Fail loudly if the pinned ref predates the embed pipeline
           # rather than letting `npm run build:embed` blow up opaquely
           # several minutes later after `npm ci`.
-          for f in scripts/build-embed.mjs vite.embed.config.ts; do
+          for f in scripts/build-embed.js vite.embed.config.ts; do
             if [ ! -f "/tmp/rel/$f" ]; then
               echo "::error::Pinned ref $REF is missing $f; cannot build embed bundles."
               exit 1
