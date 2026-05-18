@@ -190,7 +190,7 @@ class SettingsModal extends Container implements Disposable {
       t.position.set(x, TAB_STRIP_Y)
       t.eventMode = 'static'
       t.cursor = 'pointer'
-      const hit = new Rectangle(-6, -4, t.width + 12, t.height + 8)
+      const hit = new Rectangle(-10, -16, t.width + 20, t.height + 32)
       t.hitArea = hit
       t.on('pointertap', () => this.setActiveTab(id))
       this.panel.addChild(t)
