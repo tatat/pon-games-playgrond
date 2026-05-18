@@ -147,10 +147,13 @@ export class MainScene extends Scene {
 
     // Bricks. Generator builds against the same world and tracks them by
     // collider handle through `onBrickAdded` so the scene's contact handler
-    // can resolve handle → entity in O(1).
+    // can resolve handle → entity in O(1). Each new brick also spawn-fades
+    // via the scene's tween system so generation (initial + 5s spawn
+    // timer + boss-defeat regen) feels alive instead of popping in.
     this.bricks = new BrickGenerator(this.world, this, this.rng, {
       onBrickAdded: (brick) => {
         this.brickByCollider.set(brick.colliderHandle, brick)
+        this.tweenBrickSpawnIn(brick)
       },
       onBrickRemoved: (brick) => {
         this.brickByCollider.delete(brick.colliderHandle)
@@ -171,8 +174,9 @@ export class MainScene extends Scene {
         this.bossColliderHandle = -1
         this.state.addScore(bonus)
         this.reportScore()
+        // generateInitial fires onBrickAdded for each — the spawn-fade
+        // tween wired there handles the post-boss fade-in by itself.
         this.bricks.generateInitial()
-        this.fadeBricksIn(1000)
       },
     })
 
@@ -366,6 +370,13 @@ export class MainScene extends Scene {
     const snapshot = [...this.bricks.bricks]
     if (snapshot.length === 0) return
     const startAlpha = snapshot.map((b) => b.alpha)
+    // Disable each brick's physics immediately so the ball passes through
+    // the fading corpses instead of either bouncing off them or competing
+    // with `fadeBrickOutAndDestroy` for the same brick.
+    for (const b of snapshot) {
+      this.brickByCollider.delete(b.colliderHandle)
+      this.world.getCollider(b.colliderHandle)?.setEnabled(false)
+    }
     void this.tween({
       duration: durationMs,
       ease: Easings.power2,
@@ -373,35 +384,45 @@ export class MainScene extends Scene {
         for (let i = 0; i < snapshot.length; i++) {
           const b = snapshot[i]
           const a = startAlpha[i]
-          // `b.parent` is `null` after a ball hit destroyed the brick
-          // mid-fade — skip those so we don't write to a freed sprite.
           if (b?.parent && a !== undefined) b.alpha = a * (1 - t)
         }
       },
       onComplete: () => {
         for (const b of snapshot) {
-          // Same guard: only finish off the bricks the ball didn't
-          // already clear during the fade window. Without it we'd
-          // double-free the Rapier body and crash WASM.
           if (b.parent) this.bricks.destroyBrick(b)
         }
       },
     }).promise
   }
 
-  /** Fade newly-spawned bricks in from alpha 0. Pair with the boss
-   * defeat handler (which calls `generateInitial` first). */
-  private fadeBricksIn(durationMs: number): void {
-    const snapshot = [...this.bricks.bricks]
-    if (snapshot.length === 0) return
-    for (const b of snapshot) b.alpha = 0
+  /** Phaser-original: bricks fade in from alpha 0 over 500ms when they
+   * spawn (initial generation, every-5s spawn timer, post-boss regen). */
+  private tweenBrickSpawnIn(brick: Brick): void {
+    brick.alpha = 0
     void this.tween({
-      duration: durationMs,
+      duration: 500,
       ease: Easings.power2,
       onUpdate: (t) => {
-        for (const b of snapshot) {
-          if (b.parent) b.alpha = t
-        }
+        if (brick.parent) brick.alpha = t
+      },
+    }).promise
+  }
+
+  /** Per-hit destruction fade: disable physics + drop from contact map
+   * immediately so the ball can't bounce off the corpse, then fade the
+   * visual out over 200ms before actually destroying the brick. */
+  private fadeBrickOutAndDestroy(brick: Brick): void {
+    this.brickByCollider.delete(brick.colliderHandle)
+    this.world.getCollider(brick.colliderHandle)?.setEnabled(false)
+    const startAlpha = brick.alpha
+    void this.tween({
+      duration: 200,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        if (brick.parent) brick.alpha = startAlpha * (1 - t)
+      },
+      onComplete: () => {
+        if (brick.parent) this.bricks.destroyBrick(brick)
       },
     }).promise
   }
@@ -478,10 +499,14 @@ export class MainScene extends Scene {
 
   private onBrickHit(brick: Brick): void {
     this.state.addScore(brick.scoreValue)
-    this.bricks.destroyBrick(brick)
     this.sounds.playRandomHit()
     this.reportScore()
-    if (this.bricks.count === 0) this.allBricksCleared()
+    this.fadeBrickOutAndDestroy(brick)
+    // `brickByCollider` is the set of *hittable* bricks (the fading
+    // destroy-tween already removed `brick` from it). Once it's empty
+    // every remaining brick is mid-fade-out and the playfield counts as
+    // cleared for the bonus + regen.
+    if (this.brickByCollider.size === 0) this.allBricksCleared()
   }
 
   private allBricksCleared(): void {
