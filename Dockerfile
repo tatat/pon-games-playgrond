@@ -39,6 +39,8 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # itself is downloaded per-user by `npx playwright install chromium` in
 # postCreate. Note: Chrome for Testing has no linux-arm64 build, so on arm64
 # we rely on Playwright's own arm64 chromium build (cdn.playwright.dev).
+# fonts-noto-cjk is included so screenshots render Japanese text correctly
+# (game UI uses Japanese — without it, characters fall back to tofu boxes).
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libnspr4 \
         libnss3 \
@@ -54,7 +56,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libxrandr2 \
         libatspi2.0-0t64 \
         libatk1.0-0t64 \
-        libatk-bridge2.0-0t64
+        libatk-bridge2.0-0t64 \
+        fonts-noto-cjk
 
 WORKDIR /home/ubuntu
 
