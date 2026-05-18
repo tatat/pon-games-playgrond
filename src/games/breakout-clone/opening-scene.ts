@@ -26,14 +26,19 @@ export interface OpeningSceneOptions {
   onRequestStart(): void
 }
 
+const LOGO_W = 360
+const LOGO_H = 326
+const TITLE_FONT = '"Kaisei Decol", serif'
+
 /** Title screen for breakout-clone. Starfield + 6 floating brick stickers
- * + game-name + "press SPACE / TAP" prompt. Tapping or pressing SPACE
- * fires `onRequestStart` so the game module can swap in `MainScene`. */
+ * + logo + game-name + "press SPACE / TAP" prompt. Tapping or pressing
+ * SPACE fires `onRequestStart` so the game module can swap in
+ * `MainScene`. */
 export class OpeningScene extends Scene {
   private starfield!: Starfield
   private elapsedMs = 0
   private floatingBricks: { sprite: Sprite; baseY: number; phase: number }[] = []
-  private title!: Text
+  private titleLogo!: Sprite
   private subtitle!: Text
   private startText!: Text
   private transitioned = false
@@ -54,11 +59,16 @@ export class OpeningScene extends Scene {
 
     // Reuse the 256-size brick stickers for decoration. Same aliases as
     // MainScene, so the resolver dedupes when MainScene preloads later.
+    // The title logo lives in the same preload manifest so a single
+    // network round trip covers both.
     await this.preload(
-      BRICK_NAMES.map((name) => ({
-        alias: `brick-${name}-${FLOATING_BRICK_SIZE}`,
-        src: `games/breakout-clone/stickers/${name}-${FLOATING_BRICK_SIZE}@2x.png`,
-      })),
+      [
+        { alias: 'breakout-logo', src: 'games/breakout-clone/images/logo-tssh.svg' },
+        ...BRICK_NAMES.map((name) => ({
+          alias: `brick-${name}-${FLOATING_BRICK_SIZE}`,
+          src: `games/breakout-clone/stickers/${name}-${FLOATING_BRICK_SIZE}@2x.png`,
+        })),
+      ],
       signal,
     )
 
@@ -87,35 +97,58 @@ export class OpeningScene extends Scene {
       this.floatingBricks.push({ sprite, baseY: pos.y, phase: i * 0.7 })
     })
 
-    this.title = new Text({
-      text: 'BLOCK BREAK',
-      style: {
-        fill: 0xffffff,
-        fontSize: 48,
-        fontFamily: 'Courier, monospace',
-        letterSpacing: 4,
+    const logoTex = Assets.get('breakout-logo')
+    this.titleLogo = new Sprite(logoTex)
+    this.titleLogo.anchor.set(0.5)
+    this.titleLogo.width = LOGO_W
+    this.titleLogo.height = LOGO_H
+    this.titleLogo.position.set(231, 205)
+    this.titleLogo.alpha = 0
+    this.titleLogo.zIndex = 10
+    this.addChild(this.titleLogo)
+    void this.tween({
+      duration: 1500,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        this.titleLogo.alpha = t
       },
-    })
-    this.title.anchor.set(0, 0.5)
-    this.title.position.set(50, 220)
-    this.title.zIndex = 10
-    this.addChild(this.title)
+    }).promise
 
     this.subtitle = new Text({
       text: 'ブロック崩し',
-      style: { fill: 0xd8d8d8, fontSize: 26, fontFamily: 'serif' },
+      style: { fill: 0xd8d8d8, fontSize: 38, fontFamily: TITLE_FONT },
     })
-    this.subtitle.position.set(50, 256)
+    this.subtitle.position.set(50, 596)
+    this.subtitle.alpha = 0
     this.subtitle.zIndex = 10
     this.addChild(this.subtitle)
+    // Match the original's 500ms-delayed 1500ms fade-in. We run a 2000ms
+    // tween where the first 25% stays at alpha 0, then eases up.
+    void this.tween({
+      duration: 2000,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        this.subtitle.alpha = Math.max(0, (t - 0.25) / 0.75)
+      },
+    }).promise
 
     this.startText = new Text({
       text: 'SPACE OR TAP/CLICK TO ENTER',
-      style: { fill: 0xa0a0a0, fontSize: 22, fontFamily: 'Courier, monospace' },
+      style: { fill: 0xa0a0a0, fontSize: 24, fontFamily: TITLE_FONT },
     })
-    this.startText.position.set(50, 580)
+    this.startText.position.set(50, 650)
+    this.startText.alpha = 0
     this.startText.zIndex = 10
     this.addChild(this.startText)
+    // Original: 800ms fade-in delayed by 1000ms. Roll the delay + fade
+    // into one tween and use the standard pulse below for steady state.
+    void this.tween({
+      duration: 1800,
+      ease: Easings.power2,
+      onUpdate: (t) => {
+        this.startText.alpha = Math.max(0, (t - 0.556) / 0.444)
+      },
+    }).promise
 
     this.bindInput({ start: ['Space', 'Enter'] })
 
@@ -170,12 +203,12 @@ export class OpeningScene extends Scene {
     this.input.endFrame()
   }
 
-  /** Phaser-original transition: fade the title + prompt out (500ms),
-   * then fade the whole scene to black (500ms), then hand control to the
-   * game module to swap in `MainScene`. */
+  /** Phaser-original transition: fade the logo + texts out (500ms),
+   * then fade the whole scene to black (500ms), then hand control to
+   * the game module to swap in `MainScene`. */
   private async playStartTransition(): Promise<void> {
-    const targets: { obj: Text; from: number }[] = [
-      { obj: this.title, from: this.title.alpha },
+    const targets: { obj: { alpha: number }; from: number }[] = [
+      { obj: this.titleLogo, from: this.titleLogo.alpha },
       { obj: this.subtitle, from: this.subtitle.alpha },
       { obj: this.startText, from: this.startText.alpha },
     ]
