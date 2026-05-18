@@ -11,12 +11,9 @@ const INNER_GAP = 6
 const MIN_REQUIRED_MARGIN_PX = 120
 const OVERLAY_PAUSE_SIZE = 44
 const OVERLAY_PAUSE_MARGIN = 12
-const IN_CANVAS_COL_WIDTH = 160
-const IN_CANVAS_COL_GAP = 2
 const IN_CANVAS_BTN_SIZE = 130
 const IN_CANVAS_BTN_MARGIN = 15
 const IN_CANVAS_BTN_GAP = 15
-const IN_CANVAS_ARROW_FROM_BOTTOM = 100
 const LABEL_FONT_SIZE = 22
 
 export interface Keypad extends Disposable {
@@ -323,22 +320,42 @@ class ActionsBoard extends Container {
 
 // ── In-canvas overlay (no-margin fallback for MainScene) ────────────────
 
-/** Phaser-original style: full-height left / right tap columns on the
- * left half of the canvas, plus a Jump / Fast stack on the right edge.
- * Pause is *not* part of this — the always-on top-right `overlayPause`
- * handles that — so the overlay can shut off cleanly when margins fit. */
+/** In-canvas overlay used when there's no letterbox room for the margin
+ * boards. Four PadButtons in the same boxed style as the margin
+ * keypad: ◀ ▶ on the bottom-left, JUMP / FAST stacked on the
+ * bottom-right. Pause isn't part of this — the always-on top-right
+ * `overlayPause` handles that — so the whole overlay can shut off
+ * cleanly when margins do fit. */
 class InCanvasOverlay extends Container {
   constructor(input: InputManager, disposables: Array<() => void>) {
     super()
     this.zIndex = 200
-    const leftCol = makeHoldColumn('left', 0, input, disposables)
-    const rightCol = makeHoldColumn(
-      'right',
-      IN_CANVAS_COL_WIDTH + IN_CANVAS_COL_GAP,
-      input,
+
+    const leftBtn = new PadButton({
+      glyph: 'arrow-left',
+      onPress: () => input.press('left'),
+      onRelease: () => input.release('left'),
       disposables,
+    })
+    leftBtn.setShape(IN_CANVAS_BTN_SIZE, IN_CANVAS_BTN_SIZE)
+    leftBtn.position.set(
+      IN_CANVAS_BTN_MARGIN + IN_CANVAS_BTN_SIZE / 2,
+      DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
     )
-    this.addChild(leftCol, rightCol)
+    this.addChild(leftBtn)
+
+    const rightBtn = new PadButton({
+      glyph: 'arrow-right',
+      onPress: () => input.press('right'),
+      onRelease: () => input.release('right'),
+      disposables,
+    })
+    rightBtn.setShape(IN_CANVAS_BTN_SIZE, IN_CANVAS_BTN_SIZE)
+    rightBtn.position.set(
+      IN_CANVAS_BTN_MARGIN + IN_CANVAS_BTN_SIZE * 1.5 + IN_CANVAS_BTN_GAP,
+      DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
+    )
+    this.addChild(rightBtn)
 
     const fast = new PadButton({
       label: 'FAST',
@@ -366,67 +383,6 @@ class InCanvasOverlay extends Container {
     )
     this.addChild(jump)
   }
-}
-
-function makeHoldColumn(
-  side: 'left' | 'right',
-  x: number,
-  input: InputManager,
-  disposables: Array<() => void>,
-): Container {
-  const c = new Container()
-  c.position.set(x, 0)
-  c.eventMode = 'static'
-  c.hitArea = new Rectangle(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
-
-  const bg = new Graphics()
-  const drawBg = (pressed: boolean): void => {
-    bg.clear()
-    bg.rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H).fill({
-      color: 0x000000,
-      alpha: pressed ? 0.18 : 0.1,
-    })
-  }
-  drawBg(false)
-  c.addChild(bg)
-
-  const cx = IN_CANVAS_COL_WIDTH / 2
-  const cy = DESIGN_H - IN_CANVAS_ARROW_FROM_BOTTOM
-  const arrow = new Graphics()
-  const drawArrow = (pressed: boolean): void => {
-    arrow.clear()
-    if (side === 'left') {
-      arrow.poly([cx - 15, cy, cx + 10, cy - 15, cx + 10, cy + 15])
-    } else {
-      arrow.poly([cx + 15, cy, cx - 10, cy - 15, cx - 10, cy + 15])
-    }
-    arrow.fill({ color: 0xffffff, alpha: pressed ? 1 : 0.6 })
-  }
-  drawArrow(false)
-  c.addChild(arrow)
-
-  const onDown = (e: { stopPropagation?(): void }): void => {
-    e.stopPropagation?.()
-    drawBg(true)
-    drawArrow(true)
-    input.press(side)
-  }
-  const onUp = (): void => {
-    drawBg(false)
-    drawArrow(false)
-    input.release(side)
-  }
-  c.on('pointerdown', onDown)
-  c.on('pointerup', onUp)
-  c.on('pointerupoutside', onUp)
-  c.on('pointercancel', onUp)
-  disposables.push(() => {
-    c.off('pointerdown', onDown)
-    c.off('pointerup', onUp)
-    c.off('pointerupoutside', onUp)
-    c.off('pointercancel', onUp)
-  })
-  return c
 }
 
 // ── Always-on top-right overlay pause ───────────────────────────────────
@@ -486,6 +442,7 @@ class PadButton extends Container {
         style: { fill: 0xffffff, fontSize: LABEL_FONT_SIZE, fontFamily },
       })
       this.labelText.anchor.set(0.5)
+      this.labelText.alpha = 0.75
       this.addChild(this.labelText)
     }
 
@@ -493,6 +450,8 @@ class PadButton extends Container {
       if (this.pressed === v) return
       this.pressed = v
       this.redrawBg()
+      this.redrawGlyph()
+      if (this.labelText) this.labelText.alpha = v ? 1 : 0.75
     }
     const onDown = (e: { stopPropagation?(): void }): void => {
       e.stopPropagation?.()
@@ -526,25 +485,46 @@ class PadButton extends Container {
     this.currentHeight = height
     this.redrawBg()
     this.hitArea = new Rectangle(-width / 2, -height / 2, width, height)
-    this.glyph.clear()
-    drawGlyph(this.glyph, this.opts.glyph, width, height)
+    this.redrawGlyph()
     if (this.labelText) this.labelText.position.set(0, 0)
+  }
+
+  private redrawGlyph(): void {
+    this.glyph.clear()
+    drawGlyph(
+      this.glyph,
+      this.opts.glyph,
+      this.currentWidth,
+      this.currentHeight,
+      this.pressed ? 1 : 0.75,
+    )
   }
 
   /** Pressed buttons darken slightly and the outline firms up — reads
    * as "pushed in" rather than "lit up". */
   private redrawBg(): void {
-    const { currentWidth: w, currentHeight: h } = this
-    if (w === 0 || h === 0) return
+    if (this.currentWidth === 0 || this.currentHeight === 0) return
     this.bg.clear()
     this.bg
-      .roundRect(-w / 2, -h / 2, w, h, 6)
+      .roundRect(
+        -this.currentWidth / 2,
+        -this.currentHeight / 2,
+        this.currentWidth,
+        this.currentHeight,
+        6,
+      )
       .fill({ color: 0x000000, alpha: this.pressed ? 0.5 : 0.3 })
       .stroke({ color: 0xffffff, alpha: this.pressed ? 0.4 : 0.25, width: 1.5 })
   }
 }
 
-function drawGlyph(g: Graphics, glyph: Glyph | undefined, w: number, h: number): void {
+function drawGlyph(
+  g: Graphics,
+  glyph: Glyph | undefined,
+  w: number,
+  h: number,
+  alpha: number,
+): void {
   if (!glyph) return
   const s = Math.min(w, h)
   if (glyph === 'pause') {
@@ -554,12 +534,12 @@ function drawGlyph(g: Graphics, glyph: Glyph | undefined, w: number, h: number):
     const left = -gap / 2 - barW
     g.rect(left, -barH / 2, barW, barH)
       .rect(left + barW + gap, -barH / 2, barW, barH)
-      .fill({ color: 0xffffff, alpha: 0.85 })
+      .fill({ color: 0xffffff, alpha })
   } else if (glyph === 'arrow-left') {
     const t = s * 0.2
-    g.poly([-t * 0.6, 0, t * 0.4, -t, t * 0.4, t]).fill({ color: 0xffffff, alpha: 0.85 })
+    g.poly([-t * 0.6, 0, t * 0.4, -t, t * 0.4, t]).fill({ color: 0xffffff, alpha })
   } else if (glyph === 'arrow-right') {
     const t = s * 0.2
-    g.poly([t * 0.6, 0, -t * 0.4, -t, -t * 0.4, t]).fill({ color: 0xffffff, alpha: 0.85 })
+    g.poly([t * 0.6, 0, -t * 0.4, -t, -t * 0.4, t]).fill({ color: 0xffffff, alpha })
   }
 }
