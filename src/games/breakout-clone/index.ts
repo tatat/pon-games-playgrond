@@ -6,11 +6,10 @@ import { Rng } from '../../engine/rng'
 import { SceneManager } from '../../engine/scene-manager'
 import type { GameContext, GameHandle, GameModule } from '../types'
 import { GAME_ID } from './constants'
+import { OpeningScene } from './opening-scene'
 import { MainScene, type MainSceneOptions } from './scene'
 
-/** Breakout Clone — port of the Phaser original. Phase 2 of the port:
- * paddle + ball + walls + HUD + start / game-over flow. Bricks, boss,
- * sound, opening scene land in later phases. */
+/** Breakout Clone — port of the Phaser original. */
 export const breakoutCloneGame: GameModule = {
   uiTheme: {
     fontSans: 'Courier, "Courier New", monospace',
@@ -38,7 +37,13 @@ export const breakoutCloneGame: GameModule = {
           void sm.changeTo(new MainScene({ ...sceneOptions, startImmediately: true }))
         },
       }
-      await sm.changeTo(new MainScene(sceneOptions))
+      await sm.changeTo(
+        new OpeningScene({
+          onRequestStart: () => {
+            void sm.changeTo(new MainScene({ ...sceneOptions, startImmediately: true }))
+          },
+        }),
+      )
       signal.throwIfAborted()
     } catch (e) {
       await teardown()
