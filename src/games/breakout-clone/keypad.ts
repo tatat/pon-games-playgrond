@@ -177,15 +177,17 @@ class PauseOnlyBoard extends Container {
 
   layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
     if (placement === 'sides') {
-      // Sit in the right margin so the user reaches it with the right
-      // thumb, top-aligned to mirror the in-canvas overlay's corner.
-      const w = Math.min(m.marginLeft - BOARD_GAP * 2, 96)
+      // Right margin, square button matched to the full margin width
+      // (no cap) so the title screen scales the same way as the main
+      // scene's keypad does — both adapt to whatever letterbox the
+      // viewport gives us.
+      const w = m.marginLeft - BOARD_GAP * 2
       const h = w
       this.pause.setShape(w, h)
       this.position.set(m.viewportW - m.marginLeft / 2, BOARD_GAP + h / 2)
     } else {
-      // Bottom strip — place near the right end for the same reason.
-      const h = Math.min(m.marginTop - BOARD_GAP * 2, 64)
+      // Bottom strip — square button matched to the full margin height.
+      const h = m.marginTop - BOARD_GAP * 2
       const w = h
       this.pause.setShape(w, h)
       this.position.set(m.viewportW - BOARD_GAP - w / 2, m.marginTop + m.gameH + m.marginTop / 2)
