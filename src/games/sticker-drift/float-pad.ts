@@ -7,6 +7,7 @@ import { useRuntimeStore } from '../../store/runtime'
 import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 
 const BOARD_GAP = 24
+const INNER_GAP = 6
 const MIN_REQUIRED_MARGIN_PX = BOARD_GAP * 2 + 48
 /** Cap each margin-board button so a wide letterbox doesn't balloon
  * the pad. The pair (menu + float) stays centred in the margin. */
@@ -138,13 +139,17 @@ class PadBoard extends Container {
       this.menuBtn.position.set(0, -height / 2 + cell / 2)
       this.floatBtn.position.set(0, 0)
     } else {
-      // Horizontal: pause anchored to the left edge of the strip,
-      // float in the centre.
-      const cell = Math.min(height, width / 2, MAX_MENU_BTN)
+      // Horizontal (bottom strip): two equal squares side by side,
+      // centred. The sides-only "pause at the edge, float in the
+      // centre" rule doesn't apply here — the bottom strip already
+      // separates the two thumbs by distance.
+      const cell = Math.min(height, (width - INNER_GAP) / 2, MAX_MENU_BTN)
+      const rowW = cell * 2 + INNER_GAP
       this.menuBtn.setShape(cell, cell)
       this.floatBtn.setShape(cell, cell)
-      this.menuBtn.position.set(-width / 2 + cell / 2, 0)
-      this.floatBtn.position.set(0, 0)
+      const left = -rowW / 2
+      this.menuBtn.position.set(left + cell / 2, 0)
+      this.floatBtn.position.set(left + cell + INNER_GAP + cell / 2, 0)
     }
   }
 }

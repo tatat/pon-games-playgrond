@@ -226,15 +226,21 @@ class DirectionBoard extends Container {
       this.rightBtn.position.set(cell / 2 + INNER_GAP / 2, 0)
       this.position.set(m.marginLeft / 2, m.viewportH / 2)
     } else {
-      // Bottom strip, left half: ◀ ▶ side by side, centred horizontally
-      // and vertically (mirrors the Actions board's centred cluster).
+      // Bottom strip, left half: ◀ ▶ in the top row of a 2×2 grid
+      // (bottom row stays blank to match the Actions board, where
+      // Pause lives in the bottom-right cell). The sides-only
+      // edge/centre split for Pause doesn't apply down here.
       const stripW = (m.viewportW - BOARD_GAP * 3) / 2
       const stripH = m.marginTop - BOARD_GAP * 2
-      const cell = Math.min((stripW - INNER_GAP) / 2, stripH, MAX_MARGIN_BTN)
+      const cell = Math.min((stripW - INNER_GAP) / 2, (stripH - INNER_GAP) / 2, MAX_MARGIN_BTN)
+      const boardW = cell * 2 + INNER_GAP
+      const boardH = cell * 2 + INNER_GAP
       this.leftBtn.setShape(cell, cell)
       this.rightBtn.setShape(cell, cell)
-      this.leftBtn.position.set(-cell / 2 - INNER_GAP / 2, 0)
-      this.rightBtn.position.set(cell / 2 + INNER_GAP / 2, 0)
+      const left = -boardW / 2
+      const top = -boardH / 2
+      this.leftBtn.position.set(left + cell / 2, top + cell / 2)
+      this.rightBtn.position.set(left + cell + INNER_GAP + cell / 2, top + cell / 2)
       this.position.set(BOARD_GAP + stripW / 2, m.marginTop + m.gameH + m.marginTop / 2)
     }
   }
@@ -289,22 +295,24 @@ class ActionsBoard extends Container {
       this.fast.position.set(0, clusterTop + cell + INNER_GAP + cell / 2)
       this.position.set(m.viewportW - m.marginLeft / 2, m.viewportH / 2)
     } else {
-      // Bottom strip, right half: Pause sits at the far-right edge of
-      // the strip (away from the thumb's resting zone over Jump/Fast);
-      // Jump / Fast sit side-by-side centred in the actions half.
+      // Bottom strip, right half — 2×2 grid:
+      //   [jump][fast]
+      //   [blank][pause]
+      // Jump / Fast share the top row; Pause drops to the bottom-right
+      // cell so it's diagonally offset from the gameplay buttons.
       const stripW = (m.viewportW - BOARD_GAP * 3) / 2
       const stripH = m.marginTop - BOARD_GAP * 2
-      const cell = Math.min(stripH, stripW / 3, MAX_MARGIN_BTN)
-      this.pause.setShape(cell, cell)
+      const cell = Math.min((stripW - INNER_GAP) / 2, (stripH - INNER_GAP) / 2, MAX_MARGIN_BTN)
+      const boardW = cell * 2 + INNER_GAP
+      const boardH = cell * 2 + INNER_GAP
       this.jump.setShape(cell, cell)
       this.fast.setShape(cell, cell)
-      // Pause at the right edge.
-      this.pause.position.set(stripW / 2 - cell / 2, 0)
-      // Jump / Fast cluster centred horizontally on x=0.
-      const clusterW = cell * 2 + INNER_GAP
-      const clusterLeft = -clusterW / 2
-      this.jump.position.set(clusterLeft + cell / 2, 0)
-      this.fast.position.set(clusterLeft + cell + INNER_GAP + cell / 2, 0)
+      this.pause.setShape(cell, cell)
+      const left = -boardW / 2
+      const top = -boardH / 2
+      this.jump.position.set(left + cell / 2, top + cell / 2)
+      this.fast.position.set(left + cell + INNER_GAP + cell / 2, top + cell / 2)
+      this.pause.position.set(left + cell + INNER_GAP + cell / 2, top + cell + INNER_GAP + cell / 2)
       this.position.set(
         m.viewportW - BOARD_GAP - stripW / 2,
         m.marginTop + m.gameH + m.marginTop / 2,
