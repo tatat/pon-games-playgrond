@@ -61,8 +61,8 @@ fi
 cd "${WORKSPACE_FOLDER}"
 
 sudo chown ubuntu -R node_modules
-sudo chown -R ubuntu:ubuntu ~/.config ~/.claude ~/.codex ~/.cache/ms-playwright
-chmod 700 ~/.claude ~/.codex
+sudo chown -R ubuntu:ubuntu ~/.config ~/.claude ~/.codex ~/.agents ~/.cache/ms-playwright
+chmod 700 ~/.claude ~/.codex ~/.agents
 
 # Keep ~/.claude.json in the claude-config volume so it survives rebuilds
 [ -f ~/.claude/.claude.json ] || echo '{}' > ~/.claude/.claude.json

@@ -83,6 +83,6 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # GitHub Copilot CLI (gh extension)
 RUN curl -fsSL https://gh.io/copilot-install | bash
 
-# Codex CLI + Playwright MCP server
+# Codex CLI + Playwright MCP server + Skills CLI (vercel-labs/skills)
 RUN . "$HOME/.asdf/asdf.sh" \
-    && npm install -g @openai/codex @playwright/mcp
+    && npm install -g @openai/codex @playwright/mcp skills

@@ -28,7 +28,11 @@ Open the repo in VS Code with the Dev Containers extension, or launch it as a Gi
 ## Contributors
 
 - **Asset creators (sprites, audio)**: drop files into `public/games/<game-id>/<kind>/` and reference them via a `preload` entry. The live preview above is the easiest way to see your asset in action — your PR will redeploy automatically on merge.
-- **Code (with agent assistance)**: read [`AGENTS.md`](./AGENTS.md) first. It covers conventions, workflow, and TypeScript / test gotchas that agents need to know. Use whatever agent you're comfortable with (Claude Code, Codex, Copilot) — the repo ships `.claude/` hooks and a devcontainer geared for all three.
+- **Code (with agent assistance)**: read [`AGENTS.md`](./AGENTS.md) first. It covers conventions, workflow, and TypeScript / test gotchas that agents need to know. Use whatever agent you're comfortable with (Claude Code, Codex, Copilot) — the repo ships `.claude/` hooks and a devcontainer geared for all three. Recommended: install the [pixijs-skills](https://github.com/pixijs/pixijs-skills) skill pack via [vercel-labs/skills](https://github.com/vercel-labs/skills) so your agent gets Pixi v8 reference docs on demand:
+
+  ```bash
+  npx skills add https://github.com/pixijs/pixijs-skills
+  ```
 
 ## Docs
 
