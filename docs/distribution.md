@@ -32,7 +32,7 @@ export interface EmbedMountOptions {
   seed?: number
   onScoreChange?: (score: number) => void
   onGameOver?: (result: GameResult) => void
-  assetBaseUrl?: string  // override the auto-detected playground origin
+  assetBaseUrl?: string  // override the bundle-relative `./assets/` default
 }
 
 export interface EmbedHandle {

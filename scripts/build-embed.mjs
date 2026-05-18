@@ -37,15 +37,23 @@ for (const id of games) {
 
   // Self-contained bundle: copy the game's `public/games/<id>/` tree
   // into the bundle's `assets/games/<id>/` so consumers fetch assets
-  // relative to the bundle URL, not from the playground origin. The
-  // `games/<id>/` prefix inside `assets/` matches the asset paths the
-  // engine code uses (`games/<id>/stickers/...`), so the URL produced
-  // by `new URL('./assets/', import.meta.url) + 'games/<id>/stickers/X'`
-  // lands at the copied file with no other rewriting.
+  // relative to the bundle URL, not from the playground origin.
+  //
+  // The `games/<id>/` segment **inside** `assets/` is deliberate. The
+  // engine emits asset paths like `games/<id>/stickers/<name>.png`
+  // (no per-game refactor when shifting between SPA and embed mode);
+  // the embed's `setAssetBaseUrl` is `<bundle>/assets/`. Combining
+  // them gives `<bundle>/assets/games/<id>/stickers/<name>.png`,
+  // which is exactly where this copy puts the file. Renaming either
+  // half would force engine-wide path changes.
   const publicAssets = resolve(repoRoot, `public/games/${id}`)
   if (!existsSync(publicAssets)) {
-    console.warn(`(no public assets for ${id} at ${publicAssets}, skipping copy)`)
-    continue
+    console.error(
+      `Cannot find public assets for ${id} at ${publicAssets}. ` +
+        'A known game id must have a populated `public/games/<id>/` ' +
+        'directory; the embed bundle is unusable without it.',
+    )
+    process.exit(1)
   }
   const embedAssets = resolve(repoRoot, `dist/embed/${id}/assets/games/${id}`)
   cpSync(publicAssets, embedAssets, { recursive: true })
