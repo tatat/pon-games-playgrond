@@ -80,6 +80,10 @@ export class SceneManager implements Disposable {
     this.currentReady = false
     this.unsubPaused()
     this.ticker.remove(this.tickHandler)
+    // Abort any in-flight `onEnter` immediately so its `preload` (or any
+    // other async setup that honours the signal) bails out instead of
+    // continuing to load assets into an already-disposed manager.
+    this.currentSceneCtrl?.abort()
     // Queue teardown onto the serialized transition chain so it never races
     // with an in-flight changeTo's onExit on the same scene.
     this.transition = this.transition.catch(() => {}).then(() => this.tearDownCurrent())

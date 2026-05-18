@@ -103,10 +103,10 @@ export class BossManager {
   }
 
   private spawn(): void {
-    this.bossNumber++
     const name = this.rng.pick(BRICK_NAMES)
     const texture = Assets.get(`brick-${name}-300`)
     if (!texture) return
+    this.bossNumber++
 
     // Honor the source aspect (sticker is taller than wide; long side =
     // 300, short side scales). Use texture intrinsic dimensions.

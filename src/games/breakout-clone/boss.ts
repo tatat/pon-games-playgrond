@@ -21,6 +21,7 @@ export class Boss extends Container {
   readonly maxHits: number
   readonly bonusScore: number
 
+  private readonly collider: RAPIER.Collider
   private readonly sprite: Sprite
   private hits = 0
   private elapsedMs = 0
@@ -58,13 +59,13 @@ export class Boss extends Container {
     // 80% collider, like the original's tighter hitbox.
     const cw = width * 0.8
     const ch = height * 0.8
-    const collider = world.createCollider(
+    this.collider = world.createCollider(
       RAPIER.ColliderDesc.cuboid(cw / 2, ch / 2)
         .setRestitution(1)
         .setFriction(0),
       this.body,
     )
-    this.colliderHandle = collider.handle
+    this.colliderHandle = this.collider.handle
 
     this.position.set(centerX, centerY)
   }
@@ -84,6 +85,10 @@ export class Boss extends Container {
     if (this.hits >= this.maxHits) {
       this.phase = 'defeating'
       this.defeatMs = 0
+      // The defeat animation is purely visual; disable the collider so
+      // balls pass through the shrinking corpse instead of bouncing off
+      // (and triggering stray wall-hit sounds).
+      this.collider.setEnabled(false)
       return true
     }
     return false

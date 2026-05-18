@@ -279,6 +279,7 @@ export class MainScene extends Scene {
     this.bricks?.clear()
     this.paddle?.removeFromWorld(this.world)
     this.ball?.removeFromWorld(this.world)
+    this.eventQueue?.free()
     this.world?.free()
   }
 
