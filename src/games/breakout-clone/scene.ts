@@ -26,7 +26,7 @@ import {
   SPECIAL_BALL_SPEED,
 } from './constants'
 import { HUD } from './hud'
-import { makeKeypad } from './keypad'
+import { makeKeypad, makePauseButton } from './keypad'
 import { Paddle } from './paddle'
 import { SoundManager } from './sound-manager'
 import { SpecialBall } from './special-ball'
@@ -188,20 +188,29 @@ export class MainScene extends Scene {
       jump: ['Space'],
     })
 
-    // On-screen touch keypad (full-height left/right tap columns + a
-    // Pause/Jump/Fast stack on the right edge). Lives inside the design
-    // viewport so it scales with the letterboxed game area. Visibility
-    // follows the engine's `virtualPad` setting.
+    // On-screen touch keypad: full-height left/right hold columns +
+    // Jump/Fast buttons on the right edge. Visibility follows the
+    // engine's `virtualPad` setting.
     const keypad = this.use(makeKeypad(this.input))
     this.addChild(keypad.view)
 
-    // Tap anywhere to start / restart (also doubles as jump input).
+    // Persistent top-right pause button (always visible, independent of
+    // the keypad visibility setting).
+    const pauseBtn = this.use(makePauseButton())
+    this.addChild(pauseBtn.view)
+
+    // Tap-to-start / tap-to-restart. The JUMP button (or Space) drives
+    // the in-game jump itself, so this only fires the `jump` action in
+    // 'waiting' / 'gameover' phases — otherwise a center-screen tap
+    // would double-trigger the paddle hop during play.
     const tap = new Container()
     tap.eventMode = 'static'
     tap.hitArea = new Rectangle(0, 0, DESIGN_W, DESIGN_H)
     tap.zIndex = -1
     this.addChild(tap)
-    const onTap = (): void => this.input.press('jump')
+    const onTap = (): void => {
+      if (this.phase !== 'playing') this.input.press('jump')
+    }
     const onRelease = (): void => this.input.release('jump')
     tap.on('pointerdown', onTap)
     tap.on('pointerup', onRelease)

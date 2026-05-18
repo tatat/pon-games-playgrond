@@ -3,6 +3,7 @@ import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { Scene, type SceneDelta } from '../../engine/scene'
 import { Easings } from '../../engine/util/tween'
 import { BRICK_NAMES } from './constants'
+import { makePauseButton } from './keypad'
 import { Starfield } from './starfield'
 
 const BACKGROUND_COLOR = 0x0a0a14
@@ -159,7 +160,13 @@ export class OpeningScene extends Scene {
 
     this.bindInput({ start: ['Space', 'Enter'] })
 
-    // Full-viewport tap to start.
+    // Persistent top-right pause button so the user can reach Settings
+    // from the title screen without entering the game first.
+    const pauseBtn = this.use(makePauseButton())
+    this.addChild(pauseBtn.view)
+
+    // Full-viewport tap to start. zIndex stays below the pause button
+    // (which is at zIndex 200) so the corner tap goes to pause first.
     const tap = new Container()
     tap.eventMode = 'static'
     tap.hitArea = new Rectangle(0, 0, DESIGN_W, DESIGN_H)

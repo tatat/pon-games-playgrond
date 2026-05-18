@@ -6,9 +6,9 @@ import { useRuntimeStore } from '../../store/runtime'
 import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 
 /** Touch keypad for breakout-clone. Lives **inside** the 1280×720 logical
- * viewport (not the letterbox margins) so the layout matches the Phaser
- * original: tall left/right tap columns on the left edge plus a stack of
- * Pause / Jump / Fast buttons in the right edge. Visibility follows
+ * viewport so the layout matches the Phaser original: tall left / right
+ * tap columns covering the left half of the screen, plus Jump / Fast
+ * buttons stacked at the right edge. Visibility follows
  * `useSettingsStore.virtualPad` (`'auto'` resolves to "coarse pointer"). */
 export interface Keypad extends Disposable {
   /** Add this to the scene (or a UI layer with design coords). */
@@ -23,44 +23,40 @@ const BTN_MARGIN = 15
 const BTN_GAP = 15
 const BTN_ALPHA = 0.3
 const ARROW_DROP_FROM_BOTTOM = 100
+const LABEL_FONT_SIZE = 22
 
-const TOGGLE_SIZE = 36
-const TOGGLE_ALPHA = 0.35
-/** Where the clusters end up when the user hides the keypad — fully off
- * the right edge, with a small tab still reachable. */
-const HIDDEN_LEFT_X = -(COL_WIDTH * 2 + COL_GAP + 8)
-const HIDDEN_RIGHT_X = BTN_SIZE + BTN_MARGIN * 2
+const PAUSE_SIZE = 44
+const PAUSE_MARGIN = 12
 
 export function makeKeypad(input: InputManager): Keypad {
   const view = new Container()
   view.zIndex = 200
   const disposables: Array<() => void> = []
-
-  // Two clusters so the user can slide them off the respective screen
-  // edges without affecting the rest of the scene graph.
-  const leftCluster = new Container()
-  const rightCluster = new Container()
-  view.addChild(leftCluster, rightCluster)
+  const fontFamily = useRuntimeStore.getState().uiTheme.fontSans
 
   // Left + right hold columns (transparent, full-height tap zones on the
   // left half of the playfield). Wired as press/release on `left` /
   // `right` actions so the paddle moves while held.
-  const left = makeHoldColumn('left', 0, input, disposables)
-  const right = makeHoldColumn('right', COL_WIDTH + COL_GAP, input, disposables)
-  leftCluster.addChild(left, right)
+  const leftCol = makeHoldColumn('left', 0, input, disposables)
+  const rightCol = makeHoldColumn('right', COL_WIDTH + COL_GAP, input, disposables)
+  view.addChild(leftCol, rightCol)
 
-  // Right-edge stack (bottom-up): Fast → Jump → Pause.
+  // Right-edge stack (bottom-up): Fast → Jump. Pause lives in its own
+  // top-right button (see `makePauseButton`) so the title screen can
+  // share it without the rest of the keypad.
   const fast = makeActionButton({
     label: 'FAST',
+    fontFamily,
     onPress: () => input.press('fast'),
     onRelease: () => input.release('fast'),
     disposables,
   })
   fast.position.set(DESIGN_W - BTN_MARGIN - BTN_SIZE / 2, DESIGN_H - BTN_MARGIN - BTN_SIZE / 2)
-  rightCluster.addChild(fast)
+  view.addChild(fast)
 
   const jump = makeActionButton({
     label: 'JUMP',
+    fontFamily,
     onPress: () => input.press('jump'),
     onRelease: () => input.release('jump'),
     disposables,
@@ -69,51 +65,7 @@ export function makeKeypad(input: InputManager): Keypad {
     DESIGN_W - BTN_MARGIN - BTN_SIZE / 2,
     DESIGN_H - BTN_MARGIN - BTN_SIZE * 1.5 - BTN_GAP,
   )
-  rightCluster.addChild(jump)
-
-  const pause = makeActionButton({
-    glyph: 'pause',
-    onTap: () => useRuntimeStore.getState().setGamePaused(true),
-    disposables,
-  })
-  pause.position.set(
-    DESIGN_W - BTN_MARGIN - BTN_SIZE / 2,
-    DESIGN_H - BTN_MARGIN - BTN_SIZE * 2.5 - BTN_GAP * 2,
-  )
-  rightCluster.addChild(pause)
-
-  // Persistent "slide off-screen" toggle. Sits at the top-right edge so
-  // the user can stash the whole keypad when it's in the way (e.g.
-  // when reaching for the last brick under the JUMP button). Chevron
-  // direction flips between '«' (hide → slide off-right) and '»' (show
-  // → slide back in).
-  let hidden = false
-  const toggle = makeActionButton({
-    label: '«',
-    fontSize: 20,
-    size: TOGGLE_SIZE,
-    fillAlpha: TOGGLE_ALPHA,
-    onTap: () => {
-      hidden = !hidden
-      leftCluster.x = hidden ? HIDDEN_LEFT_X : 0
-      rightCluster.x = hidden ? HIDDEN_RIGHT_X : 0
-      toggle.setLabel(hidden ? '»' : '«')
-      // Drop any held inputs when we stash the pad — otherwise a
-      // press-held direction would stay latched after the column slides
-      // out from under the finger.
-      if (hidden) {
-        input.release('left')
-        input.release('right')
-      }
-    },
-    disposables,
-  })
-  // Below the HUD timer (which lives at y≈16 with anchor 1,0) so the
-  // two don't overlap.
-  toggle.position.set(DESIGN_W - BTN_MARGIN - TOGGLE_SIZE / 2, 60)
-  // The toggle itself sits OUTSIDE the slidable clusters so it stays
-  // reachable when the keypad is hidden.
-  view.addChild(toggle)
+  view.addChild(jump)
 
   const apply = (): void => {
     view.visible = padEnabled(useSettingsStore.getState().virtualPad)
@@ -132,6 +84,28 @@ export function makeKeypad(input: InputManager): Keypad {
       input.release('right')
       input.release('jump')
       input.release('fast')
+    },
+  }
+}
+
+/** Small top-right pause button. Always visible (independent of
+ * `virtualPad`), since keyboard users still benefit from a click target
+ * and the title screen has no other path to the pause menu. */
+export function makePauseButton(): { view: Container; dispose(): void } {
+  const disposables: Array<() => void> = []
+  const btn = makeActionButton({
+    glyph: 'pause',
+    size: PAUSE_SIZE,
+    fillAlpha: 0.3,
+    onTap: () => useRuntimeStore.getState().setGamePaused(true),
+    disposables,
+  })
+  btn.position.set(DESIGN_W - PAUSE_MARGIN - PAUSE_SIZE / 2, PAUSE_MARGIN + PAUSE_SIZE / 2)
+  btn.zIndex = 200
+  return {
+    view: btn,
+    dispose: () => {
+      for (let i = disposables.length - 1; i >= 0; i--) disposables[i]?.()
     },
   }
 }
@@ -197,6 +171,7 @@ interface ActionButtonOptions {
   label?: string
   glyph?: 'pause'
   size?: number
+  fontFamily?: string
   fontSize?: number
   fillAlpha?: number
   onPress?(): void
@@ -205,16 +180,13 @@ interface ActionButtonOptions {
   disposables: Array<() => void>
 }
 
-interface ActionButton extends Container {
-  setLabel(s: string): void
-}
-
-function makeActionButton(opts: ActionButtonOptions): ActionButton {
+function makeActionButton(opts: ActionButtonOptions): Container {
   const size = opts.size ?? BTN_SIZE
-  const fontSize = opts.fontSize ?? 22
+  const fontFamily = opts.fontFamily ?? 'system-ui'
+  const fontSize = opts.fontSize ?? LABEL_FONT_SIZE
   const fillAlpha = opts.fillAlpha ?? BTN_ALPHA
 
-  const c = new Container() as ActionButton
+  const c = new Container()
   c.eventMode = 'static'
   c.hitArea = new Rectangle(-size / 2, -size / 2, size, size)
 
@@ -223,23 +195,24 @@ function makeActionButton(opts: ActionButtonOptions): ActionButton {
     .fill({ color: 0x000000, alpha: fillAlpha })
   c.addChild(bg)
 
-  let labelText: Text | undefined
   if (opts.glyph === 'pause') {
     // Two vertical bars, mirroring the Phaser original.
+    const barH = Math.min(size * 0.45, 22)
+    const barW = Math.min(size * 0.1, 4)
+    const gap = Math.min(size * 0.16, 8)
+    const left = -gap / 2 - barW
     const g = new Graphics()
-    g.rect(-10, -12, 4, 24).rect(6, -12, 4, 24).fill({ color: 0xffffff, alpha: 0.8 })
+      .rect(left, -barH / 2, barW, barH)
+      .rect(left + barW + gap, -barH / 2, barW, barH)
+      .fill({ color: 0xffffff, alpha: 0.85 })
     c.addChild(g)
   } else if (opts.label !== undefined) {
-    labelText = new Text({
+    const t = new Text({
       text: opts.label,
-      style: { fill: 0xffffff, fontSize, fontFamily: 'system-ui' },
+      style: { fill: 0xffffff, fontSize, fontFamily },
     })
-    labelText.anchor.set(0.5)
-    c.addChild(labelText)
-  }
-
-  c.setLabel = (s: string): void => {
-    if (labelText) labelText.text = s
+    t.anchor.set(0.5)
+    c.addChild(t)
   }
 
   const onDown = (e: { stopPropagation?(): void }): void => {
