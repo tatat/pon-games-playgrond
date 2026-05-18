@@ -31,6 +31,16 @@ When the host environment exposes structured tools, **use them in preference to 
 
 Shell is fine for things tools cannot do (running `npm`, `git`, `node`, one-off `ls` for orientation).
 
+## Tool affordances over shell workarounds
+
+The same principle extends past file ops: whenever the agent's harness exposes a structured way to do something, prefer it to the shell equivalent. The harness-tracked path stays visible to the user, gets notified on completion, and is easier to clean up.
+
+| Don't | Do |
+|---|---|
+| `(npm run dev > ./tmp/log 2>&1 &) && sleep N && head ./tmp/log` (shell-detached) | Run the same command via the agent's background mode (e.g. Claude Code's `run_in_background: true`); read the tracked task's tail when needed |
+| `pkill -f vite` mid-batch alongside other tool calls you care about | Stop the tracked background task explicitly in its **own** call — a sibling call running in parallel can otherwise be cancelled when the killer terminates a harness-watched process |
+| Write screenshots / probes to the repo root (`opening.png`) | Write under `./tmp/` (`./tmp/opening.png`); gitignored, no cleanup obligation |
+
 ## Daily commands
 
 ```bash
@@ -122,10 +132,13 @@ release.json            (future) pinned ref + game allowlist for /dist/ deploy
 
 Anything an agent needs to write that should not survive the session goes under `./tmp/`. It is gitignored and is also outside the Biome / TypeScript include paths, so files there will not trip lint, format, or type-check.
 
+**Prefer `./tmp/` over `/tmp/`.** The repo-local scratch directory keeps probe scripts, log dumps, and experiments visible inside the workspace (greppable, browsable, survives across tool calls in the same session), whereas `/tmp/` is opaque to anyone reviewing the work and is wiped by the system on its own schedule. Reach for `/tmp/` only when a tool genuinely requires an absolute path outside the workspace.
+
 Use cases:
 - One-off probe / debug scripts while diagnosing an issue.
 - Experimental sketches before promoting code to `src/`.
 - Inspecting library internals (read package source into `tmp/` if needed).
+- Dev-server / build logs (`./tmp/vite.log`) when running long processes.
 
 No cleanup obligation — `tmp/` is gitignored, so leftover files do not affect the repo. Tidy when it helps; otherwise leave them.
 

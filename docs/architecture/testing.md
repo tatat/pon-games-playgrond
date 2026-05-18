@@ -64,6 +64,28 @@ Two reinforcing notes:
 - **Prefer `BitmapText` for HUD-heavy text.** Bitmap fonts are loaded via `preload`, so `await this.preload(...)` already guarantees readiness — `document.fonts.ready` only matters for regular `Text`.
 - **Pause the ticker, not just the physics accumulator.** `app.ticker.stop()` halts `onUpdate` for every active scene, including HUD subscriptions and any tween/particle systems.
 
+## Driving Pixi UI through the canvas
+
+Canvas content is opaque to the a11y tree, so Playwright's element-locator clicks (`page.click(...)`, MCP `browser_click` with a snapshot ref) can't target Pixi widgets — settings tabs, segmented controls, in-game buttons. Two practical paths:
+
+1. **Use `app.mouse.click(x, y)` / `page.mouse.click(x, y)`** with client-pixel coordinates. Simplest, but you still need the design→client mapping below.
+2. **Dispatch synthetic `PointerEvent`s on the canvas** via `page.evaluate(...)`. Lower-level but works inside `browser_evaluate` from agents that don't expose raw mouse access.
+
+The game canvas is letterboxed inside the viewport (uniform scale, equal side / top-bottom margins), so neither axis alone matches the viewport rect. Pull the same uniform scale `engine/layout.ts` uses:
+
+```js
+const r = canvas.getBoundingClientRect();
+const scale = Math.min(r.width / 1280, r.height / 720);
+const offsetX = (r.width - 1280 * scale) / 2;
+const offsetY = (r.height - 720 * scale) / 2;
+const toClient = (dx, dy) => ({
+  x: r.left + offsetX + dx * scale,
+  y: r.top + offsetY + dy * scale,
+});
+```
+
+For the synthetic-event path, dispatch `pointerover` → `pointerdown` → `pointerup` on the canvas with `bubbles: true, cancelable: true, composed: true, pointerType: 'mouse', pointerId: <stable>, isPrimary: true`. Pixi v8 synthesises `pointertap` from a down/up pair on the same target, so this drives any `eventMode: 'static'` widget.
+
 ## Vitest with Rapier
 
 Vitest runs tests in Node (optionally jsdom / happy-dom), not in a browser. `@dimforge/rapier2d-compat` bundles its WASM as inline base64, so no `fetch` / streaming setup is needed — but each test file that touches Rapier must initialize the module before use:
