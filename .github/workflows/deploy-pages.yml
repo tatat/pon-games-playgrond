@@ -1,0 +1,61 @@
+name: Deploy SPA to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Allow manual re-runs from the Actions UI (e.g. after a Pages config
+  # change without a code change).
+  workflow_dispatch:
+
+# Only one Pages deploy may run at a time; queue new pushes behind any
+# in-flight deploy instead of cancelling — Pages's API rejects
+# concurrent deploys with a 409.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+# `actions/deploy-pages` writes to the Pages environment using an OIDC
+# token; `pages: write` + `id-token: write` are the documented scopes.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build SPA
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # `npm run build` runs `tsc -b && vite build` and writes the SPA
+      # to `dist/`. Vite's `base: '/pon-games-playgrond/'` baked the
+      # path prefix into the asset URLs already, so the output is
+      # ready to serve under the repo's Pages URL.
+      - run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
