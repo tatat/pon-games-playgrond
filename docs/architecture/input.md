@@ -184,6 +184,17 @@ const placement: 'sides' | 'bottom' | 'overlay' =
 
 For multi-button games (breakout-clone has 4 actions + pause), use a 2×4 grid in the bottom strip — direction board fills its top row only, actions board fills its top row and bottom-right cell. All cells share the same dimensions so the four boards read as one strip.
 
+### Pause vs gameplay buttons — edge-anchor only on sides
+
+Pause and gameplay buttons (Float, Jump, Fast, …) want enough separation that a thumb reaching for an action can't fat-finger Pause and freeze the game. The pattern that landed splits by placement mode:
+
+- **Sides (vertical margin):** anchor Pause to the **top** of the margin; centre the gameplay buttons vertically in the same margin. The whitespace between them does the separating, no fixed gap constant needed.
+- **Bottom (horizontal strip):** keep the symmetrical group layout — the two thumbs are already separated by horizontal distance. Sticker-drift uses two equal squares side-by-side centred; breakout-clone uses the 2×2 grid (`[jump][fast]` over `[blank][pause]`) so Pause is diagonally offset from the gameplay buttons.
+
+Don't try to apply the edge-anchor rule on the bottom strip — pushing Pause to one end of a horizontal row didn't read better than the grid, and it broke the visual symmetry between Direction and Actions boards.
+
+A **pause-only board** (e.g. OpeningScene that has no gameplay actions yet) follows a simpler rule: top-anchored on sides like the gameplay scene's Pause, but centred horizontally across the bottom strip — there's no other button to make room for.
+
 ### Margin-board sizing — cap, don't sprawl
 
 Letting buttons grow fluidly to fill whatever letterbox the viewport gave us made the boards "loose" on wide-margin displays. The pattern that landed:
