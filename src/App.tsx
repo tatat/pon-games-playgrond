@@ -43,7 +43,7 @@ function Lobby() {
             to="/breakout-clone"
             style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
           >
-            Breakout Clone (skeleton)
+            Breakout Clone
           </Link>
         </li>
       </ul>
