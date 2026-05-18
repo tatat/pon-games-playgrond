@@ -7,7 +7,6 @@ import { useRuntimeStore } from '../../store/runtime'
 import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 
 const BOARD_GAP = 24
-const INNER_GAP = 6
 const MIN_REQUIRED_MARGIN_PX = BOARD_GAP * 2 + 48
 /** Cap each margin-board button so a wide letterbox doesn't balloon
  * the pad. The pair (menu + float) stays centred in the margin. */
@@ -129,24 +128,23 @@ class PadBoard extends Container {
 
   setShape(width: number, height: number, orientation: Orientation): void {
     if (orientation === 'vertical') {
-      // Two equal squares stacked, centred vertically in the margin.
-      // Cap at MAX_MENU_BTN so a wide letterbox doesn't sprawl the pair.
-      const cell = Math.min(width, (height - INNER_GAP) / 2, MAX_MENU_BTN)
-      const stackH = cell * 2 + INNER_GAP
+      // Pause hugs the top of the margin; the gameplay button (float)
+      // sits in the vertical centre. Separating them by alignment
+      // instead of a fixed gap keeps pause out of the thumb's reach
+      // even on tall margins.
+      const cell = Math.min(width, height / 2, MAX_MENU_BTN)
       this.menuBtn.setShape(cell, cell)
       this.floatBtn.setShape(cell, cell)
-      const top = -stackH / 2
-      this.menuBtn.position.set(0, top + cell / 2)
-      this.floatBtn.position.set(0, top + cell + INNER_GAP + cell / 2)
+      this.menuBtn.position.set(0, -height / 2 + cell / 2)
+      this.floatBtn.position.set(0, 0)
     } else {
-      // Horizontal mirror: two equal squares side by side, centred.
-      const cell = Math.min(height, (width - INNER_GAP) / 2, MAX_MENU_BTN)
-      const rowW = cell * 2 + INNER_GAP
+      // Horizontal: pause anchored to the left edge of the strip,
+      // float in the centre.
+      const cell = Math.min(height, width / 2, MAX_MENU_BTN)
       this.menuBtn.setShape(cell, cell)
       this.floatBtn.setShape(cell, cell)
-      const left = -rowW / 2
-      this.menuBtn.position.set(left + cell / 2, 0)
-      this.floatBtn.position.set(left + cell + INNER_GAP + cell / 2, 0)
+      this.menuBtn.position.set(-width / 2 + cell / 2, 0)
+      this.floatBtn.position.set(0, 0)
     }
   }
 }
