@@ -35,6 +35,9 @@ export interface Keypad extends Disposable {
 export function makePauseButton(layout: GameLayout): Keypad {
   const uiMargin = new Container()
   const gameOverlay = new Container()
+  // zIndex 250 keeps the pause button above any full-viewport tap
+  // container the owning scene mounts for tap-to-start / -to-restart.
+  gameOverlay.zIndex = 250
   const disposables: Array<() => void> = []
 
   const marginBoard = new PauseOnlyBoard(disposables)
@@ -81,6 +84,9 @@ export function makePauseButton(layout: GameLayout): Keypad {
 export function makeKeypad(input: InputManager, layout: GameLayout): Keypad {
   const uiMargin = new Container()
   const gameOverlay = new Container()
+  // Above any in-canvas content (bg / starfield / bricks / HUD / tap
+  // container) so the keypad always receives pointer events first.
+  gameOverlay.zIndex = 250
   const disposables: Array<() => void> = []
 
   // Margin boards: two side / one bottom — sized by `apply` below.
