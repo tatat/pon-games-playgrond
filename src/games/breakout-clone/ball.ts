@@ -23,7 +23,13 @@ export class Ball extends Container {
         .setGravityScale(0),
     )
     const collider = world.createCollider(
-      RAPIER.ColliderDesc.ball(BALL_RADIUS).setRestitution(1).setFriction(0),
+      RAPIER.ColliderDesc.ball(BALL_RADIUS)
+        .setRestitution(1)
+        .setFriction(0)
+        // Surface contact-start / contact-stop pairs to the scene's
+        // EventQueue. Only one side of a contact needs the flag — set it
+        // on the ball so every paddle / brick / wall contact is reported.
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
       this.body,
     )
     this.colliderHandle = collider.handle
