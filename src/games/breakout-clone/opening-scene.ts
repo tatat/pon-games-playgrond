@@ -63,7 +63,14 @@ export class OpeningScene extends Scene {
     // network round trip covers both.
     await this.preload(
       [
-        { alias: 'breakout-logo', src: 'games/breakout-clone/images/logo-tssh.svg' },
+        {
+          alias: 'breakout-logo',
+          src: 'games/breakout-clone/images/logo-tssh.svg',
+          // The SVG's intrinsic viewBox is 239×217 — we display it at
+          // 360×326 on top of a possibly-2x retina canvas, so rasterise
+          // at 3x the intrinsic size to keep the edges crisp.
+          data: { resolution: 3 },
+        },
         ...BRICK_NAMES.map((name) => ({
           alias: `brick-${name}-${FLOATING_BRICK_SIZE}`,
           src: `games/breakout-clone/stickers/${name}-${FLOATING_BRICK_SIZE}@2x.png`,
