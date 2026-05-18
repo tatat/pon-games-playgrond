@@ -26,6 +26,7 @@ import {
   SPECIAL_BALL_SPEED,
 } from './constants'
 import { HUD } from './hud'
+import { makeKeypad } from './keypad'
 import { Paddle } from './paddle'
 import { SoundManager } from './sound-manager'
 import { SpecialBall } from './special-ball'
@@ -186,6 +187,13 @@ export class MainScene extends Scene {
       fast: ['ShiftLeft', 'ShiftRight'],
       jump: ['Space'],
     })
+
+    // On-screen touch keypad (full-height left/right tap columns + a
+    // Pause/Jump/Fast stack on the right edge). Lives inside the design
+    // viewport so it scales with the letterboxed game area. Visibility
+    // follows the engine's `virtualPad` setting.
+    const keypad = this.use(makeKeypad(this.input))
+    this.addChild(keypad.view)
 
     // Tap anywhere to start / restart (also doubles as jump input).
     const tap = new Container()
