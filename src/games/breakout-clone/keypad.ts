@@ -9,8 +9,8 @@ import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 const BOARD_GAP = 24
 const INNER_GAP = 6
 const MIN_REQUIRED_MARGIN_PX = 120
-const OVERLAY_PAUSE_SIZE = 44
-const OVERLAY_PAUSE_MARGIN = 12
+const OVERLAY_PAUSE_SIZE = 130
+const OVERLAY_PAUSE_MARGIN = 15
 const IN_CANVAS_BTN_SIZE = 130
 const IN_CANVAS_BTN_MARGIN = 15
 const IN_CANVAS_BTN_GAP = 15
@@ -91,15 +91,11 @@ export function makeKeypad(input: InputManager, layout: GameLayout): Keypad {
   const actionsBoard = new ActionsBoard(input, disposables)
   uiMargin.addChild(directionBoard, actionsBoard)
 
-  // In-canvas overlay (no-margin fallback). Mirrors the Phaser original.
+  // In-canvas overlay (no-margin fallback). Pause lives inside the
+  // overlay's right-edge stack, so we don't need a separate top-right
+  // button here — that would conflict with the HUD timer anyway.
   const inCanvas = new InCanvasOverlay(input, disposables)
   gameOverlay.addChild(inCanvas)
-
-  // Persistent top-right pause that lives on top of the in-canvas overlay
-  // so the user always has a way back to the pause menu when the margin
-  // boards aren't visible.
-  const overlayPause = makeOverlayPause(disposables)
-  gameOverlay.addChild(overlayPause)
 
   const apply = (): void => {
     const m = layout.current()
@@ -235,15 +231,19 @@ class DirectionBoard extends Container {
       this.rightBtn.position.set(btnW / 2 + INNER_GAP / 2, 0)
       this.position.set(m.marginLeft / 2, m.viewportH - BOARD_GAP - btnH / 2)
     } else {
-      // Bottom strip, left half: ◀ ▶ side by side.
+      // Bottom strip, left half: ◀ ▶ in the top row of a 2×2 grid
+      // (bottom row stays blank to match the symmetrical Actions board
+      // where Fast lives in the bottom-right cell).
       const totalW = (m.viewportW - BOARD_GAP * 3) / 2
-      const h = m.marginTop - BOARD_GAP * 2
-      const half = (totalW - INNER_GAP) / 2
-      this.leftBtn.setShape(half, h)
-      this.rightBtn.setShape(half, h)
+      const totalH = m.marginTop - BOARD_GAP * 2
+      const cellW = (totalW - INNER_GAP) / 2
+      const cellH = (totalH - INNER_GAP) / 2
+      this.leftBtn.setShape(cellW, cellH)
+      this.rightBtn.setShape(cellW, cellH)
       const left = -totalW / 2
-      this.leftBtn.position.set(left + half / 2, 0)
-      this.rightBtn.position.set(left + half + INNER_GAP + half / 2, 0)
+      const top = -totalH / 2
+      this.leftBtn.position.set(left + cellW / 2, top + cellH / 2)
+      this.rightBtn.position.set(left + cellW + INNER_GAP + cellW / 2, top + cellH / 2)
       this.position.set(BOARD_GAP + totalW / 2, m.marginTop + m.gameH + m.marginTop / 2)
     }
   }
@@ -296,20 +296,26 @@ class ActionsBoard extends Container {
       this.fast.position.set(0, top + pauseH + INNER_GAP + jumpH + INNER_GAP + fastH / 2)
       this.position.set(m.viewportW - m.marginLeft / 2, m.viewportH / 2)
     } else {
-      // Bottom strip, right half: Pause / Jump / Fast in a row.
+      // Bottom strip, right half — 2×2 grid:
+      //   [pause][jump]
+      //   [blank][fast]
+      // Mirrors the Direction board's 2-cell top row so the four boards
+      // form a single tidy 2×4 strip.
       const totalW = (m.viewportW - BOARD_GAP * 3) / 2
-      const h = m.marginTop - BOARD_GAP * 2
-      const pauseW = Math.max(64, totalW * 0.18)
-      const remaining = totalW - pauseW - INNER_GAP * 2
-      const jumpW = remaining * 0.55
-      const fastW = remaining * 0.45
-      this.pause.setShape(pauseW, h)
-      this.jump.setShape(jumpW, h)
-      this.fast.setShape(fastW, h)
+      const totalH = m.marginTop - BOARD_GAP * 2
+      const cellW = (totalW - INNER_GAP) / 2
+      const cellH = (totalH - INNER_GAP) / 2
+      this.pause.setShape(cellW, cellH)
+      this.jump.setShape(cellW, cellH)
+      this.fast.setShape(cellW, cellH)
       const left = -totalW / 2
-      this.pause.position.set(left + pauseW / 2, 0)
-      this.jump.position.set(left + pauseW + INNER_GAP + jumpW / 2, 0)
-      this.fast.position.set(left + pauseW + INNER_GAP + jumpW + INNER_GAP + fastW / 2, 0)
+      const top = -totalH / 2
+      this.pause.position.set(left + cellW / 2, top + cellH / 2)
+      this.jump.position.set(left + cellW + INNER_GAP + cellW / 2, top + cellH / 2)
+      this.fast.position.set(
+        left + cellW + INNER_GAP + cellW / 2,
+        top + cellH + INNER_GAP + cellH / 2,
+      )
       this.position.set(
         m.viewportW - BOARD_GAP - totalW / 2,
         m.marginTop + m.gameH + m.marginTop / 2,
@@ -321,11 +327,9 @@ class ActionsBoard extends Container {
 // ── In-canvas overlay (no-margin fallback for MainScene) ────────────────
 
 /** In-canvas overlay used when there's no letterbox room for the margin
- * boards. Four PadButtons in the same boxed style as the margin
- * keypad: ◀ ▶ on the bottom-left, JUMP / FAST stacked on the
- * bottom-right. Pause isn't part of this — the always-on top-right
- * `overlayPause` handles that — so the whole overlay can shut off
- * cleanly when margins do fit. */
+ * boards. Five PadButtons in the same boxed style as the margin
+ * keypad: ◀ ▶ on the bottom-left, plus Pause / Jump / Fast stacked
+ * top-down on the bottom-right (Pause on top, Fast at the floor). */
 class InCanvasOverlay extends Container {
   constructor(input: InputManager, disposables: Array<() => void>) {
     super()
@@ -357,6 +361,9 @@ class InCanvasOverlay extends Container {
     )
     this.addChild(rightBtn)
 
+    // Right-edge stack from bottom up: Fast / Jump / Pause. Each at the
+    // same 130×130 size as the direction buttons.
+    const stackX = DESIGN_W - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2
     const fast = new PadButton({
       label: 'FAST',
       onPress: () => input.press('fast'),
@@ -364,10 +371,7 @@ class InCanvasOverlay extends Container {
       disposables,
     })
     fast.setShape(IN_CANVAS_BTN_SIZE, IN_CANVAS_BTN_SIZE)
-    fast.position.set(
-      DESIGN_W - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
-      DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
-    )
+    fast.position.set(stackX, DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2)
     this.addChild(fast)
 
     const jump = new PadButton({
@@ -378,10 +382,22 @@ class InCanvasOverlay extends Container {
     })
     jump.setShape(IN_CANVAS_BTN_SIZE, IN_CANVAS_BTN_SIZE)
     jump.position.set(
-      DESIGN_W - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
+      stackX,
       DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE * 1.5 - IN_CANVAS_BTN_GAP,
     )
     this.addChild(jump)
+
+    const pause = new PadButton({
+      glyph: 'pause',
+      onTap: () => useRuntimeStore.getState().setGamePaused(true),
+      disposables,
+    })
+    pause.setShape(IN_CANVAS_BTN_SIZE, IN_CANVAS_BTN_SIZE)
+    pause.position.set(
+      stackX,
+      DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE * 2.5 - IN_CANVAS_BTN_GAP * 2,
+    )
+    this.addChild(pause)
   }
 }
 
