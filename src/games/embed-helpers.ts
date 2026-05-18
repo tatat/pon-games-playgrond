@@ -76,6 +76,10 @@ export async function mountGame(
     autoDensity: true,
     resolution: window.devicePixelRatio || 1,
   })
+  app.canvas.style.touchAction = 'none'
+  app.canvas.style.userSelect = 'none'
+  app.canvas.style.setProperty('-webkit-user-select', 'none')
+  app.canvas.style.setProperty('-webkit-touch-callout', 'none')
   container.appendChild(app.canvas)
 
   // Mirror GameMount's wiring of the render-loop cap to the persisted

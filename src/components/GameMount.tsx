@@ -63,6 +63,7 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
         // virtual-pad usage (stick + A) gets interpreted as a pinch and zooms
         // the page. Setting these on the canvas element itself blocks it.
         app.canvas.style.touchAction = 'none'
+        app.canvas.style.userSelect = 'none'
         app.canvas.style.setProperty('-webkit-user-select', 'none')
         app.canvas.style.setProperty('-webkit-touch-callout', 'none')
         containerRef.current.appendChild(app.canvas)
