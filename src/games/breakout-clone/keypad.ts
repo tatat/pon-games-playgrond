@@ -384,7 +384,7 @@ function makeHoldColumn(
     bg.clear()
     bg.rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H).fill({
       color: pressed ? 0xffffff : 0x000000,
-      alpha: pressed ? 0.18 : 0.1,
+      alpha: pressed ? 0.1 : 0.1,
     })
   }
   drawBg(false)
@@ -525,15 +525,15 @@ class PadButton extends Container {
     if (this.labelText) this.labelText.position.set(0, 0)
   }
 
-  /** Pressed buttons get a brighter / opaque fill so the user gets
-   * tactile-style feedback even on touch where there's no hover state. */
+  /** Pressed buttons brighten just enough to register as feedback —
+   * subtle, no flash. */
   private redrawBg(): void {
     const { currentWidth: w, currentHeight: h } = this
     if (w === 0 || h === 0) return
     this.bg.clear()
     const fillColor = this.pressed ? 0xffffff : 0x000000
-    const fillAlpha = this.pressed ? 0.35 : 0.3
-    const strokeAlpha = this.pressed ? 0.6 : 0.25
+    const fillAlpha = this.pressed ? 0.15 : 0.3
+    const strokeAlpha = this.pressed ? 0.45 : 0.25
     this.bg
       .roundRect(-w / 2, -h / 2, w, h, 6)
       .fill({ color: fillColor, alpha: fillAlpha })
