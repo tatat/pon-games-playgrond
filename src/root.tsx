@@ -27,10 +27,6 @@ export default function Root() {
             overflow: hidden;
             font-family: system-ui, sans-serif;
             color: #fff;
-            /* Suppress iOS Safari's long-press callout over game canvas. */
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
           }
         `}</style>
         <Meta />
