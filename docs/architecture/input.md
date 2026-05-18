@@ -147,3 +147,56 @@ class BreakoutPlayScene extends Scene {
 ```
 
 `this.layout` is injected by `SceneManager.attach` alongside `gameId` and `rng` — scenes do not reach into `app.stage` directly.
+
+## Touch-pad design conventions
+
+Recurring lessons from porting the breakout-clone keypad — read these before touching another game's on-screen controls.
+
+### Margin-first, overlay-fallback
+
+When a game needs more than a single button, the established pattern (set by `sticker-drift`'s `float-pad.ts`, then matched by `breakout-clone`'s `keypad.ts`) is:
+
+- **Touch UI returns two attach points**, not one Container:
+
+  ```typescript
+  interface TouchPad extends Disposable {
+    uiMargin:    Container;   // → layout.uiLayer (viewport coords)
+    gameOverlay: Container;   // → scene container (design 1280×720 coords)
+  }
+  ```
+
+- **`uiMargin` is the preferred home.** Wire it to `layout.uiLayer` and only show it when `layout.current().marginLeft` or `marginTop` is over a threshold (`MIN_REQUIRED_MARGIN_PX`, ~120 px). Buttons sized to whichever margin has room: sides → vertical boards on each side, bottom → one horizontal strip across the bottom.
+- **`gameOverlay` is the no-margin fallback.** Lives inside the design viewport and overlaps the playfield. Show this only when neither margin has room.
+- **`useSettingsStore.virtualPad`** still gates everything (`'on'` / `'off'` / `'auto'` = coarse pointer). Subscribe with `useSettingsStore.subscribe(apply)` AND `layout.onChange(apply)` so toggling the setting or resizing the window re-runs visibility / re-shapes the boards live.
+
+The previous in-canvas-only approach blocked the playfield even when there was plenty of letterbox to spare; don't reach for it again unless the game explicitly wants the Phaser-original "buttons over the play area" look.
+
+### Layout placements
+
+`apply()` looks roughly like sticker-drift's:
+
+```typescript
+const placement: 'sides' | 'bottom' | 'overlay' =
+  m.marginLeft >= MIN_REQUIRED_MARGIN_PX ? 'sides'
+  : m.marginTop  >= MIN_REQUIRED_MARGIN_PX ? 'bottom'
+  : 'overlay';
+```
+
+For multi-button games (breakout-clone has 4 actions + pause), use a 2×4 grid in the bottom strip — direction board fills its top row only, actions board fills its top row and bottom-right cell. All cells share the same dimensions so the four boards read as one strip.
+
+### Visual feedback
+
+Buttons need press feedback or they feel dead on touch (no hover state to fall back on). The cheap mistakes:
+
+- **Don't flash white.** Brightening the fill on press flares against the dark canvas. The current pattern is "sink-in": the fill darkens (e.g. `alpha 0.3 → 0.5`), the stroke firms up (`alpha 0.25 → 0.4`), and the glyph / label alpha bumps from `0.75` → `1.0`. Same affordance, no luminance jump.
+- **Don't change the button size on press.** Width / height changes pull the visual centre and break thumb tracking.
+
+Always release on `pointerup`, `pointerupoutside`, and `pointercancel` — a finger sliding off the button must not leave it stuck in the pressed look or its `press(action)` latched.
+
+### Common pitfalls
+
+- **Z-index vs the tap-to-start container.** Scenes typically `addChild` a full-viewport tap Container to catch tap-to-start / tap-to-restart. Give the touch pad's `gameOverlay` a clearly higher `zIndex` (the keypad uses `250`) — otherwise the later-added tap container wins same-z ties and steals pointer events from the pause button.
+- **Tap-to-jump vs JUMP button.** A scene that uses the same input action (`jump`) for tap-to-start *and* the in-game JUMP button must gate the full-viewport tap by phase, e.g. `if (this.phase !== 'playing') this.input.press('jump')`. Otherwise center-screen taps double-trigger the action during play.
+- **Use the active game's font.** Pad button labels read from `useRuntimeStore.getState().uiTheme.fontSans`, not `'system-ui'` — otherwise the labels look out of place against the rest of the HUD.
+- **Pause has to be reachable from every scene.** The title / opening scene needs a pause button too (it's the path into Settings). Reuse the same component the gameplay scene uses; just configure it pause-only.
+- **Pause vs HUD top-right corner.** The in-canvas pause cannot overlap the HUD timer / score; tuck it into the action stack (Pause / Jump / Fast on the right) instead.
