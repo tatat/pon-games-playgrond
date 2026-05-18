@@ -61,7 +61,7 @@ fi
 cd "${WORKSPACE_FOLDER}"
 
 sudo chown ubuntu -R node_modules
-sudo chown -R ubuntu:ubuntu ~/.config ~/.claude ~/.codex
+sudo chown -R ubuntu:ubuntu ~/.config ~/.claude ~/.codex ~/.cache/ms-playwright
 chmod 700 ~/.claude ~/.codex
 
 # Keep ~/.claude.json in the claude-config volume so it survives rebuilds
@@ -70,6 +70,24 @@ ln -sf ~/.claude/.claude.json ~/.claude.json
 
 npm ci
 npm run prepare
+
+# Playwright browser for the Playwright MCP server.
+# Chromium binary lands in ~/.cache/ms-playwright/chromium-<rev>/ ; that path
+# is a named volume so the ~200MB download survives rebuilds.
+# (System libs the binary needs are baked into the image — see Dockerfile.)
+npx playwright install chromium
+
+# Register the Playwright MCP server for this project. @playwright/mcp is
+# installed globally in the image, so we invoke `playwright-mcp` directly
+# (no `npx` registry round-trip on every session start).
+# Pin --executable-path to the chromium we just installed because the MCP's
+# own install-browser step hangs during extraction on arm64 + Node 26.
+CHROMIUM_BIN=$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | sort -V | tail -1)
+if [ -n "$CHROMIUM_BIN" ]; then
+    claude mcp remove playwright -s local 2>/dev/null || true
+    claude mcp add playwright -s local -- \
+        playwright-mcp --browser=chromium --executable-path="$CHROMIUM_BIN"
+fi
 
 cat <<'NOTE'
 

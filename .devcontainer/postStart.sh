@@ -27,3 +27,8 @@ fi
 
 # Apply firewall rules
 sudo "${WORKSPACE_FOLDER}/.devcontainer/init-firewall.sh"
+
+# Clear stale Chromium singleton locks left over in the persistent
+# playwright-cache volume from a previous container (different hostname/pid).
+# Chromium otherwise refuses to launch with "Browser is already in use".
+rm -f "$HOME"/.cache/ms-playwright/mcp-chrome-*/Singleton{Lock,Cookie,Socket} 2>/dev/null || true

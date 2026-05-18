@@ -10,6 +10,7 @@
     "source=user-config,target=/home/ubuntu/.config,type=volume",
     "source=claude-config,target=/home/ubuntu/.claude,type=volume",
     "source=codex-config,target=/home/ubuntu/.codex,type=volume",
+    "source=playwright-cache,target=/home/ubuntu/.cache/ms-playwright,type=volume",
     "source=${localEnv:HOME}/.gitconfig,target=/tmp/host-gitconfig,type=bind,readonly",
     "source=${localEnv:HOME}/.ssh/devcontainer,target=/tmp/host-ssh,type=bind,readonly"
   ],
