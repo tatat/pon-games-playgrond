@@ -30,9 +30,14 @@ jobs:
     # branch picking up an in-progress feature commit.
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          # Need full history so `git worktree add` can check out the
+          # `release.json` ref below — `fetch-depth: 1` (default) only
+          # has main HEAD.
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '26'
           cache: 'npm'
@@ -45,15 +50,73 @@ jobs:
       # ready to serve under the repo's Pages URL.
       - run: npm run build
 
-      # Build each game's embed (lib-mode) bundle into
-      # `dist/embed/<game>/index.js`. Output sits inside the same
-      # `dist/` so a single Pages artifact carries both the SPA and the
-      # library bundles ponpon imports.
-      - run: npm run build:embed
+      # Phase 2: the embed bundles are built from the commit pinned in
+      # `release.json` (decoupled from the SPA's main-HEAD rebuild).
+      # Cache the resulting `dist/embed/` keyed on the SEMANTIC content
+      # of `release.json` (jq-normalised so whitespace / key-order
+      # edits don't invalidate) so SPA-only pushes skip the worktree
+      # + npm ci + vite build round-trip.
+      - name: Hash release.json semantically
+        id: release-hash
+        run: |
+          value=$(jq -cS '{ref, games}' release.json | sha256sum | cut -d' ' -f1)
+          echo "value=$value" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/configure-pages@v5
+      - name: Cache pinned embed bundles
+        id: cache-embed
+        uses: actions/cache@v5
+        with:
+          path: dist/embed
+          key: embed-${{ steps.release-hash.outputs.value }}
 
-      - uses: actions/upload-pages-artifact@v3
+      - name: Build pinned embed bundles
+        if: steps.cache-embed.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          REF=$(jq -r .ref release.json)
+          GAMES=$(jq -r '.games | join(" ")' release.json)
+          echo "Building embed bundles from ref $REF for games: $GAMES"
+
+          # Worktree teardown on any exit (success / failure / retry)
+          # so subsequent runs on a self-hosted runner don't trip on
+          # a leftover `/tmp/rel`.
+          trap 'git worktree remove --force /tmp/rel >/dev/null 2>&1 || rm -rf /tmp/rel' EXIT
+
+          git worktree add /tmp/rel "$REF"
+
+          # Fail loudly if the pinned ref predates the embed pipeline
+          # rather than letting `npm run build:embed` blow up opaquely
+          # several minutes later after `npm ci`.
+          for f in scripts/build-embed.mjs vite.embed.config.ts; do
+            if [ ! -f "/tmp/rel/$f" ]; then
+              echo "::error::Pinned ref $REF is missing $f; cannot build embed bundles."
+              exit 1
+            fi
+          done
+          if ! jq -e '.scripts["build:embed"]' /tmp/rel/package.json >/dev/null; then
+            echo "::error::Pinned ref $REF has no \`build:embed\` npm script."
+            exit 1
+          fi
+
+          pushd /tmp/rel
+          npm ci
+          # Pass the games list explicitly so the build doesn't depend
+          # on whatever `release.json` lives at the pinned ref — main's
+          # release.json is the source of truth for the current release.
+          npm run build:embed -- $GAMES
+          popd
+
+          # Copy the pinned worktree's `dist/embed/<game>/` outputs
+          # into the main checkout's `dist/embed/` so the Pages
+          # artifact carries them. `npm run build` (the SPA step) ran
+          # before the cache restore so it can't wipe these.
+          rm -rf dist/embed
+          mkdir -p dist
+          cp -R /tmp/rel/dist/embed dist/embed
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -67,4 +130,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
