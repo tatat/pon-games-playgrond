@@ -48,7 +48,11 @@ export default defineConfig({
   build: {
     outDir: `dist/embed/${gameId}`,
     emptyOutDir: true,
-    sourcemap: true,
+    // No sourcemap — the artifact ships open-source code, but the
+    // map nearly doubles the Pages-artifact size (~4.7 MB per game)
+    // for a bundle ponpon never has to debug from CDN. Re-enable
+    // locally if needed.
+    sourcemap: false,
     // The lib bundle resolves its assets against the playground's
     // origin via `import.meta.url` — we don't want vite to copy
     // `public/` *into* the embed dir. The SPA build already ships
