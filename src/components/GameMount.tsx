@@ -62,10 +62,15 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
         // body-level `touch-action: none` on a descendant canvas — two-finger
         // virtual-pad usage (stick + A) gets interpreted as a pinch and zooms
         // the page. Setting these on the canvas element itself blocks it.
+        // `contextmenu` / `selectstart` prevention stops the iOS magnifier
+        // loupe that appears on double-tap-hold even with user-select:none.
+        const noDefault = (e: Event): void => e.preventDefault()
         app.canvas.style.touchAction = 'none'
         app.canvas.style.userSelect = 'none'
         app.canvas.style.setProperty('-webkit-user-select', 'none')
         app.canvas.style.setProperty('-webkit-touch-callout', 'none')
+        app.canvas.addEventListener('contextmenu', noDefault)
+        app.canvas.addEventListener('selectstart', noDefault)
         containerRef.current.appendChild(app.canvas)
         const gameModule = await games[gameId]()
         await rapierReady
