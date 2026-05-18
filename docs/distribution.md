@@ -10,11 +10,10 @@ GitHub Pages for this repo serves **both** of these at the same origin:
 
 | Path | What | Audience |
 |---|---|---|
-| `/` | Playground SPA (lobby + games) | Anyone — public demo / dev iteration |
-| `/embed/<game>/index.js` | ESM library bundle | ponpon — production consumer |
-| `/games/<game>/…` | Static assets (stickers, sounds, …) | Loaded by the embed bundle at runtime |
+| `/` | Playground SPA (lobby + games + static assets at `/games/…`) | Anyone — public demo / dev iteration |
+| `/embed/<game>/index.js` + `/embed/<game>/assets/…` | Self-contained ESM library bundle | ponpon — production consumer |
 
-The lib path settled on `/embed/<game>/` (not `/dist/<game>/`) so the build folder name (`dist/`, the Vite default) doesn't have to clash with the URL space.
+The lib path settled on `/embed/<game>/` (not `/dist/<game>/`) so the build folder name (`dist/`, the Vite default) doesn't have to clash with the URL space. Each embed bundle is **self-contained**: a copy of that game's `public/games/<id>/` tree ships under `embed/<id>/assets/games/<id>/`, so ponpon only needs the `embed/<id>/index.js` URL — no separate asset fetch from the playground SPA path.
 
 **Phase 1** (current): both the SPA and the embed bundles rebuild on every push to `main`. Phase 2 will split the cadences via `release.json`.
 
@@ -48,7 +47,7 @@ export async function mount(
 
 `mount` wraps the internal `GameModule.start` path: bootstrap Rapier / audio (`@dimforge/rapier2d-compat.init()` + `initAudio()` — idempotent across remounts), create `Application` parented to the host element, run the game, return a `destroy`. Each game's bundle inlines its dependencies (Pixi, Rapier WASM, Zustand for that game) — bundle sharing across games is not pursued at this scale.
 
-Asset URLs are resolved against the **playground's** origin, not the host page's. `embed.ts` computes `new URL('../../', import.meta.url).href` (which lands at `https://<playground>/pon-games-playgrond/` when the bundle is fetched from `<playground>/pon-games-playgrond/embed/<game>/index.js`) and pushes it into the engine's asset resolver via `setAssetBaseUrl`. The asset resolver (`engine/assets/resolveAssetUrl`) then prefixes every `games/<game>/…` path with that base. Hosts can override via `EmbedMountOptions.assetBaseUrl` if they're proxying the bundle from a different origin.
+Asset URLs are resolved against the **bundle's own URL**, not the playground origin or the host page's. `embed.ts` computes `new URL('./assets/', import.meta.url).href` and pushes it into the engine's asset resolver via `setAssetBaseUrl`. Combined with the engine's asset paths (`games/<id>/stickers/…`), URLs land at `<bundle>/assets/games/<id>/stickers/…` — exactly where `build-embed.mjs` copied the public assets. The bundle is fully portable: ponpon only knows the `embed/<id>/index.js` URL and the runtime walks to its sibling `assets/` automatically. Hosts can still override via `EmbedMountOptions.assetBaseUrl` for proxied / mirrored layouts.
 
 ## `release.json` and pinned-ref builds (Phase 2 — not yet implemented)
 

@@ -7,6 +7,7 @@
 // between SPA and embed builds doesn't matter for collisions.
 
 import { execSync } from 'node:child_process'
+import { cpSync, existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -33,4 +34,20 @@ for (const id of games) {
     stdio: 'inherit',
     env: { ...process.env, GAME_ID: id },
   })
+
+  // Self-contained bundle: copy the game's `public/games/<id>/` tree
+  // into the bundle's `assets/games/<id>/` so consumers fetch assets
+  // relative to the bundle URL, not from the playground origin. The
+  // `games/<id>/` prefix inside `assets/` matches the asset paths the
+  // engine code uses (`games/<id>/stickers/...`), so the URL produced
+  // by `new URL('./assets/', import.meta.url) + 'games/<id>/stickers/X'`
+  // lands at the copied file with no other rewriting.
+  const publicAssets = resolve(repoRoot, `public/games/${id}`)
+  if (!existsSync(publicAssets)) {
+    console.warn(`(no public assets for ${id} at ${publicAssets}, skipping copy)`)
+    continue
+  }
+  const embedAssets = resolve(repoRoot, `dist/embed/${id}/assets/games/${id}`)
+  cpSync(publicAssets, embedAssets, { recursive: true })
+  console.log(`  copied assets → dist/embed/${id}/assets/games/${id}/`)
 }

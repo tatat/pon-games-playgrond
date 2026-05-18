@@ -10,6 +10,6 @@ export async function mount(
   container: HTMLElement,
   options: EmbedMountOptions = {},
 ): Promise<EmbedHandle> {
-  const assetBase = new URL('../../', import.meta.url).href
+  const assetBase = new URL('./assets/', import.meta.url).href
   return mountGame(stickerDriftGame, container, options, assetBase)
 }
