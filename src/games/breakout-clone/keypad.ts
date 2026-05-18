@@ -380,8 +380,14 @@ function makeHoldColumn(
   c.hitArea = new Rectangle(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
 
   const bg = new Graphics()
-    .rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
-    .fill({ color: 0x000000, alpha: 0.1 })
+  const drawBg = (pressed: boolean): void => {
+    bg.clear()
+    bg.rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H).fill({
+      color: pressed ? 0xffffff : 0x000000,
+      alpha: pressed ? 0.18 : 0.1,
+    })
+  }
+  drawBg(false)
   c.addChild(bg)
 
   const cx = IN_CANVAS_COL_WIDTH / 2
@@ -397,9 +403,13 @@ function makeHoldColumn(
 
   const onDown = (e: { stopPropagation?(): void }): void => {
     e.stopPropagation?.()
+    drawBg(true)
     input.press(side)
   }
-  const onUp = (): void => input.release(side)
+  const onUp = (): void => {
+    drawBg(false)
+    input.release(side)
+  }
   c.on('pointerdown', onDown)
   c.on('pointerup', onUp)
   c.on('pointerupoutside', onUp)
@@ -452,6 +462,9 @@ class PadButton extends Container {
   private readonly glyph = new Graphics()
   private labelText?: Text
   private readonly opts: PadButtonOptions
+  private currentWidth = 0
+  private currentHeight = 0
+  private pressed = false
 
   constructor(opts: PadButtonOptions) {
     super()
@@ -470,11 +483,20 @@ class PadButton extends Container {
       this.addChild(this.labelText)
     }
 
+    const setPressed = (v: boolean): void => {
+      if (this.pressed === v) return
+      this.pressed = v
+      this.redrawBg()
+    }
     const onDown = (e: { stopPropagation?(): void }): void => {
       e.stopPropagation?.()
+      setPressed(true)
       opts.onPress?.()
     }
-    const onUp = (): void => opts.onRelease?.()
+    const onUp = (): void => {
+      setPressed(false)
+      opts.onRelease?.()
+    }
     const onTap = (e: { stopPropagation?(): void }): void => {
       e.stopPropagation?.()
       opts.onTap?.()
@@ -494,17 +516,28 @@ class PadButton extends Container {
   }
 
   setShape(width: number, height: number): void {
-    this.bg.clear()
-    this.bg
-      .roundRect(-width / 2, -height / 2, width, height, 6)
-      .fill({ color: 0x000000, alpha: 0.3 })
-      // A subtle white outline keeps adjacent buttons visually distinct —
-      // pure-alpha fills blur into one another against a black canvas.
-      .stroke({ color: 0xffffff, alpha: 0.25, width: 1.5 })
+    this.currentWidth = width
+    this.currentHeight = height
+    this.redrawBg()
     this.hitArea = new Rectangle(-width / 2, -height / 2, width, height)
     this.glyph.clear()
     drawGlyph(this.glyph, this.opts.glyph, width, height)
     if (this.labelText) this.labelText.position.set(0, 0)
+  }
+
+  /** Pressed buttons get a brighter / opaque fill so the user gets
+   * tactile-style feedback even on touch where there's no hover state. */
+  private redrawBg(): void {
+    const { currentWidth: w, currentHeight: h } = this
+    if (w === 0 || h === 0) return
+    this.bg.clear()
+    const fillColor = this.pressed ? 0xffffff : 0x000000
+    const fillAlpha = this.pressed ? 0.35 : 0.3
+    const strokeAlpha = this.pressed ? 0.6 : 0.25
+    this.bg
+      .roundRect(-w / 2, -h / 2, w, h, 6)
+      .fill({ color: fillColor, alpha: fillAlpha })
+      .stroke({ color: 0xffffff, alpha: strokeAlpha, width: 1.5 })
   }
 }
 
