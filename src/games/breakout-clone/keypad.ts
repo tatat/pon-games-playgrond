@@ -219,16 +219,18 @@ class DirectionBoard extends Container {
 
   layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
     if (placement === 'sides') {
-      // Left margin, ◀ above ▶ to stay reachable with one thumb.
-      const w = m.marginLeft - BOARD_GAP * 2
-      const totalH = m.viewportH - BOARD_GAP * 2
-      const half = (totalH - INNER_GAP) / 2
-      this.leftBtn.setShape(w, half)
-      this.rightBtn.setShape(w, half)
-      const top = -totalH / 2
-      this.leftBtn.position.set(0, top + half / 2)
-      this.rightBtn.position.set(0, top + half + INNER_GAP + half / 2)
-      this.position.set(m.marginLeft / 2, m.viewportH / 2)
+      // Left margin: ◀ and ▶ live side-by-side in the bottom third of
+      // the margin so they fall under the thumb. Stacking them
+      // vertically (◀ over ▶) is awkward because the user's thumb has
+      // to leave one button to press the other.
+      const marginW = m.marginLeft - BOARD_GAP * 2
+      const btnW = (marginW - INNER_GAP) / 2
+      const btnH = Math.min(marginW * 0.9, 96)
+      this.leftBtn.setShape(btnW, btnH)
+      this.rightBtn.setShape(btnW, btnH)
+      this.leftBtn.position.set(-btnW / 2 - INNER_GAP / 2, 0)
+      this.rightBtn.position.set(btnW / 2 + INNER_GAP / 2, 0)
+      this.position.set(m.marginLeft / 2, m.viewportH - BOARD_GAP - btnH / 2)
     } else {
       // Bottom strip, left half: ◀ ▶ side by side.
       const totalW = (m.viewportW - BOARD_GAP * 3) / 2
@@ -490,6 +492,9 @@ class PadButton extends Container {
     this.bg
       .roundRect(-width / 2, -height / 2, width, height, 6)
       .fill({ color: 0x000000, alpha: 0.3 })
+      // A subtle white outline keeps adjacent buttons visually distinct —
+      // pure-alpha fills blur into one another against a black canvas.
+      .stroke({ color: 0xffffff, alpha: 0.25, width: 1.5 })
     this.hitArea = new Rectangle(-width / 2, -height / 2, width, height)
     this.glyph.clear()
     drawGlyph(this.glyph, this.opts.glyph, width, height)
