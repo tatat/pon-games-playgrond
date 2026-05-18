@@ -245,3 +245,24 @@ Sketch the API at the level of "what does the player's hand sit on":
 Bring the layout / placement / cap / visibility logic with the move, and games stop owning a keypad file each — they just declare what fills the slots. Sticker-drift's "float fills the canvas in overlay mode" affordance is a knob the controller exposes (the primary-input slot can opt into a full-screen tap fallback in overlay mode).
 
 Tradeoff: a too-strict shape forces games into a controller that doesn't fit their UX; the action slots have to be expressive enough to capture both breakout's hold-left/hold-right + Jump + Fast and sticker-drift's hold-float-only without per-game escape hatches. Defer the move until a third game's needs clarify the slot model.
+
+### Future direction: continuous sides-margin transition
+
+Today the layout snaps modes at `MIN_REQUIRED_MARGIN_PX`: below the threshold it's `overlay` (in-canvas, anchored to canvas edges), above it's `sides` / `bottom` (in `layout.uiLayer`, anchored to margin centres). The transition is visually abrupt on a window resize that crosses the threshold — buttons disappear from one position and reappear in another.
+
+For the **side-margin transition the slide is horizontal**, which reads as the button sliding outward through the canvas/letterbox seam. That's worth smoothing: position the buttons in one coordinate system (viewport / `uiLayer`) for every margin size, with a single `targetX` computed continuously from the available margin. As the margin grows, the button slides outward — half on the canvas at small margins, fully in the margin once there's room. Conceptually:
+
+```typescript
+// Right-side action button — viewport-x for its centre.
+const targetX = Math.max(
+  marginLeft + gameW - BTN_MARGIN - cell / 2,  // canvas-edge anchor
+  viewportW - marginLeft / 2,                  // margin-centre anchor
+);
+btn.position.x = targetX;
+```
+
+At margin=0 the max picks the canvas-edge branch (overlay-style position). As `marginLeft` grows past `BTN_MARGIN + cell` it picks margin-centre and the button slides into the letterbox. No mode flip, just one continuous position function. Pause / Direction get equivalent formulas on their respective edges.
+
+The **bottom-margin transition is vertical** (button shifts down from the canvas floor into the bottom strip). User-feedback says it's fine for that one to keep snapping — the vertical jump doesn't read as jarring the way the horizontal one does, and it's not worth the extra logic.
+
+Open question: does the in-canvas branch still need its own mask (today the overlay is inside `gameContainer` so the canvas mask clips it)? Probably move the whole pad into `uiLayer` and accept that the buttons will visibly straddle the canvas / letterbox seam during the transition — that's the point. Defer alongside the generic controller pad refactor.
