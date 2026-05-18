@@ -53,6 +53,12 @@ export default defineConfig({
     // for a bundle ponpon never has to debug from CDN. Re-enable
     // locally if needed.
     sourcemap: false,
+    // Vite library mode defaults to `minify: false` (consumers
+    // bundle from source); we ship to a CDN URL so the consumer
+    // can't minify on our behalf. `'oxc'` is Vite 8 / rolldown's
+    // default minifier — the legacy `'esbuild'` value would require
+    // the esbuild package as a sibling dependency.
+    minify: true,
     // The lib bundle resolves its assets against the playground's
     // origin via `import.meta.url` — we don't want vite to copy
     // `public/` *into* the embed dir. The SPA build already ships
@@ -73,6 +79,11 @@ export default defineConfig({
         // Code-splitting would scatter chunks under the embed dir and
         // make the consumer manage chunk URLs.
         codeSplitting: false,
+        // Strip whitespace + newlines. `build.minify: true` already
+        // turns on name mangling / dead-code elim via Oxc, but
+        // rolldown leaves the file pretty-printed unless `minify` is
+        // set at the output level too.
+        minify: true,
       },
     },
   },
