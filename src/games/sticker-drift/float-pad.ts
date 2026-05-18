@@ -132,20 +132,25 @@ class PadBoard extends Container {
 
   setShape(width: number, height: number, orientation: Orientation): void {
     if (orientation === 'vertical') {
+      // Menu (small square on top) and Float (tall column below) share
+      // the same width so the stack reads as one tidy column. Cap that
+      // shared width at MAX_MENU_BTN; the float button is still the
+      // tallest thing on screen, just not the widest possible.
+      const colW = Math.min(width, MAX_MENU_BTN)
       const menuH = Math.min(Math.max(48, height * MENU_RATIO), MAX_MENU_BTN)
-      const menuW = Math.min(width, MAX_MENU_BTN)
       const floatH = height - menuH - INNER_GAP
-      this.menuBtn.setShape(menuW, menuH)
-      this.floatBtn.setShape(width, floatH)
+      this.menuBtn.setShape(colW, menuH)
+      this.floatBtn.setShape(colW, floatH)
       const top = -height / 2
       this.menuBtn.position.set(0, top + menuH / 2)
       this.floatBtn.position.set(0, top + menuH + INNER_GAP + floatH / 2)
     } else {
+      // Horizontal mirror: menu and float share the row height.
+      const rowH = Math.min(height, MAX_MENU_BTN)
       const menuW = Math.min(Math.max(64, width * MENU_RATIO), MAX_MENU_BTN)
-      const menuH = Math.min(height, MAX_MENU_BTN)
       const floatW = width - menuW - INNER_GAP
-      this.menuBtn.setShape(menuW, menuH)
-      this.floatBtn.setShape(floatW, height)
+      this.menuBtn.setShape(menuW, rowH)
+      this.floatBtn.setShape(floatW, rowH)
       const left = -width / 2
       this.menuBtn.position.set(left + menuW / 2, 0)
       this.floatBtn.position.set(left + menuW + INNER_GAP + floatW / 2, 0)
