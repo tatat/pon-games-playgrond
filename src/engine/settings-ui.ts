@@ -108,9 +108,9 @@ const SLIDER_W = 240
 const SLIDER_TRACK_H = 4
 const SLIDER_KNOB_R = 8
 
-const TAB_STRIP_Y = 68
+const TAB_STRIP_Y = 84
 const TAB_GAP = 32
-const CONTENT_TOP_Y = 110
+const CONTENT_TOP_Y = 128
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 
