@@ -1,10 +1,13 @@
+import { reactRouter } from '@react-router/dev/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
+import pkg from './package.json'
 
-// Pages serves this repo under /<repo>/ — keep absolute base in sync if renaming.
 export default defineConfig({
-  base: '/pon-games-playgrond/',
-  plugins: [react()],
+  base: `/${pkg.name}/`,
+  // Use reactRouter() for app builds; fall back to react() under Vitest so
+  // the framework plugin doesn't interfere with the test runner.
+  plugins: [process.env.VITEST ? react() : reactRouter()],
   server: {
     // Bind to 0.0.0.0 so the devcontainer's published port (appPort 5173) is
     // reachable from the host. Vite's default 127.0.0.1 only listens inside

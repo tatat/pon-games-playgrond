@@ -1,23 +1,6 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router'
-import { GameMount } from './components/GameMount'
+import { Link } from 'react-router'
 
-/** Top-level router. `basename` is bound to Vite's `BASE_URL` so the same
- * routes work both locally (`/`) and on GitHub Pages (`/pon-games-playgrond`). */
-export function App() {
-  return (
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <Routes>
-        <Route path="/" element={<Lobby />} />
-        <Route path="/sticker-drift" element={<GameMount gameId="sticker-drift" />} />
-        <Route path="/breakout-clone" element={<GameMount gameId="breakout-clone" />} />
-      </Routes>
-    </BrowserRouter>
-  )
-}
-
-/** Dev-only lobby: a plain list of links to each game. Replace with the real
- * lobby once games stabilise. */
-function Lobby() {
+export default function Home() {
   return (
     <div
       style={{
