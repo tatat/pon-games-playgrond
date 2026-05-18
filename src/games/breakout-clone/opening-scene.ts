@@ -88,21 +88,21 @@ export class OpeningScene extends Scene {
       text: 'BLOCK BREAK',
       style: {
         fill: 0xffffff,
-        fontSize: 72,
+        fontSize: 48,
         fontFamily: 'Courier, monospace',
-        letterSpacing: 8,
+        letterSpacing: 4,
       },
     })
     title.anchor.set(0, 0.5)
-    title.position.set(50, 200)
+    title.position.set(50, 220)
     title.zIndex = 10
     this.addChild(title)
 
     const subtitle = new Text({
       text: 'ブロック崩し',
-      style: { fill: 0xd8d8d8, fontSize: 32, fontFamily: 'serif' },
+      style: { fill: 0xd8d8d8, fontSize: 26, fontFamily: 'serif' },
     })
-    subtitle.position.set(50, 250)
+    subtitle.position.set(50, 256)
     subtitle.zIndex = 10
     this.addChild(subtitle)
 
