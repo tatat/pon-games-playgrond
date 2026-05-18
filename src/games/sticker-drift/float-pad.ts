@@ -11,6 +11,10 @@ const INNER_GAP = 6
 const MIN_REQUIRED_MARGIN_PX = BOARD_GAP * 2 + 48
 /** Fraction of the board's long axis dedicated to the menu button. */
 const MENU_RATIO = 0.18
+/** Cap the auxiliary (menu) button so wide letterboxes don't balloon
+ * it. The float button remains fluid — it's the main thumb-rest and
+ * benefits from filling the available space. */
+const MAX_MENU_BTN = 96
 /** Size of the in-viewport fallback pause button, in logical px. */
 const OVERLAY_PAUSE_SIZE = 40
 
@@ -128,17 +132,19 @@ class PadBoard extends Container {
 
   setShape(width: number, height: number, orientation: Orientation): void {
     if (orientation === 'vertical') {
-      const menuH = Math.max(48, height * MENU_RATIO)
+      const menuH = Math.min(Math.max(48, height * MENU_RATIO), MAX_MENU_BTN)
+      const menuW = Math.min(width, MAX_MENU_BTN)
       const floatH = height - menuH - INNER_GAP
-      this.menuBtn.setShape(width, menuH)
+      this.menuBtn.setShape(menuW, menuH)
       this.floatBtn.setShape(width, floatH)
       const top = -height / 2
       this.menuBtn.position.set(0, top + menuH / 2)
       this.floatBtn.position.set(0, top + menuH + INNER_GAP + floatH / 2)
     } else {
-      const menuW = Math.max(64, width * MENU_RATIO)
+      const menuW = Math.min(Math.max(64, width * MENU_RATIO), MAX_MENU_BTN)
+      const menuH = Math.min(height, MAX_MENU_BTN)
       const floatW = width - menuW - INNER_GAP
-      this.menuBtn.setShape(menuW, height)
+      this.menuBtn.setShape(menuW, menuH)
       this.floatBtn.setShape(floatW, height)
       const left = -width / 2
       this.menuBtn.position.set(left + menuW / 2, 0)
@@ -159,11 +165,17 @@ type Glyph = 'menu' | 'float'
 
 /** Flat-rect button. Centered on its position. Either tap-driven (menu)
  * or press/release-driven (float). Listener teardown is appended to the
- * passed-in `disposables` array so the owning FloatPad cleans them up. */
+ * passed-in `disposables` array so the owning FloatPad cleans them up.
+ * Press feedback mirrors breakout-clone's PadButton: the fill darkens
+ * and the glyph alpha bumps from 0.7 → 1.0 — "sink in" rather than
+ * flash, so the canvas brightness doesn't jump under the player. */
 class ActionButton extends Container {
   private readonly bg = new Graphics()
   private readonly glyph = new Graphics()
   private readonly kind: Glyph
+  private currentWidth = 0
+  private currentHeight = 0
+  private pressed = false
 
   constructor(kind: Glyph, handlers: ActionButtonHandlers, disposables: Array<() => void>) {
     super()
@@ -172,8 +184,20 @@ class ActionButton extends Container {
     this.cursor = 'pointer'
     this.addChild(this.bg, this.glyph)
 
-    const onDown = (): void => handlers.press?.()
-    const onUp = (): void => handlers.release?.()
+    const setPressed = (v: boolean): void => {
+      if (this.pressed === v) return
+      this.pressed = v
+      this.redrawBg()
+      this.redrawGlyph()
+    }
+    const onDown = (): void => {
+      setPressed(true)
+      handlers.press?.()
+    }
+    const onUp = (): void => {
+      setPressed(false)
+      handlers.release?.()
+    }
     const onTap = (): void => handlers.tap?.()
     this.on('pointerdown', onDown)
     this.on('pointerup', onUp)
@@ -190,31 +214,51 @@ class ActionButton extends Container {
   }
 
   setShape(width: number, height: number): void {
+    this.currentWidth = width
+    this.currentHeight = height
+    this.redrawBg()
+    this.redrawGlyph()
+    this.hitArea = new Rectangle(-width / 2, -height / 2, width, height)
+  }
+
+  private redrawBg(): void {
+    if (this.currentWidth === 0 || this.currentHeight === 0) return
     this.bg.clear()
     this.bg
-      .roundRect(-width / 2, -height / 2, width, height, 6)
-      .fill({ color: 0xffffff, alpha: 0.12 })
+      .roundRect(
+        -this.currentWidth / 2,
+        -this.currentHeight / 2,
+        this.currentWidth,
+        this.currentHeight,
+        6,
+      )
+      .fill({ color: 0x000000, alpha: this.pressed ? 0.5 : 0.3 })
+      .stroke({ color: 0xffffff, alpha: this.pressed ? 0.4 : 0.25, width: 1.5 })
+  }
+
+  private redrawGlyph(): void {
     this.glyph.clear()
-    if (this.kind === 'float') drawFloatGlyph(this.glyph, width, height)
-    else drawMenuGlyph(this.glyph, width, height)
-    this.hitArea = new Rectangle(-width / 2, -height / 2, width, height)
+    const alpha = this.pressed ? 1 : 0.7
+    if (this.kind === 'float')
+      drawFloatGlyph(this.glyph, this.currentWidth, this.currentHeight, alpha)
+    else drawMenuGlyph(this.glyph, this.currentWidth, this.currentHeight, alpha)
   }
 }
 
-function drawFloatGlyph(g: Graphics, w: number, h: number): void {
+function drawFloatGlyph(g: Graphics, w: number, h: number, alpha: number): void {
   const tri = Math.min(w, h) * 0.4
   g.poly([0, -tri * 0.6, -tri * 0.5, tri * 0.3, tri * 0.5, tri * 0.3]).fill({
     color: 0xffffff,
-    alpha: 0.7,
+    alpha,
   })
 }
 
-function drawMenuGlyph(g: Graphics, w: number, h: number): void {
+function drawMenuGlyph(g: Graphics, w: number, h: number, alpha: number): void {
   const barH = Math.min(w, h) * 0.5
   const barW = Math.min(w, h) * 0.12
   const gap = Math.min(w, h) * 0.16
   const left = -gap / 2 - barW
   g.rect(left, -barH / 2, barW, barH)
     .rect(left + barW + gap, -barH / 2, barW, barH)
-    .fill({ color: 0xffffff, alpha: 0.7 })
+    .fill({ color: 0xffffff, alpha })
 }
