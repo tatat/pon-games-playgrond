@@ -20,7 +20,11 @@ export class Ball extends Container {
         .setTranslation(startX, startY)
         .lockRotations()
         .setLinearDamping(0)
-        .setGravityScale(0),
+        .setGravityScale(0)
+        // CCD prevents the ball from tunnelling through walls / paddles
+        // when special-ball pickups or paddle vx transfer push speed past
+        // the per-step travel distance for the collider radius.
+        .setCcdEnabled(true),
     )
     const collider = world.createCollider(
       RAPIER.ColliderDesc.ball(BALL_RADIUS)

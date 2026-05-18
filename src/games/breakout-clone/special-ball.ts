@@ -27,7 +27,10 @@ export class SpecialBall extends Container {
         .lockRotations()
         .setLinearDamping(0)
         .setGravityScale(0)
-        .setLinvel(vx, vy),
+        .setLinvel(vx, vy)
+        // Same CCD rationale as the main ball — fast specials shouldn't
+        // tunnel through walls / paddles.
+        .setCcdEnabled(true),
     )
     const collider = world.createCollider(
       RAPIER.ColliderDesc.ball(SPECIAL_BALL_RADIUS)
