@@ -246,6 +246,8 @@ Bring the layout / placement / cap / visibility logic with the move, and games s
 
 Tradeoff: a too-strict shape forces games into a controller that doesn't fit their UX; the action slots have to be expressive enough to capture both breakout's hold-left/hold-right + Jump + Fast and sticker-drift's hold-float-only without per-game escape hatches. Defer the move until a third game's needs clarify the slot model.
 
+**Opening / title scenes typically only fill the option slot.** Both ported games landed on the same pattern: the title screen needs Pause (the path into Settings) but no gameplay buttons yet. The generic controller should let a scene fill *only* the option slot and lay out cleanly — sides margin: option top-anchored, no other clusters; bottom strip: option centred horizontally with nothing else competing for the row; overlay fallback: option at a corner that doesn't fight the HUD. Treat "option-only" as a first-class configuration rather than a special case the game has to assemble by passing empty slots elsewhere.
+
 ### Future direction: continuous sides-margin transition
 
 Today the layout snaps modes at `MIN_REQUIRED_MARGIN_PX`: below the threshold it's `overlay` (in-canvas, anchored to canvas edges), above it's `sides` / `bottom` (in `layout.uiLayer`, anchored to margin centres). The transition is visually abrupt on a window resize that crosses the threshold — buttons disappear from one position and reappear in another.
