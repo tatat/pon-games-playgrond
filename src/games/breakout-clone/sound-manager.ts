@@ -6,9 +6,6 @@ import type { Rng } from '../../engine/rng'
  * current musical scale + base key (transposition). */
 const HIT_COUNT = 12
 
-/** Musical scales as semitone offsets from the scale root. The default
- * (`major`) matches the original Phaser game. Add more scales here when
- * the settings UI to choose them lands. */
 const SCALES = {
   chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   major: [0, 2, 4, 5, 7, 9, 11],
@@ -19,26 +16,31 @@ const SCALES = {
 
 type ScaleName = keyof typeof SCALES
 
+const BASE = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '')
+
 /** Sound-manager port of the Phaser original. Owns the 12 hit-sample
  * registrations; `playRandomHit()` picks one per the configured scale and
- * base key (a +0..11 semitone shift) using the scene RNG. */
+ * base key (a +0..11 semitone shift) using the scene RNG.
+ *
+ * The samples are registered with `@pixi/sound` directly (not via Pixi's
+ * `Assets.load`) — letting Pixi's Assets pipeline auto-detect mp3s alongside
+ * image assets surfaced an `InvalidStateError: The source image could not
+ * be decoded` in the wild, so we keep audio loading on the sound library's
+ * own path. */
 export class SoundManager {
   private scale: readonly number[] = SCALES.major
   private baseKeyOffset = 0
 
   constructor(private readonly rng: Rng) {}
 
-  /** Asset entries to hand to `Scene.preload`. */
-  static assetEntries(): Array<{ alias: string; src: string }> {
-    const entries: Array<{ alias: string; src: string }> = []
+  /** Register the 12 hit aliases with `@pixi/sound`. Loading is lazy —
+   * the first `play()` triggers a fetch+decode; subsequent plays are
+   * synchronous. Safe to call multiple times (`sound.add` overwrites). */
+  static registerHits(): void {
     for (let i = 1; i <= HIT_COUNT; i++) {
       const num = i.toString().padStart(2, '0')
-      entries.push({
-        alias: aliasFor(i - 1),
-        src: `games/breakout-clone/sounds/hit/${num}.mp3`,
-      })
+      sound.add(aliasFor(i - 1), `${BASE}/games/breakout-clone/sounds/hit/${num}.mp3`)
     }
-    return entries
   }
 
   setScale(name: ScaleName): void {

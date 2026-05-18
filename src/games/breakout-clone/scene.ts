@@ -84,18 +84,19 @@ export class MainScene extends Scene {
     this.addChild(this.starfield)
 
     await this.preload(
-      [
-        ...BRICK_NAMES.flatMap((name) =>
-          BRICK_SIZES.map((size) => ({
-            alias: `brick-${name}-${size}`,
-            src: `games/breakout-clone/stickers/${name}-${size}@2x.png`,
-          })),
-        ),
-        ...SoundManager.assetEntries(),
-      ],
+      BRICK_NAMES.flatMap((name) =>
+        BRICK_SIZES.map((size) => ({
+          alias: `brick-${name}-${size}`,
+          src: `games/breakout-clone/stickers/${name}-${size}@2x.png`,
+        })),
+      ),
       signal,
     )
 
+    // Audio is registered via @pixi/sound directly (lazy-loaded on first
+    // play) — keeping it off Pixi.Assets.load avoids the "could not decode"
+    // error that turned up when mp3s rode through the image pipeline.
+    SoundManager.registerHits()
     this.sounds = new SoundManager(this.rng)
 
     // Zero-gravity world: breakout has no falling-ball gravity.
