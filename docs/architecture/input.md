@@ -184,6 +184,26 @@ const placement: 'sides' | 'bottom' | 'overlay' =
 
 For multi-button games (breakout-clone has 4 actions + pause), use a 2×4 grid in the bottom strip — direction board fills its top row only, actions board fills its top row and bottom-right cell. All cells share the same dimensions so the four boards read as one strip.
 
+### Margin-board sizing — cap, don't sprawl
+
+Letting buttons grow fluidly to fill whatever letterbox the viewport gave us made the boards "loose" on wide-margin displays. The pattern that landed:
+
+- **Cap each button dimension.** A single shared constant (`MAX_MARGIN_BTN = 96` in breakout-clone) is plenty for thumb-sized targets without making narrow-margin layouts pinch. Buttons stay fluid up to the cap and stop growing past it.
+- **Centre the board in its margin.** Once the buttons hit the cap the extra margin becomes whitespace around a centred board, not stretched buttons. Same `position.set(marginLeft / 2, viewportH / 2)` / `position.set(viewportW - marginLeft / 2, viewportH / 2)` for both side margins so paired boards read as mirrored.
+- **Match anchors across paired boards.** Left-margin Direction and right-margin Actions should share a vertical anchor (both at `viewportH / 2`); same goes for any horizontal pairing in the bottom strip. Mixed anchors (one centred, one bottom-aligned) reads as inconsistent immediately.
+- **Pause-only / single-button boards follow the same cap.** A title-screen pause board capped to a different size than the gameplay keypad's buttons reads as "different system" even though both adapt to the same margin.
+
+### Widget choice for long lists
+
+Segmented controls are great for 2–5 picks; past that the buttons go tiny. For 7+ options (breakout-clone's 9 musical scales, 12 chromatic semitones) reach for a **stepper** instead — two arrow buttons either side of a readout cell (`engine/ui/stepper.ts`). The readout doubles as a label for the current value, the arrows are always finger-sized, and the control's footprint doesn't grow with the list length.
+
+### Modal text hierarchy
+
+Modal headings need a real size gap from anything underneath them or they read flat:
+
+- Title at fontSize 26 (with a little letter-spacing), tabs / section headers at 13 — roughly 2× ratio is enough to read as "Title >> Tab" instead of two flavours of body text. Same goes for any nested heading.
+- Leave ~24 px of whitespace under the title before the next element (tab strip or first row). The settings modal had ~10 px and felt cramped after the title bumped to 26.
+
 ### Visual feedback
 
 Buttons need press feedback or they feel dead on touch (no hover state to fall back on). The cheap mistakes:
