@@ -9,11 +9,8 @@ import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 const BOARD_GAP = 24
 const INNER_GAP = 6
 const MIN_REQUIRED_MARGIN_PX = BOARD_GAP * 2 + 48
-/** Fraction of the board's long axis dedicated to the menu button. */
-const MENU_RATIO = 0.18
-/** Cap the auxiliary (menu) button so wide letterboxes don't balloon
- * it. The float button remains fluid — it's the main thumb-rest and
- * benefits from filling the available space. */
+/** Cap each margin-board button so a wide letterbox doesn't balloon
+ * the pad. The pair (menu + float) stays centred in the margin. */
 const MAX_MENU_BTN = 96
 /** Size of the in-viewport fallback pause button, in logical px. */
 const OVERLAY_PAUSE_SIZE = 40
@@ -132,28 +129,24 @@ class PadBoard extends Container {
 
   setShape(width: number, height: number, orientation: Orientation): void {
     if (orientation === 'vertical') {
-      // Menu (small square on top) and Float (tall column below) share
-      // the same width so the stack reads as one tidy column. Cap that
-      // shared width at MAX_MENU_BTN; the float button is still the
-      // tallest thing on screen, just not the widest possible.
-      const colW = Math.min(width, MAX_MENU_BTN)
-      const menuH = Math.min(Math.max(48, height * MENU_RATIO), MAX_MENU_BTN)
-      const floatH = height - menuH - INNER_GAP
-      this.menuBtn.setShape(colW, menuH)
-      this.floatBtn.setShape(colW, floatH)
-      const top = -height / 2
-      this.menuBtn.position.set(0, top + menuH / 2)
-      this.floatBtn.position.set(0, top + menuH + INNER_GAP + floatH / 2)
+      // Two equal squares stacked, centred vertically in the margin.
+      // Cap at MAX_MENU_BTN so a wide letterbox doesn't sprawl the pair.
+      const cell = Math.min(width, (height - INNER_GAP) / 2, MAX_MENU_BTN)
+      const stackH = cell * 2 + INNER_GAP
+      this.menuBtn.setShape(cell, cell)
+      this.floatBtn.setShape(cell, cell)
+      const top = -stackH / 2
+      this.menuBtn.position.set(0, top + cell / 2)
+      this.floatBtn.position.set(0, top + cell + INNER_GAP + cell / 2)
     } else {
-      // Horizontal mirror: menu and float share the row height.
-      const rowH = Math.min(height, MAX_MENU_BTN)
-      const menuW = Math.min(Math.max(64, width * MENU_RATIO), MAX_MENU_BTN)
-      const floatW = width - menuW - INNER_GAP
-      this.menuBtn.setShape(menuW, rowH)
-      this.floatBtn.setShape(floatW, rowH)
-      const left = -width / 2
-      this.menuBtn.position.set(left + menuW / 2, 0)
-      this.floatBtn.position.set(left + menuW + INNER_GAP + floatW / 2, 0)
+      // Horizontal mirror: two equal squares side by side, centred.
+      const cell = Math.min(height, (width - INNER_GAP) / 2, MAX_MENU_BTN)
+      const rowW = cell * 2 + INNER_GAP
+      this.menuBtn.setShape(cell, cell)
+      this.floatBtn.setShape(cell, cell)
+      const left = -rowW / 2
+      this.menuBtn.position.set(left + cell / 2, 0)
+      this.floatBtn.position.set(left + cell + INNER_GAP + cell / 2, 0)
     }
   }
 }
