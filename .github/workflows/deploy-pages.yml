@@ -26,6 +26,9 @@ jobs:
     name: Build SPA
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Guard against an accidental manual dispatch from a non-main
+    # branch picking up an in-progress feature commit.
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
