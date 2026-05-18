@@ -2,8 +2,15 @@ import { type Application, Container, Graphics } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from './constants'
 import { attachFpsCounter } from './dev-overlay'
 import { attachPauseMenu } from './pause-menu'
-import { attachSettingsUi } from './settings-ui'
+import { attachSettingsUi, type GameSettingsPanel } from './settings-ui'
 import type { Disposable } from './util/disposable'
+
+export interface LayoutOptions {
+  /** Optional game-specific settings panel rendered as a second tab in
+   * the Settings modal. The engine takes ownership: `dispose()` on the
+   * returned `GameLayout` will also dispose the panel. */
+  gameSettings?: GameSettingsPanel
+}
 
 export interface LayoutMetrics {
   viewportW: number
@@ -30,7 +37,7 @@ export interface GameLayout extends Disposable {
  * canvas. Internally attaches the settings UI, pause menu, and dev FPS
  * overlay — these share the same lifetime as the layout. Caller invokes
  * the returned `dispose` (typically chained from a `GameHandle.destroy`). */
-export function attachLayout(app: Application): GameLayout {
+export function attachLayout(app: Application, opts: LayoutOptions = {}): GameLayout {
   const gameContainer = new Container()
   gameContainer.sortableChildren = true
   // Clip anything drawn outside the logical 1280×720 viewport so off-screen
@@ -44,7 +51,7 @@ export function attachLayout(app: Application): GameLayout {
 
   const inner: Disposable[] = []
   if (import.meta.env.DEV) inner.push(attachFpsCounter(gameContainer, app.ticker))
-  const settings = attachSettingsUi(gameContainer)
+  const settings = attachSettingsUi(gameContainer, opts.gameSettings)
   inner.push(settings)
   inner.push(attachPauseMenu(gameContainer, { openSettings: settings.openSettings }))
 

@@ -7,6 +7,24 @@ import { makeSegmentedControl, type SegmentedControl } from './ui/segmented-cont
 import type { UiTheme } from './ui-theme'
 import type { Disposable } from './util/disposable'
 
+/** One row in a `GameSettingsPanel` — a label + a pre-built Pixi control
+ * (e.g. a `SegmentedControl.view`). The engine positions the row inside
+ * the modal; the panel owns the control's reactive bindings. */
+export interface SettingsRow {
+  label: string
+  control: Container
+}
+
+/** Game-specific settings rows + section header. Built by the game module
+ * (typically via `pixi.js` controls + the per-game store) and handed to
+ * `attachLayout` so the engine settings modal can render a "Game" tab. */
+export interface GameSettingsPanel extends Disposable {
+  /** Section header shown above the rows in the Game tab. Optional —
+   * games with a single bag of settings can leave it off. */
+  sectionTitle?: string
+  rows: SettingsRow[]
+}
+
 export interface SettingsUi extends Disposable {
   /** Open the settings modal. Used by the pause menu's "Settings" button. */
   openSettings(): void
@@ -15,8 +33,15 @@ export interface SettingsUi extends Disposable {
 /** Attaches the settings modal (no on-screen trigger of its own) and returns
  * a handle. Caller wires `openSettings` into wherever the user can request
  * it (typically the pause menu). The modal lives in logical 1280×720
- * coords, captured from the active `uiTheme` at build time. */
-export function attachSettingsUi(gameContainer: Container): SettingsUi {
+ * coords, captured from the active `uiTheme` at build time.
+ *
+ * If `gameSettings` is provided, a second "Game" tab is shown alongside the
+ * System tab. The game panel's `dispose` is called from this attachment's
+ * `dispose`, so games don't need to track it separately. */
+export function attachSettingsUi(
+  gameContainer: Container,
+  gameSettings?: GameSettingsPanel,
+): SettingsUi {
   const theme = useRuntimeStore.getState().uiTheme
   const root = new Container()
   // Above the pause menu overlay (z=9500) so the panel stays interactive
@@ -24,7 +49,7 @@ export function attachSettingsUi(gameContainer: Container): SettingsUi {
   root.zIndex = 9700
   gameContainer.addChild(root)
 
-  const modal = new SettingsModal(theme)
+  const modal = new SettingsModal(theme, gameSettings)
   root.addChild(modal)
 
   // Keyboard shortcuts:
@@ -49,6 +74,7 @@ export function attachSettingsUi(gameContainer: Container): SettingsUi {
     dispose: () => {
       window.removeEventListener('keydown', onKey)
       modal.dispose()
+      gameSettings?.dispose()
       gameContainer.removeChild(root)
       root.destroy({ children: true })
     },
@@ -60,6 +86,7 @@ export function attachSettingsUi(gameContainer: Container): SettingsUi {
 const PANEL_BG = 0x1a1a1c
 const ROW_LABEL = 0xe0e0e0
 const SUBDUED = 0xa0a0a0
+const TAB_INACTIVE = 0x7a7a7e
 const TRACK = 0x3a3a3e
 const INACTIVE = 0x3a3a3e
 const WHITE = 0xffffff
@@ -75,18 +102,32 @@ const SLIDER_W = 240
 const SLIDER_TRACK_H = 4
 const SLIDER_KNOB_R = 8
 
+const TAB_STRIP_Y = 68
+const TAB_GAP = 32
+const CONTENT_TOP_Y = 110
+
 // ── Modal ──────────────────────────────────────────────────────────────────
+
+type TabId = 'system' | 'game'
 
 class SettingsModal extends Container implements Disposable {
   private readonly overlay: Graphics
   private readonly panel: Container
   private readonly theme: UiTheme
+  private readonly gameSettings: GameSettingsPanel | undefined
   private readonly disposables: Array<() => void> = []
+  private readonly tabs: Record<TabId, Container> = {
+    system: new Container(),
+    game: new Container(),
+  }
+  private readonly tabLabels: Record<TabId, Text> = {} as Record<TabId, Text>
+  private readonly tabUnderlines: Record<TabId, Graphics> = {} as Record<TabId, Graphics>
   private pauseSnapshot = false
 
-  constructor(theme: UiTheme) {
+  constructor(theme: UiTheme, gameSettings: GameSettingsPanel | undefined) {
     super()
     this.theme = theme
+    this.gameSettings = gameSettings
     this.visible = false
     this.zIndex = 9999
     this.eventMode = 'static'
@@ -111,7 +152,12 @@ class SettingsModal extends Container implements Disposable {
     this.panel.addChild(makeTitle('Settings', theme))
     this.panel.addChild(makeCloseButton(() => this.close(), theme))
 
-    this.buildRows()
+    if (this.gameSettings) this.buildTabStrip()
+    this.panel.addChild(this.tabs.system)
+    this.panel.addChild(this.tabs.game)
+    this.buildSystemTab()
+    this.buildGameTab()
+    this.setActiveTab('system')
   }
 
   open(): void {
@@ -129,15 +175,62 @@ class SettingsModal extends Container implements Disposable {
     this.disposables.length = 0
   }
 
-  private buildRows(): void {
-    let y = 84
+  private buildTabStrip(): void {
+    const make = (id: TabId, label: string, x: number): { width: number } => {
+      const t = new Text({
+        text: label,
+        style: { fill: TAB_INACTIVE, fontSize: 14, fontFamily: this.theme.fontSans },
+      })
+      t.position.set(x, TAB_STRIP_Y)
+      t.eventMode = 'static'
+      t.cursor = 'pointer'
+      const hit = new Rectangle(-6, -4, t.width + 12, t.height + 8)
+      t.hitArea = hit
+      t.on('pointertap', () => this.setActiveTab(id))
+      this.panel.addChild(t)
+      this.tabLabels[id] = t
+
+      // Underline: thin bar below the tab label, visible only when active.
+      const underline = new Graphics().rect(0, 0, t.width, 2).fill(WHITE)
+      underline.position.set(x, TAB_STRIP_Y + t.height + 4)
+      underline.visible = false
+      this.panel.addChild(underline)
+      this.tabUnderlines[id] = underline
+      return { width: t.width }
+    }
+    const sys = make('system', 'System', PANEL_PADDING_X)
+    make('game', 'Game', PANEL_PADDING_X + sys.width + TAB_GAP)
+  }
+
+  private setActiveTab(id: TabId): void {
+    if (!this.gameSettings && id === 'game') return
+    this.tabs.system.visible = id === 'system'
+    this.tabs.game.visible = id === 'game'
+    for (const t of ['system', 'game'] as TabId[]) {
+      const label = this.tabLabels[t]
+      const underline = this.tabUnderlines[t]
+      if (label) label.style.fill = t === id ? WHITE : TAB_INACTIVE
+      if (underline) underline.visible = t === id
+    }
+  }
+
+  private buildSystemTab(): void {
+    const c = this.tabs.system
+    // When there's no Game tab the title is the only header, so the content
+    // can start right under it instead of leaving space for the strip.
+    let y = this.gameSettings ? CONTENT_TOP_Y : 84
     const addSection = (title: string): void => {
       const t = new Text({
         text: title.toUpperCase(),
-        style: { fill: SUBDUED, fontSize: 11, fontFamily: this.theme.fontSans, letterSpacing: 2 },
+        style: {
+          fill: SUBDUED,
+          fontSize: 11,
+          fontFamily: this.theme.fontSans,
+          letterSpacing: 2,
+        },
       })
       t.position.set(PANEL_PADDING_X, y)
-      this.panel.addChild(t)
+      c.addChild(t)
       y += 24
     }
     const addRow = (label: string, control: Container): void => {
@@ -146,9 +239,9 @@ class SettingsModal extends Container implements Disposable {
         style: { fill: ROW_LABEL, fontSize: 14, fontFamily: this.theme.fontSans },
       })
       t.position.set(PANEL_PADDING_X, y + 6)
-      this.panel.addChild(t)
+      c.addChild(t)
       control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
-      this.panel.addChild(control)
+      c.addChild(control)
       y += ROW_GAP
     }
 
@@ -163,6 +256,41 @@ class SettingsModal extends Container implements Disposable {
     y += SECTION_GAP
     addSection('Controls')
     addRow('Virtual Pad', this.makeVirtualPadGroup().view)
+  }
+
+  private buildGameTab(): void {
+    const c = this.tabs.game
+    if (!this.gameSettings) {
+      // No game registered any settings — leave the tab empty; setActiveTab
+      // will prevent switching to it anyway.
+      return
+    }
+    let y = CONTENT_TOP_Y
+    if (this.gameSettings.sectionTitle) {
+      const t = new Text({
+        text: this.gameSettings.sectionTitle.toUpperCase(),
+        style: {
+          fill: SUBDUED,
+          fontSize: 11,
+          fontFamily: this.theme.fontSans,
+          letterSpacing: 2,
+        },
+      })
+      t.position.set(PANEL_PADDING_X, y)
+      c.addChild(t)
+      y += 24
+    }
+    for (const row of this.gameSettings.rows) {
+      const t = new Text({
+        text: row.label,
+        style: { fill: ROW_LABEL, fontSize: 14, fontFamily: this.theme.fontSans },
+      })
+      t.position.set(PANEL_PADDING_X, y + 6)
+      c.addChild(t)
+      row.control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
+      c.addChild(row.control)
+      y += ROW_GAP
+    }
   }
 
   private makeVolumeSlider(key: 'masterVolume' | 'bgmVolume' | 'sfxVolume'): Container {
