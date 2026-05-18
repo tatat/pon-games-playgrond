@@ -1,7 +1,9 @@
 import RAPIER from '@dimforge/rapier2d-compat'
 import { Assets, Container, Graphics, Rectangle } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
+import { makeVirtualKeypad } from '../../engine/input/virtual-keypad'
 import { Scene, type SceneDelta } from '../../engine/scene'
+import { useRuntimeStore } from '../../store/runtime'
 import { useUserStore } from '../../store/user'
 import {
   GAME_ID,
@@ -13,7 +15,6 @@ import {
 } from './constants'
 import { Debris } from './debris'
 import { gameSpeedIncrement, scoreIncrement, spawnIntervalMs } from './difficulty'
-import { makeFloatPad } from './float-pad'
 import { HUD } from './hud'
 import { Obstacle } from './obstacle'
 import { Player } from './player'
@@ -112,16 +113,20 @@ export class MainScene extends Scene {
       tap.off('pointercancel', onUp)
     })
 
-    // Touch buttons. Two attach points:
-    //  - `uiMargin` → uiLayer, visible when a letterbox margin has room.
-    //  - `gameOverlay` → inside the game viewport, holds the small fallback
-    //    pause button shown when the margin pad isn't visible.
-    const floatPad = this.use(makeFloatPad(this.input, this.layout))
-    floatPad.gameOverlay.zIndex = 50
-    this.addChild(floatPad.gameOverlay)
-    this.layout.uiLayer.addChild(floatPad.uiMargin)
+    // Virtual keypad. The shared engine module renders A=Float + Option
+    // (= pause) on the right; sticker-drift has no directional input so
+    // the stick slot is left unset and hidden.
+    const keypad = this.use(
+      makeVirtualKeypad(this.input, this.layout, {
+        actions: {
+          a: { action: 'float', glyph: 'float' },
+        },
+        option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+      }),
+    )
+    this.layout.uiLayer.addChild(keypad.view)
     this.use(() => {
-      this.layout.uiLayer.removeChild(floatPad.uiMargin)
+      this.layout.uiLayer.removeChild(keypad.view)
     })
 
     if (this.options.startImmediately) this.startPlaying()

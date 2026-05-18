@@ -41,41 +41,145 @@ export class InputManager {
 - **Per-scene lifetime.** `signal` is the **per-scene** signal provided by `SceneManager` to `onEnter`, not the game signal. Each scene transition aborts the previous scene's signal, which releases its `InputManager` listeners. Virtual press state has no listener footprint, so nothing extra is required on scene exit.
 - `endFrame` clears `wasJustPressed` state and must be called at the end of `onUpdate` if the scene uses just-pressed semantics.
 
-## On-screen controls helper
+## Virtual keypad
 
-`engine/input/touch-pad.ts` ships templates so games that just want "left/right and a shoot button" do not reinvent layout each time. Games that want bespoke controls skip the helper and add their own `FancyButton`s.
+`engine/input/virtual-keypad/` is the shared on-screen controller. Every game declares which slots are filled; the module draws the widgets, wires pointer events to `InputManager`, and reacts to `useSettingsStore.virtualPad` + window resize. There is one canonical layout — games turn slots on and off, layout positions don't vary game-by-game.
+
+### Slots
+
+- **Stick slot** (left side) — a single Xbox-style thumbstick: outer ring with a draggable inner knob. The knob resolves into 1–2 simultaneously-active discrete direction actions (`left` / `right` / `up` / `down`). A diagonal drag activates both axes (e.g. `left` + `up`). Continuous-vector output is intentionally not exposed today.
+- **A button** / **B button** (right side) — two hold-buttons. Both `actions.a` and `actions.b` are optional. Cell `96 px`.
+- **Option button** (right side) — a single tap-button rendered with a hamburger glyph. The scene wires its `tap` handler to whatever opens the in-game menu (settings, pause modal, etc.). Cell `60 px` (smaller than A / B).
+
+Unassigned slots are not drawn. The other slots stay at their cluster-shape positions (see *Right cluster — 3 patterns* below).
+
+### API
 
 ```typescript
-export function shouldShowTouchControls(): boolean;
-export function padEnabled(): boolean;            // combines useSettingsStore + matchMedia
+export type KeypadGlyph =
+  | 'menu' | 'arrow-left' | 'arrow-right' | 'arrow-up' | 'arrow-down' | 'float';
 
-export interface DirectionalPadOptions {
-  leftAction: Action;
-  rightAction: Action;
-  upAction?: Action;
-  downAction?: Action;
+export interface KeypadConfig {
+  /** Left-side thumbstick. Each direction is optional. Hidden if all four
+   * are unset. Stick fires `press(action)` / `release(action)` as the knob
+   * crosses per-axis thresholds; diagonals fire two directions at once. */
+  stick?: {
+    left?: Action;
+    right?: Action;
+    up?: Action;
+    down?: Action;
+  };
+  /** Right-side A / B hold-buttons. Either or both may be assigned. */
+  actions?: {
+    a?: { action: Action; label?: string; glyph?: KeypadGlyph };
+    b?: { action: Action; label?: string; glyph?: KeypadGlyph };
+  };
+  /** Right-side option tap-button. */
+  option?: { tap(): void };
 }
 
-export function createDirectionalPad(
-  input: InputManager,
-  layout: GameLayout,
-  options: DirectionalPadOptions,
-): Container;
+export interface VirtualKeypad extends Disposable {
+  /** Goes into `layout.uiLayer` — viewport coordinates. All widgets live
+   * here; the keypad does not render anything inside `gameContainer`. */
+  view: Container;
+}
 
-export function createActionButton(
+export function makeVirtualKeypad(
   input: InputManager,
   layout: GameLayout,
-  action: Action,
-  label: string,
-): Container;
+  config: KeypadConfig,
+): VirtualKeypad;
+
+export function padEnabled(): boolean;
 ```
 
-### Contract
+### Anchoring — `space-between` with outer pad
 
-- The helper returns a `Container` of buttons positioned for the current `layout.current().area` (`'sides'` / `'bottom'` / `'overlay'`) and subscribes to `layout.onChange` for resize / orientation changes.
-- For `'sides'` and `'bottom'`, the container belongs on `layout.uiLayer` (viewport coords). For `'overlay'`, it belongs on `gameContainer` so it scales with the game.
-- Each button wires `pointerdown` → `input.press(action)` and `pointerup` / `pointerupoutside` → `input.release(action)` so virtual presses always release even if the user drags off the button.
-- The helper accepts an `AbortSignal` (typically the scene signal) and tears down its subscriptions on abort. The caller is responsible for `addChild`ing the returned container into the appropriate layer.
+Widgets live in `layout.uiLayer` (viewport coordinates) and anchor to **viewport corners** with a `pad = 15` inset — picture CSS `justify-content: space-between` with outer padding. The canvas (and any letterbox margin around it) is just the space between the two clusters; whether a widget straddles the canvas / letterbox seam falls out of viewport size, not a separate placement decision.
+
+- At `marginLeft = 0`, the right cluster sits inside the canvas's bottom-right corner; the left cluster sits inside the bottom-left. Widgets visually overlap the playfield in that limit.
+- As `marginLeft` grows, each cluster slides into the margin opposite it because `vp_right` / `vp_left` track the viewport, not the canvas. At `marginLeft ≥ 111 px` the right cluster's largest button is fully inside the right letterbox margin.
+- Same logic applies vertically once `marginTop > 0` (phones in portrait): the bottom cluster anchors to `vp_bottom`, so the buttons drop into the bottom letterbox margin instead of overlapping the canvas's bottom rows.
+
+There is no separate `sides` / `bottom` / `overlay` mode. The single anchoring rule covers every viewport size, with widgets potentially straddling the canvas / letterbox seam in between.
+
+### Right cluster — 3 patterns
+
+The right cluster shape depends on how many right-side slots are filled (counting Option + filled A + filled B). All positions are anchored from `(vp_right, vp_bottom)` with `pad = 15`, `INNER_GAP = 6`, A/B cell `96`, Option cell `60`.
+
+**Pattern 1 — Option only (e.g. title scene):**
+
+```
+                       [opt]
+```
+
+- `option_center = (vp_right − 45, vp_bottom − 45)` — Option sits flush in the bottom-right corner with `pad` inset (`60/2 + 15 = 45`).
+
+**Pattern 2 — Option + A (e.g. one-button gameplay):**
+
+```
+                  [opt]
+                       [A]
+```
+
+- `A_center      = (vp_right − 63,  vp_bottom − 63)` — A flush in the bottom-right corner (`96/2 + 15 = 63`).
+- `option_center = (vp_right − 147, vp_bottom − 147)` — Option diagonally up-left of A, with `INNER_GAP` between A's top-left corner and Option's bottom-right corner (`63 + 48 + 6 + 30 = 147`).
+
+**Pattern 3 — Option + A + B (e.g. two-button gameplay):**
+
+Tilted equilateral triangle, rotated 35° CCW from "apex up". After rotation: Option at the apex (upper-left), B at the right vertex, A at the lower vertex. Sides are `96 + 6 = 102` between adjacent button centres → circumradius `R = 102 / √3 ≈ 58.9`.
+
+```
+            [opt]
+                              [B]
+              [A]
+```
+
+Vertex offsets from the triangle's centre (math angle conventions, +y down):
+
+- `option_offset = (R · cos 125°,  −R · sin 125°) ≈ (−34, −48)`
+- `B_offset      = (R · cos   5°,  −R · sin   5°) ≈ (+59,  −5)`
+- `A_offset      = (R · cos 245°,  −R · sin 245°) ≈ (−25, +53)`
+
+Anchored so A's bottom edge and B's right edge each have `pad = 15` from the viewport edges:
+
+- `triangle_centre_x = vp_right  − 63 − 59 = vp_right − 122` (B's right-edge anchor)
+- `triangle_centre_y = vp_bottom − 63 − 53 = vp_bottom − 116` (A's bottom-edge anchor)
+
+Final positions:
+
+- `A_center      = (vp_right − 147, vp_bottom −  63)`
+- `B_center      = (vp_right −  63, vp_bottom − 121)`
+- `option_center = (vp_right − 156, vp_bottom − 164)`
+
+A is **not** at the viewport corner in Pattern 3 — B is, because B is the rightmost vertex of the tilted triangle. A moves inward (147 px from the edge) and stays anchored to the viewport bottom. The whole triangle slides together as the right margin grows.
+
+### Left cluster — stick
+
+The stick lives at the bottom-left corner: `stick_center = (vp_left + 63, vp_bottom − 63)` (same `pad + cell/2` math as a right-cluster A button, mirrored). Cell `96` — outer ring radius `48`, inner knob radius `~16`.
+
+If `stick` is unset (or all four directions are unset) the widget isn't drawn — the title scene's no-stick / no-A / no-B / Option-only configuration leaves the left side empty.
+
+### Stick widget detail
+
+- **Visual**: outer ring (radius `R = 48`) at the slot centre; a small filled inner knob (radius `~R/3 = 16`) starting at the centre.
+- **Interaction**: `pointerdown` anywhere inside the outer ring snaps the knob to the touch position. `pointermove` follows. The knob's offset from centre is clamped to `R`. `pointerup` / `pointerupoutside` / `pointercancel` snaps the knob back to centre and releases every held direction.
+- **Direction resolution**: a small inner deadzone (radius `~0.25 R = 12`) keeps a near-centre touch from firing anything. Past the deadzone, each axis fires independently:
+  - `|dx| > 0.4 R` → `press(left)` or `press(right)` depending on sign.
+  - `|dy| > 0.4 R` → `press(up)` or `press(down)` depending on sign.
+  - Both axes can be active at once (diagonals).
+- **Unassigned directions**: if a game maps only `left` / `right` (breakout), the up / down axis fires nothing — the knob still moves freely, but no `press(up)` / `press(down)` is dispatched because the action isn't bound.
+
+Continuous-vector output (`{x, y}` ∈ [-1,1]²) is intentionally not exposed today. Add a knob shape on the config later if a game needs it.
+
+### Sizing
+
+Cell sizes are **viewport-pixel constants** (do not scale with canvas):
+
+- A / B / Stick: `96 px`.
+- Option: `60 px`.
+
+This is `(α)` from the design discussion — buttons stay touch-sized on phone-portrait viewports where the canvas itself is scaled down to ~31% of design size. The trade-off is that on a small canvas the cluster covers a larger fraction of the playfield in the limit `marginLeft = 0` / `marginTop = 0`; revisit the rule (e.g. `(β)` viewport-shortDim-linked clamp) if that becomes a problem on real devices.
 
 ### Whether to show the pad
 
@@ -86,11 +190,11 @@ function padEnabled(): boolean {
   const mode = useSettingsStore.getState().virtualPad;
   if (mode === 'on') return true;
   if (mode === 'off') return false;
-  return shouldShowTouchControls();   // 'auto'
+  return window.matchMedia('(pointer: coarse)').matches;   // 'auto'
 }
 ```
 
-A scene that wants a pad calls the helper in `onEnter` only when `padEnabled()`.
+The module subscribes to `useSettingsStore` and `layout.onChange` internally; the scene just calls `makeVirtualKeypad` once in `onEnter` and disposes it on exit.
 
 ## Gestures (swipe / drag)
 
@@ -121,88 +225,55 @@ class BreakoutPlayScene extends Scene {
   async onEnter(signal: AbortSignal) {
     await this.preload([/* assets */], signal);
     this.bindInput({
-      moveLeft:  ['ArrowLeft', 'KeyA'],
-      moveRight: ['ArrowRight', 'KeyD'],
-      launch:    ['Space'],
-      pause:     ['Escape'],
-    }, signal);
+      left:  ['ArrowLeft', 'KeyA'],
+      right: ['ArrowRight', 'KeyD'],
+      jump:  ['Space'],
+      fast:  ['ShiftLeft', 'ShiftRight'],
+    });
 
-    if (padEnabled()) {
-      const pad = createDirectionalPad(this.input, this.layout, {
-        leftAction: 'moveLeft',
-        rightAction: 'moveRight',
-      });
-      this.layout.uiLayer.addChild(pad);
-    }
+    const keypad = this.use(makeVirtualKeypad(this.input, this.layout, {
+      stick: { left: 'left', right: 'right' },
+      actions: {
+        a: { action: 'jump', label: 'JUMP' },
+        b: { action: 'fast', label: 'FAST' },
+      },
+      option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+    }));
+    this.layout.uiLayer.addChild(keypad.view);
+    this.use(() => this.layout.uiLayer.removeChild(keypad.view));
 
     playBgm('breakout-bgm');
   }
 
   onUpdate(ticker: Ticker) {
-    if (this.input.isDown('moveLeft')) { /* ... */ }
-    if (this.input.wasJustPressed('launch')) { /* ... */ }
+    if (this.input.isDown('left')) { /* ... */ }
+    if (this.input.wasJustPressed('jump')) { /* ... */ }
     this.input.endFrame();
   }
 }
 ```
 
-`this.layout` is injected by `SceneManager.attach` alongside `gameId` and `rng` — scenes do not reach into `app.stage` directly.
+`this.layout` is injected by `SceneManager.attach` alongside `gameId` and `rng` — scenes do not reach into `app.stage` directly. The virtual keypad gates itself on `padEnabled()` internally; the scene does not need an `if (padEnabled())` guard.
 
-## Touch-pad design conventions
+## Virtual keypad design conventions
 
-Recurring lessons from porting the breakout-clone keypad — read these before touching another game's on-screen controls.
+Recurring lessons from porting the breakout-clone keypad — read these before touching the virtual keypad module or extending it for a new game.
 
-### Margin-first, overlay-fallback
+### Single attach point, single coordinate system
 
-When a game needs more than a single button, the established pattern (set by `sticker-drift`'s `float-pad.ts`, then matched by `breakout-clone`'s `keypad.ts`) is:
+The keypad renders one `view: Container` that goes into `layout.uiLayer` (viewport coordinates). It does **not** mount anything inside `gameContainer` — there is no separate "in-canvas overlay" + "margin board" split. The space-between anchoring naturally lets widgets straddle the canvas / letterbox seam when the viewport is tight, so an explicit "overlay fallback" mode is unnecessary.
 
-- **Touch UI returns two attach points**, not one Container:
+`useSettingsStore.virtualPad` gates everything (`'on'` / `'off'` / `'auto'` = coarse pointer). The module subscribes to `useSettingsStore.subscribe` AND `layout.onChange` so toggling the setting or resizing the window updates visibility / re-runs the layout live.
 
-  ```typescript
-  interface TouchPad extends Disposable {
-    uiMargin:    Container;   // → layout.uiLayer (viewport coords)
-    gameOverlay: Container;   // → scene container (design 1280×720 coords)
-  }
-  ```
+### Why Option is smaller than A / B
 
-- **`uiMargin` is the preferred home.** Wire it to `layout.uiLayer` and only show it when `layout.current().marginLeft` or `marginTop` is over a threshold (`MIN_REQUIRED_MARGIN_PX`, ~120 px). Buttons sized to whichever margin has room: sides → vertical boards on each side, bottom → one horizontal strip across the bottom.
-- **`gameOverlay` is the no-margin fallback.** Lives inside the design viewport and overlaps the playfield. Show this only when neither margin has room.
-- **`useSettingsStore.virtualPad`** still gates everything (`'on'` / `'off'` / `'auto'` = coarse pointer). Subscribe with `useSettingsStore.subscribe(apply)` AND `layout.onChange(apply)` so toggling the setting or resizing the window re-runs visibility / re-shapes the boards live.
+Option (`60 px`) is the only non-gameplay slot — it's reached intentionally (open the menu / settings), not under thumb during play. Sizing it smaller than A / B (`96 px`) does three jobs:
 
-The previous in-canvas-only approach blocked the playfield even when there was plenty of letterbox to spare; don't reach for it again unless the game explicitly wants the Phaser-original "buttons over the play area" look.
+- Makes the gameplay buttons visually dominant. The player's eye lands on A / B first.
+- Cuts the chance of fat-fingering Option on the way to A or B. The size difference acts as another tier of "this is a different kind of control" beyond the diagonal position.
+- Lets Option sit further into the corner without crowding the gameplay buttons — Pattern 3's Option sits 60 px from the A column, smaller cell means a tighter triangle.
 
-### Layout placements
-
-`apply()` looks roughly like sticker-drift's:
-
-```typescript
-const placement: 'sides' | 'bottom' | 'overlay' =
-  m.marginLeft >= MIN_REQUIRED_MARGIN_PX ? 'sides'
-  : m.marginTop  >= MIN_REQUIRED_MARGIN_PX ? 'bottom'
-  : 'overlay';
-```
-
-For multi-button games (breakout-clone has 4 actions + pause), use a 2×4 grid in the bottom strip — direction board fills its top row only, actions board fills its top row and bottom-right cell. All cells share the same dimensions so the four boards read as one strip.
-
-### Pause vs gameplay buttons — edge-anchor only on sides
-
-Pause and gameplay buttons (Float, Jump, Fast, …) want enough separation that a thumb reaching for an action can't fat-finger Pause and freeze the game. The pattern that landed splits by placement mode:
-
-- **Sides (vertical margin):** anchor Pause to the **top** of the margin; centre the gameplay buttons vertically in the same margin. The whitespace between them does the separating, no fixed gap constant needed.
-- **Bottom (horizontal strip):** keep the symmetrical group layout — the two thumbs are already separated by horizontal distance. Sticker-drift uses two equal squares side-by-side centred; breakout-clone uses the 2×2 grid (`[jump][fast]` over `[blank][pause]`) so Pause is diagonally offset from the gameplay buttons.
-
-Don't try to apply the edge-anchor rule on the bottom strip — pushing Pause to one end of a horizontal row didn't read better than the grid, and it broke the visual symmetry between Direction and Actions boards.
-
-A **pause-only board** (e.g. OpeningScene that has no gameplay actions yet) follows a simpler rule: top-anchored on sides like the gameplay scene's Pause, but centred horizontally across the bottom strip — there's no other button to make room for.
-
-### Margin-board sizing — cap, don't sprawl
-
-Letting buttons grow fluidly to fill whatever letterbox the viewport gave us made the boards "loose" on wide-margin displays. The pattern that landed:
-
-- **Cap each button dimension.** A single shared constant (`MAX_MARGIN_BTN = 96` in breakout-clone) is plenty for thumb-sized targets without making narrow-margin layouts pinch. Buttons stay fluid up to the cap and stop growing past it.
-- **Centre the board in its margin.** Once the buttons hit the cap the extra margin becomes whitespace around a centred board, not stretched buttons. Same `position.set(marginLeft / 2, viewportH / 2)` / `position.set(viewportW - marginLeft / 2, viewportH / 2)` for both side margins so paired boards read as mirrored.
-- **Match anchors across paired boards.** Left-margin Direction and right-margin Actions should share a vertical anchor (both at `viewportH / 2`); same goes for any horizontal pairing in the bottom strip. Mixed anchors (one centred, one bottom-aligned) reads as inconsistent immediately.
-- **Pause-only / single-button boards follow the same cap.** A title-screen pause board capped to a different size than the gameplay keypad's buttons reads as "different system" even though both adapt to the same margin.
+If a title scene wants the Option button visually prominent (one button on screen, no gameplay), the call is to size the *scene's* presentation around the canonical 60 px Option, not to make Option grow.
 
 ### Widget choice for long lists
 
@@ -226,45 +297,9 @@ Always release on `pointerup`, `pointerupoutside`, and `pointercancel` — a fin
 
 ### Common pitfalls
 
-- **Z-index vs the tap-to-start container.** Scenes typically `addChild` a full-viewport tap Container to catch tap-to-start / tap-to-restart. Give the touch pad's `gameOverlay` a clearly higher `zIndex` (the keypad uses `250`) — otherwise the later-added tap container wins same-z ties and steals pointer events from the pause button.
+- **Z-index vs the tap-to-start container.** Scenes typically `addChild` a full-viewport tap Container to catch tap-to-start / tap-to-restart. Give the keypad's `view` a clearly higher `zIndex` (the module uses `250`) — otherwise the later-added tap container wins same-z ties and steals pointer events from the Option button.
 - **Tap-to-jump vs JUMP button.** A scene that uses the same input action (`jump`) for tap-to-start *and* the in-game JUMP button must gate the full-viewport tap by phase, e.g. `if (this.phase !== 'playing') this.input.press('jump')`. Otherwise center-screen taps double-trigger the action during play.
 - **Use the active game's font.** Pad button labels read from `useRuntimeStore.getState().uiTheme.fontSans`, not `'system-ui'` — otherwise the labels look out of place against the rest of the HUD.
-- **Persistent controls cross scene boundaries.** A button the player can reach during gameplay (typically pause) needs to live on the title / pre-game scene too — it's the path into Settings. Reuse the same component, just configure it without the gameplay-only buttons.
+- **Persistent controls cross scene boundaries.** A button the player can reach during gameplay (typically the Option button) needs to live on the title / pre-game scene too — it's the path into Settings. Reuse the same component, just configure it without the gameplay-only buttons.
 - **Don't anchor persistent overlay buttons over HUD slots.** A scene's HUD already claims fixed corners (score, lives, timer); placing an always-visible touch button there forces the player to choose which they can read. Either give the button a different corner, fold it into a cluster the keypad already draws elsewhere, or hide it whenever the margin pad is showing.
 
-### Future direction: a generic controller pad
-
-Breakout-clone's `keypad.ts` and sticker-drift's `float-pad.ts` ended up restating the same patterns — margin-first / overlay-fallback, `MAX_MARGIN_BTN` cap, press-feedback rules, virtualPad reactivity, sides Pause / bottom Pause split. The current `engine/input/touch-pad.ts` (with `createDirectionalPad` + `createActionButton`) was too low-level to absorb that — neither game uses it. The next consolidation pass should promote a single engine-level controller pad that games drive with an action slot description.
-
-Sketch the API at the level of "what does the player's hand sit on":
-
-- **Left side: one stick / circle slot.** Single round tap target — analog-ish on touch (could resolve into a `left` / `right` / `up` / `down` discrete action, or a `dir` vector for games that want one). Replaces both the breakout d-pad and the sticker-drift float circle's "primary input" role.
-- **Right side: two main action buttons.** Famicom-style A / B. Games map these to whatever (Jump + Fast for breakout, Float for sticker-drift — one of the two might be unused). Same square button shape as today.
-- **Plus one pause / option button.** Edge-anchored on sides, somewhere visually distinct on the bottom strip (or top-right overlay when no margin fits). The "options" framing leaves room for non-pause uses on games that want a third action.
-
-Bring the layout / placement / cap / visibility logic with the move, and games stop owning a keypad file each — they just declare what fills the slots. Sticker-drift's "float fills the canvas in overlay mode" affordance is a knob the controller exposes (the primary-input slot can opt into a full-screen tap fallback in overlay mode).
-
-Tradeoff: a too-strict shape forces games into a controller that doesn't fit their UX; the action slots have to be expressive enough to capture both breakout's hold-left/hold-right + Jump + Fast and sticker-drift's hold-float-only without per-game escape hatches. Defer the move until a third game's needs clarify the slot model.
-
-**Opening / title scenes typically only fill the option slot.** Both ported games landed on the same pattern: the title screen needs Pause (the path into Settings) but no gameplay buttons yet. The generic controller should let a scene fill *only* the option slot and lay out cleanly — sides margin: option top-anchored, no other clusters; bottom strip: option centred horizontally with nothing else competing for the row; overlay fallback: option at a corner that doesn't fight the HUD. Treat "option-only" as a first-class configuration rather than a special case the game has to assemble by passing empty slots elsewhere.
-
-### Future direction: continuous sides-margin transition
-
-Today the layout snaps modes at `MIN_REQUIRED_MARGIN_PX`: below the threshold it's `overlay` (in-canvas, anchored to canvas edges), above it's `sides` / `bottom` (in `layout.uiLayer`, anchored to margin centres). The transition is visually abrupt on a window resize that crosses the threshold — buttons disappear from one position and reappear in another.
-
-For the **side-margin transition the slide is horizontal**, which reads as the button sliding outward through the canvas/letterbox seam. That's worth smoothing: position the buttons in one coordinate system (viewport / `uiLayer`) for every margin size, with a single `targetX` computed continuously from the available margin. As the margin grows, the button slides outward — half on the canvas at small margins, fully in the margin once there's room. Conceptually:
-
-```typescript
-// Right-side action button — viewport-x for its centre.
-const targetX = Math.max(
-  marginLeft + gameW - BTN_MARGIN - cell / 2,  // canvas-edge anchor
-  viewportW - marginLeft / 2,                  // margin-centre anchor
-);
-btn.position.x = targetX;
-```
-
-At margin=0 the max picks the canvas-edge branch (overlay-style position). As `marginLeft` grows past `BTN_MARGIN + cell` it picks margin-centre and the button slides into the letterbox. No mode flip, just one continuous position function. Pause / Direction get equivalent formulas on their respective edges.
-
-The **bottom-margin transition is vertical** (button shifts down from the canvas floor into the bottom strip). User-feedback says it's fine for that one to keep snapping — the vertical jump doesn't read as jarring the way the horizontal one does, and it's not worth the extra logic.
-
-Open question: does the in-canvas branch still need its own mask (today the overlay is inside `gameContainer` so the canvas mask clips it)? Probably move the whole pad into `uiLayer` and accept that the buttons will visibly straddle the canvas / letterbox seam during the transition — that's the point. Defer alongside the generic controller pad refactor.

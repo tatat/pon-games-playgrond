@@ -1,9 +1,10 @@
 import { Assets, Container, Graphics, Rectangle, Sprite, Text } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
+import { makeVirtualKeypad } from '../../engine/input/virtual-keypad'
 import { Scene, type SceneDelta } from '../../engine/scene'
 import { Easings } from '../../engine/util/tween'
+import { useRuntimeStore } from '../../store/runtime'
 import { BRICK_NAMES } from './constants'
-import { makePauseButton } from './keypad'
 import { Starfield } from './starfield'
 
 const BACKGROUND_COLOR = 0x0a0a14
@@ -160,15 +161,16 @@ export class OpeningScene extends Scene {
 
     this.bindInput({ start: ['Space', 'Enter'] })
 
-    // Pause button only (no direction / action keys on the title
-    // screen). Sits in a letterbox margin when there's room; falls
-    // back to a small top-right corner button inside the canvas
-    // otherwise. Visibility follows the `virtualPad` setting.
-    const pauseUi = this.use(makePauseButton(this.layout))
-    this.addChild(pauseUi.gameOverlay)
-    this.layout.uiLayer.addChild(pauseUi.uiMargin)
+    // Title scene: only Option (= pause) is filled. The shared keypad
+    // module places it at the viewport bottom-right corner (Pattern 1).
+    const keypad = this.use(
+      makeVirtualKeypad(this.input, this.layout, {
+        option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+      }),
+    )
+    this.layout.uiLayer.addChild(keypad.view)
     this.use(() => {
-      this.layout.uiLayer.removeChild(pauseUi.uiMargin)
+      this.layout.uiLayer.removeChild(keypad.view)
     })
 
     // Full-viewport tap to start. zIndex stays below the pause button

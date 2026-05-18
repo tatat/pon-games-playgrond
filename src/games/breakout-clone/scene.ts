@@ -1,8 +1,10 @@
 import RAPIER from '@dimforge/rapier2d-compat'
 import { Container, Graphics, Rectangle } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
+import { makeVirtualKeypad } from '../../engine/input/virtual-keypad'
 import { Scene, type SceneDelta } from '../../engine/scene'
 import { Easings, type Tween } from '../../engine/util/tween'
+import { useRuntimeStore } from '../../store/runtime'
 import { Ball } from './ball'
 import { BossManager } from './boss-manager'
 import type { Brick } from './brick'
@@ -26,7 +28,6 @@ import {
   SPECIAL_BALL_SPEED,
 } from './constants'
 import { HUD } from './hud'
-import { makeKeypad } from './keypad'
 import { Paddle } from './paddle'
 import { SoundManager } from './sound-manager'
 import { SpecialBall } from './special-ball'
@@ -188,17 +189,23 @@ export class MainScene extends Scene {
       jump: ['Space'],
     })
 
-    // On-screen touch keypad. Lives in letterbox margins when there's
-    // room (sides → left margin = direction, right margin = Pause /
-    // Jump / Fast; bottom → all the same in one horizontal strip); falls
-    // back to a Phaser-style in-canvas overlay otherwise (left/right
-    // tap columns + Jump/Fast stack, plus the always-on top-right
-    // pause). Visibility follows the `virtualPad` setting.
-    const keypad = this.use(makeKeypad(this.input, this.layout))
-    this.addChild(keypad.gameOverlay)
-    this.layout.uiLayer.addChild(keypad.uiMargin)
+    // Virtual keypad: stick for left/right, A=JUMP, B=FAST, Option=pause.
+    // The engine module anchors widgets to viewport corners with
+    // space-between padding, so they slide into the letterbox margins as
+    // the viewport grows and overlap the playfield when margins are tight.
+    const keypad = this.use(
+      makeVirtualKeypad(this.input, this.layout, {
+        stick: { left: 'left', right: 'right' },
+        actions: {
+          a: { action: 'jump', label: 'JUMP' },
+          b: { action: 'fast', label: 'FAST' },
+        },
+        option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+      }),
+    )
+    this.layout.uiLayer.addChild(keypad.view)
     this.use(() => {
-      this.layout.uiLayer.removeChild(keypad.uiMargin)
+      this.layout.uiLayer.removeChild(keypad.view)
     })
 
     // Tap-to-start / tap-to-restart. The JUMP button (or Space) drives
