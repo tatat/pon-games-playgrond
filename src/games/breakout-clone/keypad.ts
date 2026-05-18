@@ -180,13 +180,17 @@ class PauseOnlyBoard extends Container {
 
   layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
     if (placement === 'sides') {
+      // Side margin: top-anchored, matching the gameplay scene's
+      // edge-anchored Pause.
       const size = Math.min(m.marginLeft - BOARD_GAP * 2, MAX_MARGIN_BTN)
       this.pause.setShape(size, size)
       this.position.set(m.viewportW - m.marginLeft / 2, BOARD_GAP + size / 2)
     } else {
+      // Bottom strip: nothing else in the row, so centre Pause
+      // horizontally across the whole strip.
       const size = Math.min(m.marginTop - BOARD_GAP * 2, MAX_MARGIN_BTN)
       this.pause.setShape(size, size)
-      this.position.set(m.viewportW - BOARD_GAP - size / 2, m.marginTop + m.gameH + m.marginTop / 2)
+      this.position.set(m.viewportW / 2, m.marginTop + m.gameH + m.marginTop / 2)
     }
   }
 }
