@@ -160,10 +160,16 @@ export class OpeningScene extends Scene {
 
     this.bindInput({ start: ['Space', 'Enter'] })
 
-    // Persistent top-right pause button so the user can reach Settings
-    // from the title screen without entering the game first.
-    const pauseBtn = this.use(makePauseButton())
-    this.addChild(pauseBtn.view)
+    // Pause button only (no direction / action keys on the title
+    // screen). Sits in a letterbox margin when there's room; falls
+    // back to a small top-right corner button inside the canvas
+    // otherwise. Visibility follows the `virtualPad` setting.
+    const pauseUi = this.use(makePauseButton(this.layout))
+    this.addChild(pauseUi.gameOverlay)
+    this.layout.uiLayer.addChild(pauseUi.uiMargin)
+    this.use(() => {
+      this.layout.uiLayer.removeChild(pauseUi.uiMargin)
+    })
 
     // Full-viewport tap to start. zIndex stays below the pause button
     // (which is at zIndex 200) so the corner tap goes to pause first.

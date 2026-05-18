@@ -1,85 +1,142 @@
 import { Container, Graphics, Rectangle, Text } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import type { InputManager } from '../../engine/input'
+import type { GameLayout } from '../../engine/layout'
 import type { Disposable } from '../../engine/util/disposable'
 import { useRuntimeStore } from '../../store/runtime'
 import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 
-/** Touch keypad for breakout-clone. Lives **inside** the 1280×720 logical
- * viewport so the layout matches the Phaser original: tall left / right
- * tap columns covering the left half of the screen, plus Jump / Fast
- * buttons stacked at the right edge. Visibility follows
- * `useSettingsStore.virtualPad` (`'auto'` resolves to "coarse pointer"). */
-export interface Keypad extends Disposable {
-  /** Add this to the scene (or a UI layer with design coords). */
-  view: Container
-}
-
-const COL_WIDTH = 160
-const COL_GAP = 2
-const COL_ALPHA = 0.1
-const BTN_SIZE = 130
-const BTN_MARGIN = 15
-const BTN_GAP = 15
-const BTN_ALPHA = 0.3
-const ARROW_DROP_FROM_BOTTOM = 100
+const BOARD_GAP = 24
+const INNER_GAP = 6
+const MIN_REQUIRED_MARGIN_PX = 120
+const OVERLAY_PAUSE_SIZE = 44
+const OVERLAY_PAUSE_MARGIN = 12
+const IN_CANVAS_COL_WIDTH = 160
+const IN_CANVAS_COL_GAP = 2
+const IN_CANVAS_BTN_SIZE = 130
+const IN_CANVAS_BTN_MARGIN = 15
+const IN_CANVAS_BTN_GAP = 15
+const IN_CANVAS_ARROW_FROM_BOTTOM = 100
 const LABEL_FONT_SIZE = 22
 
-const PAUSE_SIZE = 44
-const PAUSE_MARGIN = 12
+export interface Keypad extends Disposable {
+  /** Goes into `layout.uiLayer`. Visible when virtualPad is enabled AND
+   * a letterbox margin has enough room for the board layout. */
+  uiMargin: Container
+  /** Goes into the scene (logical 1280×720 coords). Holds the
+   * always-on-top-right pause button (opening / no-margin fallback) and,
+   * for `main`, the full in-canvas keypad overlay (Phaser original
+   * layout: ◀▶ columns on the left + Jump/Fast stack on the right). */
+  gameOverlay: Container
+}
 
-export function makeKeypad(input: InputManager): Keypad {
-  const view = new Container()
-  view.zIndex = 200
+/** Touch pause button only. Used by OpeningScene — no direction / action
+ * buttons there, just a reachable path into the pause + settings menu. */
+export function makePauseButton(layout: GameLayout): Keypad {
+  const uiMargin = new Container()
+  const gameOverlay = new Container()
   const disposables: Array<() => void> = []
-  const fontFamily = useRuntimeStore.getState().uiTheme.fontSans
 
-  // Left + right hold columns (transparent, full-height tap zones on the
-  // left half of the playfield). Wired as press/release on `left` /
-  // `right` actions so the paddle moves while held.
-  const leftCol = makeHoldColumn('left', 0, input, disposables)
-  const rightCol = makeHoldColumn('right', COL_WIDTH + COL_GAP, input, disposables)
-  view.addChild(leftCol, rightCol)
+  const marginBoard = new PauseOnlyBoard(disposables)
+  uiMargin.addChild(marginBoard)
 
-  // Right-edge stack (bottom-up): Fast → Jump. Pause lives in its own
-  // top-right button (see `makePauseButton`) so the title screen can
-  // share it without the rest of the keypad.
-  const fast = makeActionButton({
-    label: 'FAST',
-    fontFamily,
-    onPress: () => input.press('fast'),
-    onRelease: () => input.release('fast'),
-    disposables,
-  })
-  fast.position.set(DESIGN_W - BTN_MARGIN - BTN_SIZE / 2, DESIGN_H - BTN_MARGIN - BTN_SIZE / 2)
-  view.addChild(fast)
-
-  const jump = makeActionButton({
-    label: 'JUMP',
-    fontFamily,
-    onPress: () => input.press('jump'),
-    onRelease: () => input.release('jump'),
-    disposables,
-  })
-  jump.position.set(
-    DESIGN_W - BTN_MARGIN - BTN_SIZE / 2,
-    DESIGN_H - BTN_MARGIN - BTN_SIZE * 1.5 - BTN_GAP,
-  )
-  view.addChild(jump)
+  const overlayPause = makeOverlayPause(disposables)
+  gameOverlay.addChild(overlayPause)
 
   const apply = (): void => {
-    view.visible = padEnabled(useSettingsStore.getState().virtualPad)
+    const m = layout.current()
+    const mode = useSettingsStore.getState().virtualPad
+    const enabled = padEnabled(mode)
+    if (!enabled) {
+      uiMargin.visible = false
+      gameOverlay.visible = false
+      return
+    }
+    const placement = placementFor(m)
+    if (placement === 'sides' || placement === 'bottom') {
+      marginBoard.layoutFor(placement, m)
+      uiMargin.visible = true
+      gameOverlay.visible = false
+    } else {
+      uiMargin.visible = false
+      gameOverlay.visible = true
+    }
   }
   apply()
-  const unsubSettings = useSettingsStore.subscribe(apply)
-  disposables.push(unsubSettings)
+  disposables.push(layout.onChange(apply))
+  disposables.push(useSettingsStore.subscribe(apply))
 
   return {
-    view,
+    uiMargin,
+    gameOverlay,
     dispose: () => {
       for (let i = disposables.length - 1; i >= 0; i--) disposables[i]?.()
-      // Release any presses we might still own so the next scene boots
-      // with a clean InputManager.
+    },
+  }
+}
+
+/** Full breakout-clone keypad: direction columns / d-pad + Jump + Fast +
+ * Pause. Margin-aware (sides → vertical boards, bottom → one horizontal
+ * board). Falls back to an in-canvas overlay when no margin has room. */
+export function makeKeypad(input: InputManager, layout: GameLayout): Keypad {
+  const uiMargin = new Container()
+  const gameOverlay = new Container()
+  const disposables: Array<() => void> = []
+
+  // Margin boards: two side / one bottom — sized by `apply` below.
+  const directionBoard = new DirectionBoard(input, disposables)
+  const actionsBoard = new ActionsBoard(input, disposables)
+  uiMargin.addChild(directionBoard, actionsBoard)
+
+  // In-canvas overlay (no-margin fallback). Mirrors the Phaser original.
+  const inCanvas = new InCanvasOverlay(input, disposables)
+  gameOverlay.addChild(inCanvas)
+
+  // Persistent top-right pause that lives on top of the in-canvas overlay
+  // so the user always has a way back to the pause menu when the margin
+  // boards aren't visible.
+  const overlayPause = makeOverlayPause(disposables)
+  gameOverlay.addChild(overlayPause)
+
+  const apply = (): void => {
+    const m = layout.current()
+    const mode = useSettingsStore.getState().virtualPad
+    const enabled = padEnabled(mode)
+    if (!enabled) {
+      uiMargin.visible = false
+      gameOverlay.visible = false
+      input.release('left')
+      input.release('right')
+      input.release('jump')
+      input.release('fast')
+      return
+    }
+    const placement = placementFor(m)
+    if (placement === 'sides') {
+      directionBoard.layoutFor('sides', m)
+      actionsBoard.layoutFor('sides', m)
+      uiMargin.visible = true
+      gameOverlay.visible = false
+    } else if (placement === 'bottom') {
+      directionBoard.layoutFor('bottom', m)
+      actionsBoard.layoutFor('bottom', m)
+      uiMargin.visible = true
+      gameOverlay.visible = false
+    } else {
+      uiMargin.visible = false
+      gameOverlay.visible = true
+    }
+  }
+  apply()
+  disposables.push(layout.onChange(apply))
+  disposables.push(useSettingsStore.subscribe(apply))
+
+  return {
+    uiMargin,
+    gameOverlay,
+    dispose: () => {
+      for (let i = disposables.length - 1; i >= 0; i--) disposables[i]?.()
+      // Release everything we might still own so a fresh scene starts clean.
       input.release('left')
       input.release('right')
       input.release('jump')
@@ -88,26 +145,14 @@ export function makeKeypad(input: InputManager): Keypad {
   }
 }
 
-/** Small top-right pause button. Always visible (independent of
- * `virtualPad`), since keyboard users still benefit from a click target
- * and the title screen has no other path to the pause menu. */
-export function makePauseButton(): { view: Container; dispose(): void } {
-  const disposables: Array<() => void> = []
-  const btn = makeActionButton({
-    glyph: 'pause',
-    size: PAUSE_SIZE,
-    fillAlpha: 0.3,
-    onTap: () => useRuntimeStore.getState().setGamePaused(true),
-    disposables,
-  })
-  btn.position.set(DESIGN_W - PAUSE_MARGIN - PAUSE_SIZE / 2, PAUSE_MARGIN + PAUSE_SIZE / 2)
-  btn.zIndex = 200
-  return {
-    view: btn,
-    dispose: () => {
-      for (let i = disposables.length - 1; i >= 0; i--) disposables[i]?.()
-    },
-  }
+// ── Layout decision ─────────────────────────────────────────────────────
+
+type Placement = 'sides' | 'bottom' | 'overlay'
+
+function placementFor(m: { marginLeft: number; marginTop: number }): Placement {
+  if (m.marginLeft >= MIN_REQUIRED_MARGIN_PX) return 'sides'
+  if (m.marginTop >= MIN_REQUIRED_MARGIN_PX) return 'bottom'
+  return 'overlay'
 }
 
 function padEnabled(mode: VirtualPadMode): boolean {
@@ -116,7 +161,204 @@ function padEnabled(mode: VirtualPadMode): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 }
 
-// ── Hold column ─────────────────────────────────────────────────────────
+// ── Pause-only board (used by OpeningScene) ─────────────────────────────
+
+class PauseOnlyBoard extends Container {
+  private readonly pause: PadButton
+
+  constructor(disposables: Array<() => void>) {
+    super()
+    this.pause = new PadButton({
+      glyph: 'pause',
+      onTap: () => useRuntimeStore.getState().setGamePaused(true),
+      disposables,
+    })
+    this.addChild(this.pause)
+  }
+
+  layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
+    if (placement === 'sides') {
+      // Sit in the right margin so the user reaches it with the right
+      // thumb, top-aligned to mirror the in-canvas overlay's corner.
+      const w = Math.min(m.marginLeft - BOARD_GAP * 2, 96)
+      const h = w
+      this.pause.setShape(w, h)
+      this.position.set(m.viewportW - m.marginLeft / 2, BOARD_GAP + h / 2)
+    } else {
+      // Bottom strip — place near the right end for the same reason.
+      const h = Math.min(m.marginTop - BOARD_GAP * 2, 64)
+      const w = h
+      this.pause.setShape(w, h)
+      this.position.set(m.viewportW - BOARD_GAP - w / 2, m.marginTop + m.gameH + m.marginTop / 2)
+    }
+  }
+}
+
+// ── Direction board (◀ ▶) ───────────────────────────────────────────────
+
+class DirectionBoard extends Container {
+  private readonly leftBtn: PadButton
+  private readonly rightBtn: PadButton
+
+  constructor(input: InputManager, disposables: Array<() => void>) {
+    super()
+    this.leftBtn = new PadButton({
+      glyph: 'arrow-left',
+      onPress: () => input.press('left'),
+      onRelease: () => input.release('left'),
+      disposables,
+    })
+    this.rightBtn = new PadButton({
+      glyph: 'arrow-right',
+      onPress: () => input.press('right'),
+      onRelease: () => input.release('right'),
+      disposables,
+    })
+    this.addChild(this.leftBtn, this.rightBtn)
+  }
+
+  layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
+    if (placement === 'sides') {
+      // Left margin, ◀ above ▶ to stay reachable with one thumb.
+      const w = m.marginLeft - BOARD_GAP * 2
+      const totalH = m.viewportH - BOARD_GAP * 2
+      const half = (totalH - INNER_GAP) / 2
+      this.leftBtn.setShape(w, half)
+      this.rightBtn.setShape(w, half)
+      const top = -totalH / 2
+      this.leftBtn.position.set(0, top + half / 2)
+      this.rightBtn.position.set(0, top + half + INNER_GAP + half / 2)
+      this.position.set(m.marginLeft / 2, m.viewportH / 2)
+    } else {
+      // Bottom strip, left half: ◀ ▶ side by side.
+      const totalW = (m.viewportW - BOARD_GAP * 3) / 2
+      const h = m.marginTop - BOARD_GAP * 2
+      const half = (totalW - INNER_GAP) / 2
+      this.leftBtn.setShape(half, h)
+      this.rightBtn.setShape(half, h)
+      const left = -totalW / 2
+      this.leftBtn.position.set(left + half / 2, 0)
+      this.rightBtn.position.set(left + half + INNER_GAP + half / 2, 0)
+      this.position.set(BOARD_GAP + totalW / 2, m.marginTop + m.gameH + m.marginTop / 2)
+    }
+  }
+}
+
+// ── Actions board (Pause + Jump + Fast) ─────────────────────────────────
+
+class ActionsBoard extends Container {
+  private readonly pause: PadButton
+  private readonly jump: PadButton
+  private readonly fast: PadButton
+
+  constructor(input: InputManager, disposables: Array<() => void>) {
+    super()
+    this.pause = new PadButton({
+      glyph: 'pause',
+      onTap: () => useRuntimeStore.getState().setGamePaused(true),
+      disposables,
+    })
+    this.jump = new PadButton({
+      label: 'JUMP',
+      onPress: () => input.press('jump'),
+      onRelease: () => input.release('jump'),
+      disposables,
+    })
+    this.fast = new PadButton({
+      label: 'FAST',
+      onPress: () => input.press('fast'),
+      onRelease: () => input.release('fast'),
+      disposables,
+    })
+    this.addChild(this.pause, this.jump, this.fast)
+  }
+
+  layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
+    if (placement === 'sides') {
+      // Right margin, vertical stack (top → bottom): Pause / Jump / Fast.
+      const w = m.marginLeft - BOARD_GAP * 2
+      const totalH = m.viewportH - BOARD_GAP * 2
+      const pauseH = Math.max(48, totalH * 0.18)
+      const remaining = totalH - pauseH - INNER_GAP * 2
+      const jumpH = remaining * 0.6
+      const fastH = remaining * 0.4
+      this.pause.setShape(w, pauseH)
+      this.jump.setShape(w, jumpH)
+      this.fast.setShape(w, fastH)
+      const top = -totalH / 2
+      this.pause.position.set(0, top + pauseH / 2)
+      this.jump.position.set(0, top + pauseH + INNER_GAP + jumpH / 2)
+      this.fast.position.set(0, top + pauseH + INNER_GAP + jumpH + INNER_GAP + fastH / 2)
+      this.position.set(m.viewportW - m.marginLeft / 2, m.viewportH / 2)
+    } else {
+      // Bottom strip, right half: Pause / Jump / Fast in a row.
+      const totalW = (m.viewportW - BOARD_GAP * 3) / 2
+      const h = m.marginTop - BOARD_GAP * 2
+      const pauseW = Math.max(64, totalW * 0.18)
+      const remaining = totalW - pauseW - INNER_GAP * 2
+      const jumpW = remaining * 0.55
+      const fastW = remaining * 0.45
+      this.pause.setShape(pauseW, h)
+      this.jump.setShape(jumpW, h)
+      this.fast.setShape(fastW, h)
+      const left = -totalW / 2
+      this.pause.position.set(left + pauseW / 2, 0)
+      this.jump.position.set(left + pauseW + INNER_GAP + jumpW / 2, 0)
+      this.fast.position.set(left + pauseW + INNER_GAP + jumpW + INNER_GAP + fastW / 2, 0)
+      this.position.set(
+        m.viewportW - BOARD_GAP - totalW / 2,
+        m.marginTop + m.gameH + m.marginTop / 2,
+      )
+    }
+  }
+}
+
+// ── In-canvas overlay (no-margin fallback for MainScene) ────────────────
+
+/** Phaser-original style: full-height left / right tap columns on the
+ * left half of the canvas, plus a Jump / Fast stack on the right edge.
+ * Pause is *not* part of this — the always-on top-right `overlayPause`
+ * handles that — so the overlay can shut off cleanly when margins fit. */
+class InCanvasOverlay extends Container {
+  constructor(input: InputManager, disposables: Array<() => void>) {
+    super()
+    this.zIndex = 200
+    const leftCol = makeHoldColumn('left', 0, input, disposables)
+    const rightCol = makeHoldColumn(
+      'right',
+      IN_CANVAS_COL_WIDTH + IN_CANVAS_COL_GAP,
+      input,
+      disposables,
+    )
+    this.addChild(leftCol, rightCol)
+
+    const fast = new PadButton({
+      label: 'FAST',
+      onPress: () => input.press('fast'),
+      onRelease: () => input.release('fast'),
+      disposables,
+    })
+    fast.setShape(IN_CANVAS_BTN_SIZE, IN_CANVAS_BTN_SIZE)
+    fast.position.set(
+      DESIGN_W - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
+      DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
+    )
+    this.addChild(fast)
+
+    const jump = new PadButton({
+      label: 'JUMP',
+      onPress: () => input.press('jump'),
+      onRelease: () => input.release('jump'),
+      disposables,
+    })
+    jump.setShape(IN_CANVAS_BTN_SIZE, IN_CANVAS_BTN_SIZE)
+    jump.position.set(
+      DESIGN_W - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE / 2,
+      DESIGN_H - IN_CANVAS_BTN_MARGIN - IN_CANVAS_BTN_SIZE * 1.5 - IN_CANVAS_BTN_GAP,
+    )
+    this.addChild(jump)
+  }
+}
 
 function makeHoldColumn(
   side: 'left' | 'right',
@@ -127,17 +369,15 @@ function makeHoldColumn(
   const c = new Container()
   c.position.set(x, 0)
   c.eventMode = 'static'
-  c.hitArea = new Rectangle(0, 0, COL_WIDTH, DESIGN_H)
+  c.hitArea = new Rectangle(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
 
   const bg = new Graphics()
-    .rect(0, 0, COL_WIDTH, DESIGN_H)
-    .fill({ color: 0x000000, alpha: COL_ALPHA })
+    .rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
+    .fill({ color: 0x000000, alpha: 0.1 })
   c.addChild(bg)
 
-  // Direction triangle near the bottom of the column, matching the
-  // Phaser original's 100px-from-bottom placement.
-  const cx = COL_WIDTH / 2
-  const cy = DESIGN_H - ARROW_DROP_FROM_BOTTOM
+  const cx = IN_CANVAS_COL_WIDTH / 2
+  const cy = DESIGN_H - IN_CANVAS_ARROW_FROM_BOTTOM
   const arrow = new Graphics()
   if (side === 'left') {
     arrow.poly([cx - 15, cy, cx + 10, cy - 15, cx + 10, cy + 15])
@@ -165,76 +405,114 @@ function makeHoldColumn(
   return c
 }
 
-// ── Action button ───────────────────────────────────────────────────────
+// ── Always-on top-right overlay pause ───────────────────────────────────
 
-interface ActionButtonOptions {
+function makeOverlayPause(disposables: Array<() => void>): Container {
+  const btn = new PadButton({
+    glyph: 'pause',
+    onTap: () => useRuntimeStore.getState().setGamePaused(true),
+    disposables,
+  })
+  btn.setShape(OVERLAY_PAUSE_SIZE, OVERLAY_PAUSE_SIZE)
+  btn.position.set(
+    DESIGN_W - OVERLAY_PAUSE_MARGIN - OVERLAY_PAUSE_SIZE / 2,
+    OVERLAY_PAUSE_MARGIN + OVERLAY_PAUSE_SIZE / 2,
+  )
+  btn.zIndex = 250
+  return btn
+}
+
+// ── Button primitive ────────────────────────────────────────────────────
+
+type Glyph = 'pause' | 'arrow-left' | 'arrow-right'
+
+interface PadButtonOptions {
   label?: string
-  glyph?: 'pause'
-  size?: number
-  fontFamily?: string
-  fontSize?: number
-  fillAlpha?: number
+  glyph?: Glyph
   onPress?(): void
   onRelease?(): void
   onTap?(): void
   disposables: Array<() => void>
 }
 
-function makeActionButton(opts: ActionButtonOptions): Container {
-  const size = opts.size ?? BTN_SIZE
-  const fontFamily = opts.fontFamily ?? 'system-ui'
-  const fontSize = opts.fontSize ?? LABEL_FONT_SIZE
-  const fillAlpha = opts.fillAlpha ?? BTN_ALPHA
+/** Flat-rect button. `setShape` lays out the background, glyph and hit
+ * area. Press / release / tap callbacks are wired once in the
+ * constructor; listener teardown goes into the shared disposables
+ * array so the owning keypad cleans it up at scene exit. */
+class PadButton extends Container {
+  private readonly bg = new Graphics()
+  private readonly glyph = new Graphics()
+  private labelText?: Text
+  private readonly opts: PadButtonOptions
 
-  const c = new Container()
-  c.eventMode = 'static'
-  c.hitArea = new Rectangle(-size / 2, -size / 2, size, size)
+  constructor(opts: PadButtonOptions) {
+    super()
+    this.opts = opts
+    this.eventMode = 'static'
+    this.cursor = 'pointer'
+    this.addChild(this.bg, this.glyph)
 
-  const bg = new Graphics()
-    .rect(-size / 2, -size / 2, size, size)
-    .fill({ color: 0x000000, alpha: fillAlpha })
-  c.addChild(bg)
+    if (opts.label !== undefined) {
+      const fontFamily = useRuntimeStore.getState().uiTheme.fontSans
+      this.labelText = new Text({
+        text: opts.label,
+        style: { fill: 0xffffff, fontSize: LABEL_FONT_SIZE, fontFamily },
+      })
+      this.labelText.anchor.set(0.5)
+      this.addChild(this.labelText)
+    }
 
-  if (opts.glyph === 'pause') {
-    // Two vertical bars, mirroring the Phaser original.
-    const barH = Math.min(size * 0.45, 22)
-    const barW = Math.min(size * 0.1, 4)
-    const gap = Math.min(size * 0.16, 8)
+    const onDown = (e: { stopPropagation?(): void }): void => {
+      e.stopPropagation?.()
+      opts.onPress?.()
+    }
+    const onUp = (): void => opts.onRelease?.()
+    const onTap = (e: { stopPropagation?(): void }): void => {
+      e.stopPropagation?.()
+      opts.onTap?.()
+    }
+    this.on('pointerdown', onDown)
+    this.on('pointerup', onUp)
+    this.on('pointerupoutside', onUp)
+    this.on('pointercancel', onUp)
+    this.on('pointertap', onTap)
+    opts.disposables.push(() => {
+      this.off('pointerdown', onDown)
+      this.off('pointerup', onUp)
+      this.off('pointerupoutside', onUp)
+      this.off('pointercancel', onUp)
+      this.off('pointertap', onTap)
+    })
+  }
+
+  setShape(width: number, height: number): void {
+    this.bg.clear()
+    this.bg
+      .roundRect(-width / 2, -height / 2, width, height, 6)
+      .fill({ color: 0x000000, alpha: 0.3 })
+    this.hitArea = new Rectangle(-width / 2, -height / 2, width, height)
+    this.glyph.clear()
+    drawGlyph(this.glyph, this.opts.glyph, width, height)
+    if (this.labelText) this.labelText.position.set(0, 0)
+  }
+}
+
+function drawGlyph(g: Graphics, glyph: Glyph | undefined, w: number, h: number): void {
+  if (!glyph) return
+  const s = Math.min(w, h)
+  if (glyph === 'pause') {
+    const barH = Math.min(s * 0.45, 22)
+    const barW = Math.min(s * 0.1, 4)
+    const gap = Math.min(s * 0.16, 8)
     const left = -gap / 2 - barW
-    const g = new Graphics()
-      .rect(left, -barH / 2, barW, barH)
+    g.rect(left, -barH / 2, barW, barH)
       .rect(left + barW + gap, -barH / 2, barW, barH)
       .fill({ color: 0xffffff, alpha: 0.85 })
-    c.addChild(g)
-  } else if (opts.label !== undefined) {
-    const t = new Text({
-      text: opts.label,
-      style: { fill: 0xffffff, fontSize, fontFamily },
-    })
-    t.anchor.set(0.5)
-    c.addChild(t)
+  } else if (glyph === 'arrow-left') {
+    const t = s * 0.2
+    g.poly([-t * 0.6, 0, t * 0.4, -t, t * 0.4, t]).fill({ color: 0xffffff, alpha: 0.85 })
+  } else if (glyph === 'arrow-right') {
+    const t = s * 0.2
+    g.poly([t * 0.6, 0, -t * 0.4, -t, -t * 0.4, t]).fill({ color: 0xffffff, alpha: 0.85 })
   }
-
-  const onDown = (e: { stopPropagation?(): void }): void => {
-    e.stopPropagation?.()
-    opts.onPress?.()
-  }
-  const onUp = (): void => opts.onRelease?.()
-  const onTap = (e: { stopPropagation?(): void }): void => {
-    e.stopPropagation?.()
-    opts.onTap?.()
-  }
-  c.on('pointerdown', onDown)
-  c.on('pointerup', onUp)
-  c.on('pointerupoutside', onUp)
-  c.on('pointercancel', onUp)
-  c.on('pointertap', onTap)
-  opts.disposables.push(() => {
-    c.off('pointerdown', onDown)
-    c.off('pointerup', onUp)
-    c.off('pointerupoutside', onUp)
-    c.off('pointercancel', onUp)
-    c.off('pointertap', onTap)
-  })
-  return c
 }

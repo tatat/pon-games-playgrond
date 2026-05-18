@@ -26,7 +26,7 @@ import {
   SPECIAL_BALL_SPEED,
 } from './constants'
 import { HUD } from './hud'
-import { makeKeypad, makePauseButton } from './keypad'
+import { makeKeypad } from './keypad'
 import { Paddle } from './paddle'
 import { SoundManager } from './sound-manager'
 import { SpecialBall } from './special-ball'
@@ -188,16 +188,18 @@ export class MainScene extends Scene {
       jump: ['Space'],
     })
 
-    // On-screen touch keypad: full-height left/right hold columns +
-    // Jump/Fast buttons on the right edge. Visibility follows the
-    // engine's `virtualPad` setting.
-    const keypad = this.use(makeKeypad(this.input))
-    this.addChild(keypad.view)
-
-    // Persistent top-right pause button (always visible, independent of
-    // the keypad visibility setting).
-    const pauseBtn = this.use(makePauseButton())
-    this.addChild(pauseBtn.view)
+    // On-screen touch keypad. Lives in letterbox margins when there's
+    // room (sides → left margin = direction, right margin = Pause /
+    // Jump / Fast; bottom → all the same in one horizontal strip); falls
+    // back to a Phaser-style in-canvas overlay otherwise (left/right
+    // tap columns + Jump/Fast stack, plus the always-on top-right
+    // pause). Visibility follows the `virtualPad` setting.
+    const keypad = this.use(makeKeypad(this.input, this.layout))
+    this.addChild(keypad.gameOverlay)
+    this.layout.uiLayer.addChild(keypad.uiMargin)
+    this.use(() => {
+      this.layout.uiLayer.removeChild(keypad.uiMargin)
+    })
 
     // Tap-to-start / tap-to-restart. The JUMP button (or Space) drives
     // the in-game jump itself, so this only fires the `jump` action in
