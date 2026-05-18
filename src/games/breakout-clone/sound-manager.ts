@@ -1,4 +1,5 @@
 import { sound } from '@pixi/sound'
+import { resolveAssetUrl } from '../../engine/assets'
 import { effectiveSfxVolume } from '../../engine/audio'
 import type { Rng } from '../../engine/rng'
 import { type MusicScale, useBreakoutCloneStore } from './store'
@@ -19,8 +20,6 @@ const SCALES: Record<MusicScale, readonly number[]> = {
   diminished: [0, 2, 3, 5, 6, 8, 9, 11],
 }
 
-const BASE = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '')
-
 /** Sound-manager port of the Phaser original. Owns the 12 hit-sample
  * registrations; `playRandomHit()` picks one per the configured scale and
  * base key (a +0..11 semitone shift) using the scene RNG.
@@ -39,7 +38,7 @@ export class SoundManager {
   static registerHits(): void {
     for (let i = 1; i <= HIT_COUNT; i++) {
       const num = i.toString().padStart(2, '0')
-      sound.add(aliasFor(i - 1), `${BASE}/games/breakout-clone/sounds/hit/${num}.mp3`)
+      sound.add(aliasFor(i - 1), resolveAssetUrl(`games/breakout-clone/sounds/hit/${num}.mp3`))
     }
   }
 

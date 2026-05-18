@@ -45,6 +45,12 @@ jobs:
       # ready to serve under the repo's Pages URL.
       - run: npm run build
 
+      # Build each game's embed (lib-mode) bundle into
+      # `dist/embed/<game>/index.js`. Output sits inside the same
+      # `dist/` so a single Pages artifact carries both the SPA and the
+      # library bundles ponpon imports.
+      - run: npm run build:embed
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
