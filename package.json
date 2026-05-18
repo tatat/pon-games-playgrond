@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/post-build.js",
-    "build:embed": "tsc -b && node scripts/build-embed.mjs",
+    "build:embed": "tsc -b && node scripts/build-embed.js",
     "preview": "vite preview",
     "lint": "biome check .",
     "format": "biome check --write .",
