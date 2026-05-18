@@ -216,17 +216,15 @@ class DirectionBoard extends Container {
 
   layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
     if (placement === 'sides') {
-      // Left margin: ◀ and ▶ live side-by-side in the bottom third of
-      // the margin so they fall under the thumb. Stacking them
-      // vertically (◀ over ▶) is awkward because the user's thumb has
-      // to leave one button to press the other.
+      // Left margin: ◀ and ▶ side-by-side, board vertically centred to
+      // match the right-margin Actions board's vertical anchor.
       const marginW = m.marginLeft - BOARD_GAP * 2
       const cell = Math.min((marginW - INNER_GAP) / 2, MAX_MARGIN_BTN)
       this.leftBtn.setShape(cell, cell)
       this.rightBtn.setShape(cell, cell)
       this.leftBtn.position.set(-cell / 2 - INNER_GAP / 2, 0)
       this.rightBtn.position.set(cell / 2 + INNER_GAP / 2, 0)
-      this.position.set(m.marginLeft / 2, m.viewportH - BOARD_GAP - cell / 2)
+      this.position.set(m.marginLeft / 2, m.viewportH / 2)
     } else {
       // Bottom strip, left half: ◀ ▶ in the top row of a 2×2 grid
       // (bottom row stays blank to match the symmetrical Actions board
