@@ -231,3 +231,17 @@ Always release on `pointerup`, `pointerupoutside`, and `pointercancel` — a fin
 - **Use the active game's font.** Pad button labels read from `useRuntimeStore.getState().uiTheme.fontSans`, not `'system-ui'` — otherwise the labels look out of place against the rest of the HUD.
 - **Persistent controls cross scene boundaries.** A button the player can reach during gameplay (typically pause) needs to live on the title / pre-game scene too — it's the path into Settings. Reuse the same component, just configure it without the gameplay-only buttons.
 - **Don't anchor persistent overlay buttons over HUD slots.** A scene's HUD already claims fixed corners (score, lives, timer); placing an always-visible touch button there forces the player to choose which they can read. Either give the button a different corner, fold it into a cluster the keypad already draws elsewhere, or hide it whenever the margin pad is showing.
+
+### Future direction: a generic controller pad
+
+Breakout-clone's `keypad.ts` and sticker-drift's `float-pad.ts` ended up restating the same patterns — margin-first / overlay-fallback, `MAX_MARGIN_BTN` cap, press-feedback rules, virtualPad reactivity, sides Pause / bottom Pause split. The current `engine/input/touch-pad.ts` (with `createDirectionalPad` + `createActionButton`) was too low-level to absorb that — neither game uses it. The next consolidation pass should promote a single engine-level controller pad that games drive with an action slot description.
+
+Sketch the API at the level of "what does the player's hand sit on":
+
+- **Left side: one stick / circle slot.** Single round tap target — analog-ish on touch (could resolve into a `left` / `right` / `up` / `down` discrete action, or a `dir` vector for games that want one). Replaces both the breakout d-pad and the sticker-drift float circle's "primary input" role.
+- **Right side: two main action buttons.** Famicom-style A / B. Games map these to whatever (Jump + Fast for breakout, Float for sticker-drift — one of the two might be unused). Same square button shape as today.
+- **Plus one pause / option button.** Edge-anchored on sides, somewhere visually distinct on the bottom strip (or top-right overlay when no margin fits). The "options" framing leaves room for non-pause uses on games that want a third action.
+
+Bring the layout / placement / cap / visibility logic with the move, and games stop owning a keypad file each — they just declare what fills the slots. Sticker-drift's "float fills the canvas in overlay mode" affordance is a knob the controller exposes (the primary-input slot can opt into a full-screen tap fallback in overlay mode).
+
+Tradeoff: a too-strict shape forces games into a controller that doesn't fit their UX; the action slots have to be expressive enough to capture both breakout's hold-left/hold-right + Jump + Fast and sticker-drift's hold-float-only without per-game escape hatches. Defer the move until a third game's needs clarify the slot model.
