@@ -47,11 +47,11 @@ export class InputManager {
 
 ### Slots
 
-- **Stick slot** (left side) — a single Xbox-style thumbstick: outer ring with a draggable inner knob. The knob resolves into 1–2 simultaneously-active discrete direction actions (`left` / `right` / `up` / `down`). A diagonal drag activates both axes (e.g. `left` + `up`). Continuous-vector output is intentionally not exposed today.
-- **A button** / **B button** (right side) — two hold-buttons. Both `actions.a` and `actions.b` are optional. Cell `96 px`.
-- **Option button** (right side) — a single tap-button rendered with a hamburger glyph. The scene wires its `tap` handler to whatever opens the in-game menu (settings, pause modal, etc.). Cell `60 px` (smaller than A / B).
+- **Stick slot** (left side) — a single Xbox-style thumbstick: outer ring with a draggable inner knob, sized slightly larger than the right cluster's buttons so it visibly reads as a different kind of control. The knob resolves into 1–2 simultaneously-active discrete direction actions (`left` / `right` / `up` / `down`). A diagonal drag activates both axes (e.g. `left` + `up`). Continuous-vector output is intentionally not exposed today.
+- **A button** / **B button** (right side) — two hold-buttons drawn as circles. Both `actions.a` and `actions.b` are optional.
+- **Option button** (right side) — a single tap-button drawn as a smaller circle with a hamburger glyph. The scene wires its `tap` handler to whatever opens the in-game menu (settings, pause modal, etc.).
 
-Unassigned slots are not drawn. The other slots stay at their cluster-shape positions (see *Right cluster — 3 patterns* below).
+Unassigned slots are not drawn. The other slots stay at their cluster-shape positions (see *Right cluster — 3 patterns* below). Concrete cell sizes, paddings, and gap values live as module-level constants in `engine/input/virtual-keypad/index.ts` and `engine/input/virtual-keypad/stick.ts` — read those when you need exact px values.
 
 ### API
 
@@ -93,93 +93,66 @@ export function makeVirtualKeypad(
 export function padEnabled(): boolean;
 ```
 
-### Anchoring — `space-between` with outer pad
+### Anchoring
 
-Widgets live in `layout.uiLayer` (viewport coordinates) and anchor to **viewport corners** with a `pad = 15` inset — picture CSS `justify-content: space-between` with outer padding. The canvas (and any letterbox margin around it) is just the space between the two clusters; whether a widget straddles the canvas / letterbox seam falls out of viewport size, not a separate placement decision.
+Widgets live in `layout.uiLayer` (viewport coordinates). The right cluster anchors to **viewport corners** with an inset pad. The bottom axis additionally leans toward the canvas when the bottom margin has room — the cluster's *top edge* drops just below `canvas-bottom`, so on phone-portrait viewports the cluster sits adjacent to the playfield rather than floating in the far bottom of the letterbox. When there's no bottom margin (canvas fills the viewport vertically), the canvas-lean falls back to the viewport-anchored value, so nothing spills off-screen.
 
-- At `marginLeft = 0`, the right cluster sits inside the canvas's bottom-right corner; the left cluster sits inside the bottom-left. Widgets visually overlap the playfield in that limit.
-- As `marginLeft` grows, each cluster slides into the margin opposite it because `vp_right` / `vp_left` track the viewport, not the canvas. At `marginLeft ≥ 111 px` the right cluster's largest button is fully inside the right letterbox margin.
-- Same logic applies vertically once `marginTop > 0` (phones in portrait): the bottom cluster anchors to `vp_bottom`, so the buttons drop into the bottom letterbox margin instead of overlapping the canvas's bottom rows.
+The horizontal axis is **not** canvas-aware — the right cluster always anchors `pad` from `vp_right`. In wide-letterbox layouts the cluster sits at the viewport's right edge, not pushed inward to hug `canvas-right`. The asymmetry is intentional: the cluster's height makes a vertical lean visible and worth the complication; the horizontal slide as the margin grows reads as the cluster "moving into the margin" naturally.
 
-There is no separate `sides` / `bottom` / `overlay` mode. The single anchoring rule covers every viewport size, with widgets potentially straddling the canvas / letterbox seam in between.
+The **stick** uses the same canvas-lean idea on the bottom axis but with its own larger inset — a single circle hugging `canvas-bottom + pad` like the right cluster would, looked like it was glued to the playfield, so the stick gets a softer lean that pulls it down closer to the right cluster's anchor button. The horizontal stick anchor is just viewport-left + a slightly larger outer pad than the right cluster's buttons.
+
+There is no `sides` / `bottom` / `overlay` placement mode — one position formula handles every viewport size.
 
 ### Right cluster — 3 patterns
 
-The right cluster shape depends on how many right-side slots are filled (counting Option + filled A + filled B). All positions are anchored from `(vp_right, vp_bottom)` with `pad = 15`, `INNER_GAP = 6`, A/B cell `96`, Option cell `60`.
+The right cluster shape depends on how many right-side slots are filled (counting Option + filled A + filled B). Smaller clusters get a slightly larger outer pad so they don't read as "single button stuck in the corner".
 
-**Pattern 1 — Option only (e.g. title scene):**
+**Pattern 1 — Option only (title scenes):**
 
 ```
                        [opt]
 ```
 
-- `option_center = (vp_right − 45, vp_bottom − 45)` — Option sits flush in the bottom-right corner with `pad` inset (`60/2 + 15 = 45`).
+The Option button sits alone in the bottom-right corner.
 
-**Pattern 2 — Option + A (e.g. one-button gameplay):**
-
-```
-                  [opt]
-                       [A]
-```
-
-- `A_center      = (vp_right − 63,  vp_bottom − 63)` — A flush in the bottom-right corner (`96/2 + 15 = 63`).
-- `option_center = (vp_right − 147, vp_bottom − 147)` — Option diagonally up-left of A, with `INNER_GAP` between A's top-left corner and Option's bottom-right corner (`63 + 48 + 6 + 30 = 147`).
-
-**Pattern 3 — Option + A + B (e.g. two-button gameplay):**
-
-Tilted equilateral triangle, rotated 35° CCW from "apex up". After rotation: Option at the apex (upper-left), B at the right vertex, A at the lower vertex. Sides are `96 + 6 = 102` between adjacent button centres → circumradius `R = 102 / √3 ≈ 58.9`.
+**Pattern 2 — Option + A (one-button gameplay):**
 
 ```
-            [opt]
+                   [opt]
+                        [A]
+```
+
+A is the bottom-right anchor; Option sits diagonally up-left of A. The diagonal gap between the two circles is intentionally tight (much smaller than the right cluster's outer pad) so the pair reads as one tap-target neighbourhood rather than two separate buttons. Gap and offset are computed from circle geometry: the centre-to-centre distance along the diagonal is `R_a + R_option + GAP`, and the per-axis offset is that distance ÷ √2.
+
+**Pattern 3 — Option + A + B (two-button gameplay):**
+
+```
+              [opt]
                               [B]
-              [A]
+                [A]
 ```
 
-Vertex offsets from the triangle's centre (math angle conventions, +y down):
+The three buttons form a tilted equilateral triangle — a normal "apex up" triangle rotated CCW by a small angle (around 30–40°). Option ends up at the upper-left apex, B at the right vertex, A at the lower-left vertex. Adjacent button centres are spaced by `cell + INNER_GAP`. The triangle anchors so A's bottom edge and B's right edge each sit one outer-pad in from the viewport edges (or shifted upward by the canvas-lean when there's bottom margin to lean into).
 
-- `option_offset = (R · cos 125°,  −R · sin 125°) ≈ (−34, −48)`
-- `B_offset      = (R · cos   5°,  −R · sin   5°) ≈ (+59,  −5)`
-- `A_offset      = (R · cos 245°,  −R · sin 245°) ≈ (−25, +53)`
-
-Anchored so A's bottom edge and B's right edge each have `pad = 15` from the viewport edges:
-
-- `triangle_centre_x = vp_right  − 63 − 59 = vp_right − 122` (B's right-edge anchor)
-- `triangle_centre_y = vp_bottom − 63 − 53 = vp_bottom − 116` (A's bottom-edge anchor)
-
-Final positions:
-
-- `A_center      = (vp_right − 147, vp_bottom −  63)`
-- `B_center      = (vp_right −  63, vp_bottom − 121)`
-- `option_center = (vp_right − 156, vp_bottom − 164)`
-
-A is **not** at the viewport corner in Pattern 3 — B is, because B is the rightmost vertex of the tilted triangle. A moves inward (147 px from the edge) and stays anchored to the viewport bottom. The whole triangle slides together as the right margin grows.
+A is **not** at the viewport corner in Pattern 3 — B is, because B is the rightmost vertex of the tilted triangle. A is pulled inward to make room for B's right-edge anchor. The whole triangle slides together as the right margin grows.
 
 ### Left cluster — stick
 
-The stick lives at the bottom-left corner: `stick_center = (vp_left + 63, vp_bottom − 63)` (same `pad + cell/2` math as a right-cluster A button, mirrored). Cell `96` — outer ring radius `48`, inner knob radius `~16`.
-
-If `stick` is unset (or all four directions are unset) the widget isn't drawn — the title scene's no-stick / no-A / no-B / Option-only configuration leaves the left side empty.
+If the stick is configured, it sits in the bottom-left of the viewport with its own slightly-larger inset and a softer canvas-lean than the right cluster (see *Anchoring* above). If no stick directions are configured, nothing is drawn on the left.
 
 ### Stick widget detail
 
-- **Visual**: outer ring (radius `R = 48`) at the slot centre; a small filled inner knob (radius `~R/3 = 16`) starting at the centre.
-- **Interaction**: `pointerdown` anywhere inside the outer ring snaps the knob to the touch position. `pointermove` follows. The knob's offset from centre is clamped to `R`. `pointerup` / `pointerupoutside` / `pointercancel` snaps the knob back to centre and releases every held direction.
-- **Direction resolution**: a small inner deadzone (radius `~0.25 R = 12`) keeps a near-centre touch from firing anything. Past the deadzone, each axis fires independently:
-  - `|dx| > 0.4 R` → `press(left)` or `press(right)` depending on sign.
-  - `|dy| > 0.4 R` → `press(up)` or `press(down)` depending on sign.
-  - Both axes can be active at once (diagonals).
+- **Visual**: outer ring at the slot centre; a small filled inner knob (about one-third the outer radius) starting at the centre.
+- **Interaction**: `pointerdown` anywhere inside the outer ring snaps the knob to the touch position. `pointermove` follows. The knob's offset from centre is clamped to the outer radius. `pointerup` / `pointerupoutside` / `pointercancel` snaps the knob back to centre and releases every held direction.
+- **Direction resolution**: a small inner deadzone keeps a near-centre touch from firing anything. Past the deadzone, each axis fires independently when its magnitude crosses a per-axis threshold (significantly larger than the deadzone). Both axes can be active at once for diagonals.
 - **Unassigned directions**: if a game maps only `left` / `right` (breakout), the up / down axis fires nothing — the knob still moves freely, but no `press(up)` / `press(down)` is dispatched because the action isn't bound.
+- **Multitouch**: the stick claims the first finger that lands inside the outer ring and ignores other fingers until that one releases — keeps a second finger pressing A or B from yanking the knob.
 
 Continuous-vector output (`{x, y}` ∈ [-1,1]²) is intentionally not exposed today. Add a knob shape on the config later if a game needs it.
 
 ### Sizing
 
-Cell sizes are **viewport-pixel constants** (do not scale with canvas):
-
-- A / B / Stick: `96 px`.
-- Option: `60 px`.
-
-This is `(α)` from the design discussion — buttons stay touch-sized on phone-portrait viewports where the canvas itself is scaled down to ~31% of design size. The trade-off is that on a small canvas the cluster covers a larger fraction of the playfield in the limit `marginLeft = 0` / `marginTop = 0`; revisit the rule (e.g. `(β)` viewport-shortDim-linked clamp) if that becomes a problem on real devices.
+Cell sizes are **viewport-pixel constants** (do not scale with canvas) so buttons stay touch-sized on phone-portrait viewports where the canvas itself is scaled down. The trade-off is that on a small canvas the cluster covers a larger fraction of the playfield in the limit where both margins are 0; revisit the rule (e.g. a viewport-shortDim-linked clamp) if that becomes a problem on real devices.
 
 ### Whether to show the pad
 
@@ -267,13 +240,13 @@ The keypad renders one `view: Container` that goes into `layout.uiLayer` (viewpo
 
 ### Why Option is smaller than A / B
 
-Option (`60 px`) is the only non-gameplay slot — it's reached intentionally (open the menu / settings), not under thumb during play. Sizing it smaller than A / B (`96 px`) does three jobs:
+Option is the only non-gameplay slot — it's reached intentionally (open the menu / settings), not under thumb during play. Drawing it smaller than A / B does three jobs:
 
 - Makes the gameplay buttons visually dominant. The player's eye lands on A / B first.
 - Cuts the chance of fat-fingering Option on the way to A or B. The size difference acts as another tier of "this is a different kind of control" beyond the diagonal position.
-- Lets Option sit further into the corner without crowding the gameplay buttons — Pattern 3's Option sits 60 px from the A column, smaller cell means a tighter triangle.
+- Lets Option sit further into the corner without crowding the gameplay buttons — Pattern 3's Option is well separated from the A column, and the smaller cell keeps the triangle tight.
 
-If a title scene wants the Option button visually prominent (one button on screen, no gameplay), the call is to size the *scene's* presentation around the canonical 60 px Option, not to make Option grow.
+If a title scene wants the Option button visually prominent (one button on screen, no gameplay), the call is to size the *scene's* presentation around the canonical small Option, not to make Option grow.
 
 ### Widget choice for long lists
 
