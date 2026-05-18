@@ -98,7 +98,7 @@ const INACTIVE = 0x3a3a3e
 const WHITE = 0xffffff
 
 const PANEL_W = 560
-const PANEL_H = 520
+const PANEL_H = 560
 const PANEL_RADIUS = 6
 const PANEL_PADDING_X = 32
 const ROW_GAP = 44
@@ -108,9 +108,9 @@ const SLIDER_W = 240
 const SLIDER_TRACK_H = 4
 const SLIDER_KNOB_R = 8
 
-const TAB_STRIP_Y = 84
+const TAB_STRIP_Y = 88
 const TAB_GAP = 32
-const CONTENT_TOP_Y = 128
+const CONTENT_TOP_Y = 132
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 
@@ -185,7 +185,7 @@ class SettingsModal extends Container implements Disposable {
     const make = (id: TabId, label: string, x: number): { width: number } => {
       const t = new Text({
         text: label,
-        style: { fill: TAB_INACTIVE, fontSize: 13, fontFamily: this.theme.fontSans },
+        style: { fill: TAB_INACTIVE, fontSize: 16, fontFamily: this.theme.fontSans },
       })
       t.position.set(x, TAB_STRIP_Y)
       t.eventMode = 'static'
@@ -224,13 +224,13 @@ class SettingsModal extends Container implements Disposable {
     const c = this.tabs.system
     // When there's no Game tab the title is the only header, so the content
     // can start right under it instead of leaving space for the strip.
-    let y = this.gameSettings ? CONTENT_TOP_Y : 84
+    let y = this.gameSettings ? CONTENT_TOP_Y : 88
     const addSection = (title: string): void => {
       const t = new Text({
         text: title.toUpperCase(),
         style: {
           fill: SUBDUED,
-          fontSize: 11,
+          fontSize: 13,
           fontFamily: this.theme.fontSans,
           letterSpacing: 2,
         },
@@ -242,9 +242,9 @@ class SettingsModal extends Container implements Disposable {
     const addRow = (label: string, control: Container): void => {
       const t = new Text({
         text: label,
-        style: { fill: ROW_LABEL, fontSize: 14, fontFamily: this.theme.fontSans },
+        style: { fill: ROW_LABEL, fontSize: 17, fontFamily: this.theme.fontSans },
       })
-      t.position.set(PANEL_PADDING_X, y + 6)
+      t.position.set(PANEL_PADDING_X, y + 2)
       c.addChild(t)
       control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
       c.addChild(control)
@@ -281,7 +281,7 @@ class SettingsModal extends Container implements Disposable {
           text: section.title.toUpperCase(),
           style: {
             fill: SUBDUED,
-            fontSize: 11,
+            fontSize: 13,
             fontFamily: this.theme.fontSans,
             letterSpacing: 2,
           },
@@ -293,9 +293,9 @@ class SettingsModal extends Container implements Disposable {
       for (const row of section.rows) {
         const t = new Text({
           text: row.label,
-          style: { fill: ROW_LABEL, fontSize: 14, fontFamily: this.theme.fontSans },
+          style: { fill: ROW_LABEL, fontSize: 17, fontFamily: this.theme.fontSans },
         })
-        t.position.set(PANEL_PADDING_X, y + 6)
+        t.position.set(PANEL_PADDING_X, y + 2)
         c.addChild(t)
         row.control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
         c.addChild(row.control)
@@ -319,7 +319,7 @@ class SettingsModal extends Container implements Disposable {
 
     const readout = new Text({
       text: formatVolume(useSettingsStore.getState()[key]),
-      style: { fill: SUBDUED, fontSize: 12, fontFamily: this.theme.fontMono },
+      style: { fill: SUBDUED, fontSize: 17, fontFamily: this.theme.fontMono },
     })
     readout.anchor.set(0, 0.5)
     readout.position.set(SLIDER_W + 16, SLIDER_KNOB_R + 2)
@@ -398,7 +398,7 @@ class SettingsModal extends Container implements Disposable {
 function makeTitle(text: string, theme: UiTheme): Text {
   const t = new Text({
     text,
-    style: { fill: WHITE, fontSize: 26, fontFamily: theme.fontSans, letterSpacing: 1 },
+    style: { fill: WHITE, fontSize: 32, fontFamily: theme.fontSans, letterSpacing: 1 },
   })
   t.position.set(PANEL_PADDING_X, 32)
   return t
@@ -408,11 +408,14 @@ function makeCloseButton(onPress: () => void, theme: UiTheme): Container {
   const c = new Container()
   c.eventMode = 'static'
   c.cursor = 'pointer'
-  c.hitArea = new Rectangle(-12, -12, 32, 32)
-  c.position.set(PANEL_W - PANEL_PADDING_X - 4, 32)
+  // 80×80 logical hit area centred on the visible × glyph. The modal scales
+  // to ~0.3× on portrait phones; 80 logical px keeps the physical target
+  // near Apple HIG 44pt.
+  c.hitArea = new Rectangle(-60, -8, 80, 80)
+  c.position.set(PANEL_W - 32, 14)
   const x = new Text({
     text: '×',
-    style: { fill: SUBDUED, fontSize: 22, fontFamily: theme.fontSans },
+    style: { fill: SUBDUED, fontSize: 52, fontFamily: theme.fontSans },
   })
   x.anchor.set(1, 0)
   c.addChild(x)

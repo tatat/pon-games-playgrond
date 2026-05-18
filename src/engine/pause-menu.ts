@@ -27,6 +27,7 @@ export function attachPauseMenu(gameContainer: Container, opts: PauseMenuOptions
   // accidentally start / float / etc.
   const dim = new Graphics().rect(0, 0, DESIGN_W, DESIGN_H).fill({ color: 0x000000, alpha: 0.6 })
   dim.eventMode = 'static'
+  dim.on('pointertap', () => useRuntimeStore.getState().setGamePaused(false))
   overlay.addChild(dim)
 
   // Opaque panel that holds the title + buttons, so text never shows the
@@ -52,13 +53,13 @@ export function attachPauseMenu(gameContainer: Container, opts: PauseMenuOptions
   const resume = makeMenuButton('Resume', 'P', theme, () => {
     useRuntimeStore.getState().setGamePaused(false)
   })
-  resume.position.set((PANEL_W - MENU_BTN_W) / 2, 168)
+  resume.position.set((PANEL_W - MENU_BTN_W) / 2, 160)
   panel.addChild(resume)
 
   const settings = makeMenuButton('Settings', ',', theme, () => {
     opts.openSettings()
   })
-  settings.position.set((PANEL_W - MENU_BTN_W) / 2, 232)
+  settings.position.set((PANEL_W - MENU_BTN_W) / 2, 224)
   panel.addChild(settings)
 
   const unsubscribe = useRuntimeStore.subscribe((s) => {
@@ -104,7 +105,7 @@ const PANEL_H = 360
 const PANEL_BG = 0x1a1a1c
 
 const MENU_BTN_W = 300
-const MENU_BTN_H = 48
+const MENU_BTN_H = 60
 const MENU_BTN_PADDING_X = 8
 const LABEL_DEFAULT = 0xcfcfd4
 const LABEL_HOVER = 0xffffff
@@ -147,7 +148,7 @@ function makeBtnView(
   const labelColor = state === 'hover' ? LABEL_HOVER : LABEL_DEFAULT
   const labelText = new Text({
     text: label,
-    style: { fill: labelColor, fontSize: 20, fontFamily: theme.fontSans },
+    style: { fill: labelColor, fontSize: 24, fontFamily: theme.fontSans },
   })
   labelText.anchor.set(0, 0.5)
   labelText.position.set(MENU_BTN_PADDING_X, MENU_BTN_H / 2)
@@ -166,10 +167,10 @@ function makeBtnView(
 
   const shortcutText = new Text({
     text: `[${shortcut}]`,
-    style: { fill: SHORTCUT_COLOR, fontSize: 14, fontFamily: theme.fontMono },
+    style: { fill: SHORTCUT_COLOR, fontSize: 20, fontFamily: theme.fontMono },
   })
   shortcutText.anchor.set(1, 0.5)
-  shortcutText.position.set(MENU_BTN_W - MENU_BTN_PADDING_X, MENU_BTN_H / 2)
+  shortcutText.position.set(MENU_BTN_W - MENU_BTN_PADDING_X, MENU_BTN_H / 2 - 2)
   c.addChild(shortcutText)
 
   return c

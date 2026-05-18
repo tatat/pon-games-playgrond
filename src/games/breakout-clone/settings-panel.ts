@@ -56,7 +56,7 @@ export function buildBreakoutCloneSettingsPanel(theme: UiTheme): GameSettingsPan
     { label: 'Scale', control: scale.view },
     { label: 'Base Key', control: baseKey.view },
   ]
-  const debugRows: SettingsRow[] = [{ label: 'Start at 900 points', control: debug.view }]
+  const debugRows: SettingsRow[] = [{ label: 'Near-boss start', control: debug.view }]
 
   return {
     sections: [

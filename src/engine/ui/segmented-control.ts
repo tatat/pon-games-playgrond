@@ -93,7 +93,7 @@ function viewFor(
   c.addChild(new Graphics().roundRect(0, 0, w, h, 3).fill(fill))
   const t = new Text({
     text: label,
-    style: { fill: textFill, fontSize: 12, fontFamily: theme.fontSans },
+    style: { fill: textFill, fontSize: 17, fontFamily: theme.fontSans },
   })
   t.anchor.set(0.5)
   t.position.set(w / 2, h / 2)

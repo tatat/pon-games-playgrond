@@ -76,7 +76,7 @@ export function makeStepper<T>(opts: StepperOptions<T>): Stepper {
 
   const readout = new Text({
     text: '',
-    style: { fill: 0xffffff, fontSize: 13, fontFamily: theme.fontSans },
+    style: { fill: 0xffffff, fontSize: 17, fontFamily: theme.fontSans },
   })
   readout.anchor.set(0.5)
   readout.position.set(btnW + 4 + readoutW / 2, h / 2)
