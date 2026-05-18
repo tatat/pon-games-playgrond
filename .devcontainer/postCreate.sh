@@ -80,13 +80,16 @@ npx playwright install chromium
 # Register the Playwright MCP server for this project. @playwright/mcp is
 # installed globally in the image, so we invoke `playwright-mcp` directly
 # (no `npx` registry round-trip on every session start).
-# Pin --executable-path to the chromium we just installed because the MCP's
+# --isolated gives each MCP session a fresh in-memory profile, avoiding
+# singleton-lock conflicts when multiple Claude Code sessions share the
+# persistent playwright-cache volume.
+# --executable-path pins the chromium we just installed because the MCP's
 # own install-browser step hangs during extraction on arm64 + Node 26.
 CHROMIUM_BIN=$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | sort -V | tail -1)
 if [ -n "$CHROMIUM_BIN" ]; then
     claude mcp remove playwright -s local 2>/dev/null || true
     claude mcp add playwright -s local -- \
-        playwright-mcp --browser=chromium --executable-path="$CHROMIUM_BIN"
+        playwright-mcp --browser=chromium --executable-path="$CHROMIUM_BIN" --isolated
 fi
 
 cat <<'NOTE'
