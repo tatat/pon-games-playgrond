@@ -13,6 +13,10 @@ const SCALES: Record<MusicScale, readonly number[]> = {
   minor: [0, 2, 3, 5, 7, 8, 10],
   pentatonic: [0, 2, 4, 7, 9],
   blues: [0, 3, 5, 6, 7, 10],
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  wholeTone: [0, 2, 4, 6, 8, 10],
+  diminished: [0, 2, 3, 5, 6, 8, 9, 11],
 }
 
 const BASE = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '')

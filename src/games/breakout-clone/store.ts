@@ -1,7 +1,16 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
-export type MusicScale = 'chromatic' | 'major' | 'minor' | 'pentatonic' | 'blues'
+export type MusicScale =
+  | 'chromatic'
+  | 'major'
+  | 'minor'
+  | 'pentatonic'
+  | 'blues'
+  | 'dorian'
+  | 'mixolydian'
+  | 'wholeTone'
+  | 'diminished'
 /** `0` = C, `1` = C#, …, `11` = B. */
 export type BaseKey = number
 

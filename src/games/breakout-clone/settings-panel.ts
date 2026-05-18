@@ -1,44 +1,47 @@
 import type { GameSettingsPanel, SettingsRow } from '../../engine/settings-ui'
 import { makeCheckbox } from '../../engine/ui/checkbox'
-import { makeSegmentedControl } from '../../engine/ui/segmented-control'
+import { makeStepper } from '../../engine/ui/stepper'
 import type { UiTheme } from '../../engine/ui-theme'
 import { type MusicScale, useBreakoutCloneStore } from './store'
 
 const SCALE_CHOICES: { label: string; value: MusicScale }[] = [
-  { label: 'Chrom', value: 'chromatic' },
+  { label: 'Chromatic', value: 'chromatic' },
   { label: 'Major', value: 'major' },
   { label: 'Minor', value: 'minor' },
-  { label: 'Pent', value: 'pentatonic' },
+  { label: 'Pentatonic', value: 'pentatonic' },
   { label: 'Blues', value: 'blues' },
+  { label: 'Dorian', value: 'dorian' },
+  { label: 'Mixolydian', value: 'mixolydian' },
+  { label: 'Whole Tone', value: 'wholeTone' },
+  { label: 'Diminished', value: 'diminished' },
 ]
 
 const BASE_KEY_LABELS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
 
-/** Build the breakout-clone settings tab: a scale picker (5 options) and a
- * base-key picker (12 chromatic semitones). Both are persisted via
- * `useBreakoutCloneStore` and read back live by `SoundManager.playRandomHit`. */
+/** Build the breakout-clone settings tab: a scale picker (9 options) and a
+ * base-key picker (12 chromatic semitones). Both rendered as steppers
+ * because a 9-/12-wide segmented control would crowd the panel and
+ * leave each button too small to tap. Persisted via
+ * `useBreakoutCloneStore`; read back live by `SoundManager.playRandomHit`. */
 export function buildBreakoutCloneSettingsPanel(theme: UiTheme): GameSettingsPanel {
   const disposers: Array<() => void> = []
 
-  const scale = makeSegmentedControl<MusicScale>({
+  const scale = makeStepper<MusicScale>({
     choices: SCALE_CHOICES,
     getValue: () => useBreakoutCloneStore.getState().scale,
     onChange: (v) => useBreakoutCloneStore.getState().setScale(v),
     subscribe: (cb) => useBreakoutCloneStore.subscribe(cb),
     theme,
-    buttonW: 42,
-    step: 46,
   })
   disposers.push(() => scale.dispose())
 
-  const baseKey = makeSegmentedControl<number>({
+  const baseKey = makeStepper<number>({
     choices: BASE_KEY_LABELS.map((label, i) => ({ label, value: i })),
     getValue: () => useBreakoutCloneStore.getState().baseKey,
     onChange: (v) => useBreakoutCloneStore.getState().setBaseKey(v),
     subscribe: (cb) => useBreakoutCloneStore.subscribe(cb),
     theme,
-    buttonW: 18,
-    step: 20,
+    width: 140,
   })
   disposers.push(() => baseKey.dispose())
 

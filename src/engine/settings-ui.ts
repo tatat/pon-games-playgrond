@@ -185,7 +185,7 @@ class SettingsModal extends Container implements Disposable {
     const make = (id: TabId, label: string, x: number): { width: number } => {
       const t = new Text({
         text: label,
-        style: { fill: TAB_INACTIVE, fontSize: 14, fontFamily: this.theme.fontSans },
+        style: { fill: TAB_INACTIVE, fontSize: 13, fontFamily: this.theme.fontSans },
       })
       t.position.set(x, TAB_STRIP_Y)
       t.eventMode = 'static'
@@ -398,7 +398,7 @@ class SettingsModal extends Container implements Disposable {
 function makeTitle(text: string, theme: UiTheme): Text {
   const t = new Text({
     text,
-    style: { fill: WHITE, fontSize: 18, fontFamily: theme.fontSans },
+    style: { fill: WHITE, fontSize: 26, fontFamily: theme.fontSans, letterSpacing: 1 },
   })
   t.position.set(PANEL_PADDING_X, 32)
   return t
