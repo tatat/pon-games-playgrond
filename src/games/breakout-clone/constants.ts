@@ -36,6 +36,26 @@ export const WALL_THICKNESS = 50
 /** Lives-down → reset delay (ms). Time the explosion / shake plays. */
 export const BALL_RESET_DELAY_MS = 1000
 
+/** First boss appears at this score; each defeated boss adds its own
+ * bonus (400 + N*100) plus another 1000 before the next one shows up. */
+export const BOSS_FIRST_THRESHOLD = 1000
+export const BOSS_BASE_HITS = 4
+/** Tween extents for the boss's floating motion. */
+export const BOSS_FLOAT_Y_AMPLITUDE = 50
+export const BOSS_FLOAT_Y_PERIOD_MS = 2000
+export const BOSS_FLOAT_X_AMPLITUDE = 100
+export const BOSS_FLOAT_X_PERIOD_MS = 3000
+export const BOSS_SPAWN_DELAY_MS = 1000
+export const BOSS_DEFEAT_ANIM_MS = 2000
+export const BOSS_FLASH_MS = 200
+export const BOSS_DISPLAY_SIZE = 300
+
+/** Special-ball spawn cadence and tuning. */
+export const SPECIAL_BALL_INTERVAL_MS = 30_000
+export const SPECIAL_BALL_RADIUS = 8
+export const SPECIAL_BALL_SPEED = 280
+export const SPECIAL_BALL_COLOR = 0x00ff88
+
 /** Brick spawn area sits below the HUD and above the paddle. */
 export const BRICK_AREA_MARGIN = 50
 export const BRICK_AREA_HEIGHT = 280
