@@ -380,8 +380,14 @@ function makeHoldColumn(
   c.hitArea = new Rectangle(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
 
   const bg = new Graphics()
-    .rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
-    .fill({ color: 0x000000, alpha: 0.1 })
+  const drawBg = (pressed: boolean): void => {
+    bg.clear()
+    bg.rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H).fill({
+      color: 0x000000,
+      alpha: pressed ? 0.18 : 0.1,
+    })
+  }
+  drawBg(false)
   c.addChild(bg)
 
   const cx = IN_CANVAS_COL_WIDTH / 2
@@ -401,10 +407,12 @@ function makeHoldColumn(
 
   const onDown = (e: { stopPropagation?(): void }): void => {
     e.stopPropagation?.()
+    drawBg(true)
     drawArrow(true)
     input.press(side)
   }
   const onUp = (): void => {
+    drawBg(false)
     drawArrow(false)
     input.release(side)
   }
@@ -523,21 +531,16 @@ class PadButton extends Container {
     if (this.labelText) this.labelText.position.set(0, 0)
   }
 
-  /** Pressed state: keep the same fill (no luminance flash) and just
-   * thicken / strengthen the outline so the button reads as "armed"
-   * without lighting up the player's view. */
+  /** Pressed buttons darken slightly and the outline firms up — reads
+   * as "pushed in" rather than "lit up". */
   private redrawBg(): void {
     const { currentWidth: w, currentHeight: h } = this
     if (w === 0 || h === 0) return
     this.bg.clear()
     this.bg
       .roundRect(-w / 2, -h / 2, w, h, 6)
-      .fill({ color: 0x000000, alpha: 0.3 })
-      .stroke({
-        color: 0xffffff,
-        alpha: this.pressed ? 0.5 : 0.25,
-        width: this.pressed ? 2 : 1.5,
-      })
+      .fill({ color: 0x000000, alpha: this.pressed ? 0.5 : 0.3 })
+      .stroke({ color: 0xffffff, alpha: this.pressed ? 0.4 : 0.25, width: 1.5 })
   }
 }
 
