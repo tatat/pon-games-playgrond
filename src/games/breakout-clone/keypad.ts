@@ -9,6 +9,9 @@ import { useSettingsStore, type VirtualPadMode } from '../../store/settings'
 const BOARD_GAP = 24
 const INNER_GAP = 6
 const MIN_REQUIRED_MARGIN_PX = 120
+/** Cap each margin-board button dimension so a wide letterbox doesn't
+ * balloon the buttons. The board itself stays centred in its margin. */
+const MAX_MARGIN_BTN = 96
 const OVERLAY_PAUSE_SIZE = 130
 const OVERLAY_PAUSE_MARGIN = 15
 const IN_CANVAS_BTN_SIZE = 130
@@ -177,20 +180,13 @@ class PauseOnlyBoard extends Container {
 
   layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
     if (placement === 'sides') {
-      // Right margin, square button matched to the full margin width
-      // (no cap) so the title screen scales the same way as the main
-      // scene's keypad does — both adapt to whatever letterbox the
-      // viewport gives us.
-      const w = m.marginLeft - BOARD_GAP * 2
-      const h = w
-      this.pause.setShape(w, h)
-      this.position.set(m.viewportW - m.marginLeft / 2, BOARD_GAP + h / 2)
+      const size = Math.min(m.marginLeft - BOARD_GAP * 2, MAX_MARGIN_BTN)
+      this.pause.setShape(size, size)
+      this.position.set(m.viewportW - m.marginLeft / 2, BOARD_GAP + size / 2)
     } else {
-      // Bottom strip — square button matched to the full margin height.
-      const h = m.marginTop - BOARD_GAP * 2
-      const w = h
-      this.pause.setShape(w, h)
-      this.position.set(m.viewportW - BOARD_GAP - w / 2, m.marginTop + m.gameH + m.marginTop / 2)
+      const size = Math.min(m.marginTop - BOARD_GAP * 2, MAX_MARGIN_BTN)
+      this.pause.setShape(size, size)
+      this.position.set(m.viewportW - BOARD_GAP - size / 2, m.marginTop + m.gameH + m.marginTop / 2)
     }
   }
 }
@@ -225,28 +221,28 @@ class DirectionBoard extends Container {
       // vertically (◀ over ▶) is awkward because the user's thumb has
       // to leave one button to press the other.
       const marginW = m.marginLeft - BOARD_GAP * 2
-      const btnW = (marginW - INNER_GAP) / 2
-      const btnH = Math.min(marginW * 0.9, 96)
-      this.leftBtn.setShape(btnW, btnH)
-      this.rightBtn.setShape(btnW, btnH)
-      this.leftBtn.position.set(-btnW / 2 - INNER_GAP / 2, 0)
-      this.rightBtn.position.set(btnW / 2 + INNER_GAP / 2, 0)
-      this.position.set(m.marginLeft / 2, m.viewportH - BOARD_GAP - btnH / 2)
+      const cell = Math.min((marginW - INNER_GAP) / 2, MAX_MARGIN_BTN)
+      this.leftBtn.setShape(cell, cell)
+      this.rightBtn.setShape(cell, cell)
+      this.leftBtn.position.set(-cell / 2 - INNER_GAP / 2, 0)
+      this.rightBtn.position.set(cell / 2 + INNER_GAP / 2, 0)
+      this.position.set(m.marginLeft / 2, m.viewportH - BOARD_GAP - cell / 2)
     } else {
       // Bottom strip, left half: ◀ ▶ in the top row of a 2×2 grid
       // (bottom row stays blank to match the symmetrical Actions board
       // where Fast lives in the bottom-right cell).
-      const totalW = (m.viewportW - BOARD_GAP * 3) / 2
-      const totalH = m.marginTop - BOARD_GAP * 2
-      const cellW = (totalW - INNER_GAP) / 2
-      const cellH = (totalH - INNER_GAP) / 2
-      this.leftBtn.setShape(cellW, cellH)
-      this.rightBtn.setShape(cellW, cellH)
-      const left = -totalW / 2
-      const top = -totalH / 2
-      this.leftBtn.position.set(left + cellW / 2, top + cellH / 2)
-      this.rightBtn.position.set(left + cellW + INNER_GAP + cellW / 2, top + cellH / 2)
-      this.position.set(BOARD_GAP + totalW / 2, m.marginTop + m.gameH + m.marginTop / 2)
+      const stripW = (m.viewportW - BOARD_GAP * 3) / 2
+      const stripH = m.marginTop - BOARD_GAP * 2
+      const cell = Math.min((stripW - INNER_GAP) / 2, (stripH - INNER_GAP) / 2, MAX_MARGIN_BTN)
+      const boardW = cell * 2 + INNER_GAP
+      const boardH = cell * 2 + INNER_GAP
+      this.leftBtn.setShape(cell, cell)
+      this.rightBtn.setShape(cell, cell)
+      const left = -boardW / 2
+      const top = -boardH / 2
+      this.leftBtn.position.set(left + cell / 2, top + cell / 2)
+      this.rightBtn.position.set(left + cell + INNER_GAP + cell / 2, top + cell / 2)
+      this.position.set(BOARD_GAP + stripW / 2, m.marginTop + m.gameH + m.marginTop / 2)
     }
   }
 }
@@ -283,16 +279,19 @@ class ActionsBoard extends Container {
   layoutFor(placement: 'sides' | 'bottom', m: ReturnType<GameLayout['current']>): void {
     if (placement === 'sides') {
       // Right margin, vertical stack (top → bottom): Pause / Jump / Fast.
-      const w = m.marginLeft - BOARD_GAP * 2
+      // Cap the button width so a generous margin doesn't stretch them
+      // out — the board centres itself in the margin instead.
+      const w = Math.min(m.marginLeft - BOARD_GAP * 2, MAX_MARGIN_BTN)
       const totalH = m.viewportH - BOARD_GAP * 2
-      const pauseH = Math.max(48, totalH * 0.18)
+      const pauseH = Math.min(Math.max(48, totalH * 0.18), MAX_MARGIN_BTN)
       const remaining = totalH - pauseH - INNER_GAP * 2
-      const jumpH = remaining * 0.6
-      const fastH = remaining * 0.4
+      const jumpH = Math.min(remaining * 0.6, MAX_MARGIN_BTN * 1.6)
+      const fastH = Math.min(remaining * 0.4, MAX_MARGIN_BTN)
+      const stackH = pauseH + INNER_GAP + jumpH + INNER_GAP + fastH
       this.pause.setShape(w, pauseH)
       this.jump.setShape(w, jumpH)
       this.fast.setShape(w, fastH)
-      const top = -totalH / 2
+      const top = -stackH / 2
       this.pause.position.set(0, top + pauseH / 2)
       this.jump.position.set(0, top + pauseH + INNER_GAP + jumpH / 2)
       this.fast.position.set(0, top + pauseH + INNER_GAP + jumpH + INNER_GAP + fastH / 2)
@@ -303,23 +302,21 @@ class ActionsBoard extends Container {
       //   [blank][pause]
       // Direction board fills its top row symmetrically, so Jump / Fast
       // sit on the top row here and Pause drops to the bottom-right cell.
-      const totalW = (m.viewportW - BOARD_GAP * 3) / 2
-      const totalH = m.marginTop - BOARD_GAP * 2
-      const cellW = (totalW - INNER_GAP) / 2
-      const cellH = (totalH - INNER_GAP) / 2
-      this.jump.setShape(cellW, cellH)
-      this.fast.setShape(cellW, cellH)
-      this.pause.setShape(cellW, cellH)
-      const left = -totalW / 2
-      const top = -totalH / 2
-      this.jump.position.set(left + cellW / 2, top + cellH / 2)
-      this.fast.position.set(left + cellW + INNER_GAP + cellW / 2, top + cellH / 2)
-      this.pause.position.set(
-        left + cellW + INNER_GAP + cellW / 2,
-        top + cellH + INNER_GAP + cellH / 2,
-      )
+      const stripW = (m.viewportW - BOARD_GAP * 3) / 2
+      const stripH = m.marginTop - BOARD_GAP * 2
+      const cell = Math.min((stripW - INNER_GAP) / 2, (stripH - INNER_GAP) / 2, MAX_MARGIN_BTN)
+      const boardW = cell * 2 + INNER_GAP
+      const boardH = cell * 2 + INNER_GAP
+      this.jump.setShape(cell, cell)
+      this.fast.setShape(cell, cell)
+      this.pause.setShape(cell, cell)
+      const left = -boardW / 2
+      const top = -boardH / 2
+      this.jump.position.set(left + cell / 2, top + cell / 2)
+      this.fast.position.set(left + cell + INNER_GAP + cell / 2, top + cell / 2)
+      this.pause.position.set(left + cell + INNER_GAP + cell / 2, top + cell + INNER_GAP + cell / 2)
       this.position.set(
-        m.viewportW - BOARD_GAP - totalW / 2,
+        m.viewportW - BOARD_GAP - stripW / 2,
         m.marginTop + m.gameH + m.marginTop / 2,
       )
     }
