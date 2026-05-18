@@ -58,6 +58,13 @@ export function GameMount({ gameId, onScoreChange, onGameOver, seed }: GameMount
           if (app) app.ticker.maxFPS = s.maxFps
         })
 
+        // iOS Safari ignores `user-scalable=no` and doesn't reliably honour
+        // body-level `touch-action: none` on a descendant canvas — two-finger
+        // virtual-pad usage (stick + A) gets interpreted as a pinch and zooms
+        // the page. Setting these on the canvas element itself blocks it.
+        app.canvas.style.touchAction = 'none'
+        app.canvas.style.setProperty('-webkit-user-select', 'none')
+        app.canvas.style.setProperty('-webkit-touch-callout', 'none')
         containerRef.current.appendChild(app.canvas)
         const gameModule = await games[gameId]()
         await rapierReady
