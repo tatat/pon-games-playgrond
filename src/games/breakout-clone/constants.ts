@@ -9,16 +9,15 @@ export const PADDLE_GROUND_Y = 720 - 55
 export const BALL_START_Y = PADDLE_GROUND_Y - 35
 export const PADDLE_BOUNDS_LEFT = 50
 export const PADDLE_BOUNDS_RIGHT = 1280 - 50
-export const BALL_DEATH_Y = 720 - 25
+/** Ball visuals + launch. */
+export const BALL_RADIUS = 8
+export const BALL_DEATH_Y = 720 + BALL_RADIUS
 
 /** Paddle visuals + movement. */
 export const PADDLE_WIDTH = 100
 export const PADDLE_HEIGHT = 20
 export const PADDLE_SPEED = 400 // px/s base
 export const PADDLE_FAST_MULT = 1.75 // Shift / FAST button
-
-/** Ball visuals + launch. */
-export const BALL_RADIUS = 8
 export const BALL_LAUNCH_SPEED = 250
 /** Launch angle, ±this many degrees from straight up. */
 export const BALL_LAUNCH_ANGLE_RANGE_DEG = 45

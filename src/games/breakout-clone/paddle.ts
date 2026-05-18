@@ -69,6 +69,13 @@ export class Paddle extends Container {
     return true
   }
 
+  /** Begin falling off-screen (game-over animation). Clears any upward
+   * momentum so the paddle only ever falls downward from this point. */
+  startFall(): void {
+    this.jumping = true
+    this.jumpVy = Math.max(this.jumpVy, 0)
+  }
+
   /** Integrate jump physics; call before `world.step()`. */
   updateJump(dtSec: number): void {
     if (!this.jumping) {

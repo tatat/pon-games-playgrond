@@ -259,7 +259,7 @@ export class MainScene extends Scene {
     this.world.timestep = dtSec
     this.world.step(this.eventQueue)
     this.drainContacts()
-    if (this.paddle.checkLanding()) this.tweenPaddleLandSquash()
+    if (this.phase !== 'gameover' && this.paddle.checkLanding()) this.tweenPaddleLandSquash()
     this.paddle.clampToBounds()
     this.paddle.syncView()
     this.ball.syncView()
@@ -584,11 +584,11 @@ export class MainScene extends Scene {
     this.state.loseLife()
     this.hud.setLives(this.state.lives)
     this.ball.freeze()
-    this.ball.setPosition(CENTER_X, BALL_START_Y)
 
     if (this.state.lives <= 0) {
       this.enterGameOver()
     } else {
+      this.ball.setPosition(CENTER_X, BALL_START_Y)
       this.phase = 'resetting'
       this.resetCountdownMs = BALL_RESET_DELAY_MS
     }
@@ -603,6 +603,7 @@ export class MainScene extends Scene {
   private enterGameOver(): void {
     this.phase = 'gameover'
     this.state.isGameOver = true
+    this.paddle.startFall()
     const final = this.state.score
     this.hud.showGameOver(final)
     this.options.onGameOver?.(final)
