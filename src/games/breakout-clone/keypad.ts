@@ -380,34 +380,32 @@ function makeHoldColumn(
   c.hitArea = new Rectangle(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
 
   const bg = new Graphics()
-  const drawBg = (pressed: boolean): void => {
-    bg.clear()
-    bg.rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H).fill({
-      color: pressed ? 0xffffff : 0x000000,
-      alpha: pressed ? 0.1 : 0.1,
-    })
-  }
-  drawBg(false)
+    .rect(0, 0, IN_CANVAS_COL_WIDTH, DESIGN_H)
+    .fill({ color: 0x000000, alpha: 0.1 })
   c.addChild(bg)
 
   const cx = IN_CANVAS_COL_WIDTH / 2
   const cy = DESIGN_H - IN_CANVAS_ARROW_FROM_BOTTOM
   const arrow = new Graphics()
-  if (side === 'left') {
-    arrow.poly([cx - 15, cy, cx + 10, cy - 15, cx + 10, cy + 15])
-  } else {
-    arrow.poly([cx + 15, cy, cx - 10, cy - 15, cx - 10, cy + 15])
+  const drawArrow = (pressed: boolean): void => {
+    arrow.clear()
+    if (side === 'left') {
+      arrow.poly([cx - 15, cy, cx + 10, cy - 15, cx + 10, cy + 15])
+    } else {
+      arrow.poly([cx + 15, cy, cx - 10, cy - 15, cx - 10, cy + 15])
+    }
+    arrow.fill({ color: 0xffffff, alpha: pressed ? 1 : 0.6 })
   }
-  arrow.fill({ color: 0xffffff, alpha: 0.6 })
+  drawArrow(false)
   c.addChild(arrow)
 
   const onDown = (e: { stopPropagation?(): void }): void => {
     e.stopPropagation?.()
-    drawBg(true)
+    drawArrow(true)
     input.press(side)
   }
   const onUp = (): void => {
-    drawBg(false)
+    drawArrow(false)
     input.release(side)
   }
   c.on('pointerdown', onDown)
@@ -525,19 +523,21 @@ class PadButton extends Container {
     if (this.labelText) this.labelText.position.set(0, 0)
   }
 
-  /** Pressed buttons brighten just enough to register as feedback —
-   * subtle, no flash. */
+  /** Pressed state: keep the same fill (no luminance flash) and just
+   * thicken / strengthen the outline so the button reads as "armed"
+   * without lighting up the player's view. */
   private redrawBg(): void {
     const { currentWidth: w, currentHeight: h } = this
     if (w === 0 || h === 0) return
     this.bg.clear()
-    const fillColor = this.pressed ? 0xffffff : 0x000000
-    const fillAlpha = this.pressed ? 0.15 : 0.3
-    const strokeAlpha = this.pressed ? 0.45 : 0.25
     this.bg
       .roundRect(-w / 2, -h / 2, w, h, 6)
-      .fill({ color: fillColor, alpha: fillAlpha })
-      .stroke({ color: 0xffffff, alpha: strokeAlpha, width: 1.5 })
+      .fill({ color: 0x000000, alpha: 0.3 })
+      .stroke({
+        color: 0xffffff,
+        alpha: this.pressed ? 0.5 : 0.25,
+        width: this.pressed ? 2 : 1.5,
+      })
   }
 }
 
