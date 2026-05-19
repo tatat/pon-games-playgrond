@@ -156,7 +156,25 @@ TERRAFORM_READONLY_SUBCMDS = frozenset(
 SHELL_CMDS = frozenset({"bash", "sh", "zsh", "fish", "ksh", "dash", "csh", "tcsh"})
 
 # Commands where inner command analysis is impractical, always ask
-ALWAYS_ASK_CMDS = frozenset({"xargs", "parallel"})
+ALWAYS_ASK_CMDS = frozenset({"parallel"})
+
+# ── xargs ────────────────────────────────────────────────────────────────────
+# Short options that take a value (either attached `-n5` or separated `-n 5`)
+XARGS_SHORT_WITH_ARG = frozenset({"a", "d", "E", "e", "I", "i", "L", "l", "n", "P", "s", "J", "R", "S"})
+# Long options that take a value (either `--opt=val` or `--opt val`)
+XARGS_LONG_WITH_ARG = frozenset(
+    {
+        "--arg-file",
+        "--delimiter",
+        "--eof",
+        "--replace",
+        "--max-lines",
+        "--max-args",
+        "--max-procs",
+        "--max-chars",
+        "--process-slot-var",
+    }
+)
 
 
 def strip_global_opts(tokens: list[str], opts_with_arg: frozenset[str]) -> list[str]:
@@ -346,6 +364,29 @@ def unwrap_transparent(cmd: str, tokens: list[str]) -> list[str] | None:
                 rest = rest[1:]
         return rest
 
+    # xargs [OPTIONS] [COMMAND [INITIAL-ARGS...]]
+    # If no COMMAND is given, xargs defaults to /bin/echo (safe).
+    if cmd == "xargs":
+        rest = tokens[1:]
+        while rest:
+            tok = rest[0]
+            if not tok.startswith("-"):
+                break
+            if tok.startswith("--"):
+                base = tok.split("=", 1)[0]
+                if base in XARGS_LONG_WITH_ARG and "=" not in tok and len(rest) > 1:
+                    rest = rest[2:]
+                else:
+                    rest = rest[1:]
+            else:
+                inner = tok[1:]
+                if inner and inner[0] in XARGS_SHORT_WITH_ARG:
+                    # -Xvalue (attached) or -X value (separated)
+                    rest = rest[1:] if len(inner) > 1 else rest[2:] if len(rest) > 1 else rest[1:]
+                else:
+                    rest = rest[1:]  # bare flag or combined short flags
+        return rest
+
     return None  # not a recognized transparent wrapper
 
 
@@ -485,9 +526,49 @@ def _run_tests() -> None:
     assert ask('bash -c "aws ecs register-task-definition"')
     assert ask("sh -c 'git push'")
 
-    # xargs/parallel — inner command unanalysable, always ask
-    assert ask("xargs aws")
+    # parallel — inner command unanalysable, always ask
     assert ask("parallel git push")
+
+    # xargs — inner command is analysed recursively
+    assert not ask("xargs")  # defaults to echo
+    assert not ask("xargs ls")
+    assert not ask("xargs -n1 echo hello")
+    assert not ask("xargs -t -r aws s3 ls")
+    assert not ask("xargs -I{} aws s3 ls {}")
+    assert ask("xargs rm -rf /tmp/foo")
+    assert ask("xargs git push origin main")
+    assert ask("xargs -P4 -n1 git push origin main")
+    assert ask("xargs -I{} aws ec2 terminate-instances --instance-ids {}")
+    assert ask("xargs --max-procs=4 --max-args=1 git push")
+    assert ask("xargs -0 sudo rm /tmp/x")
+    assert ask('xargs -I{} bash -c "git push"')
+
+    # xargs in pipelines — common real-world usage
+    assert not ask("cat files.txt | xargs ls")
+    assert not ask("find . -name '*.log' | xargs cat")
+    assert not ask("ls | xargs -I{} echo {}")
+    assert ask("find . -name '*.tmp' | xargs rm -rf")
+    assert ask("cat ids.txt | xargs -I{} aws ec2 terminate-instances --instance-ids {}")
+    assert ask("ls | xargs -P4 git push")
+    assert ask("find . -type f | xargs -0 -I{} sudo rm {}")
+    assert ask("git branch --merged | xargs -I{} git push --delete origin {}")
+
+    # Docker cleanup patterns
+    assert ask("docker ps -aq | xargs docker rm")
+    assert ask("docker images -q | xargs docker rmi")
+    assert ask("docker volume ls -q | xargs docker volume rm")
+
+    # Terraform state manipulation
+    assert ask("terraform state list | xargs -I{} terraform state rm {}")
+
+    # AWS bulk operations
+    assert ask("aws s3 ls s3://bucket/ | awk '{print $4}' | xargs -I{} aws s3 rm s3://bucket/{}")
+    assert ask("aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId' --output text | xargs aws ec2 terminate-instances --instance-ids")
+
+    # Safe-side: format / inspect over a file list
+    assert not ask("git ls-files '*.py' | xargs ruff format")
+    assert not ask("git diff --name-only | xargs cat")
+    assert not ask("find . -name '*.json' | xargs jq .")
 
     # regression: pipe should not cause risky segment to be missed
     assert ask("git push origin main | cat")
