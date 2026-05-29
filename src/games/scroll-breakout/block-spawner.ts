@@ -10,6 +10,8 @@ import {
   BLOCK_CULL_BEHIND,
   BLOCK_GAP_Y,
   BLOCK_H,
+  BLOCK_JITTER,
+  BLOCK_ROW_STAGGER_X,
   BLOCK_SIZE_MIN,
   BLOCK_SPAWN_AHEAD,
   BRICK_NAMES,
@@ -27,6 +29,21 @@ const TOTAL_ROWS = Math.floor((BLOCK_AREA_BOTTOM - BLOCK_AREA_TOP) / ROW_HEIGHT)
  * (where the avatar and start/aim text sit) clear so nothing overlaps the text. */
 const FIRST_COLUMN_X = DESIGN_W * 0.8
 
+/** Hand-authored column shapes (filled row indices, 0 = top) instead of random
+ * scatter, so each column reads as deliberate with an obvious lane. Indices
+ * beyond TOTAL_ROWS are ignored, so this degrades gracefully if the row count
+ * changes. */
+const COLUMN_PATTERNS: readonly (readonly number[])[] = [
+  [0, 1], // high wall — lane along the bottom
+  [2, 3], // low wall — lane along the top
+  [1, 2], // mid bar — lanes top and bottom
+  [0, 3], // pincer — lane through the middle
+  [0], // lone top
+  [3], // lone bottom
+  [0, 1, 2], // tall stack from the top — only the bottom open
+  [1, 2, 3], // tall stack from the bottom — only the top open
+]
+
 /** Derive display {width, height} for a texture at a given baseSize,
  * matching breakout-clone's sizeForAspect logic. */
 function sizeForAspect(baseSize: number, aspect: number): { width: number; height: number } {
@@ -42,6 +59,8 @@ export class BlockSpawner {
   private readonly callbacks: BlockSpawnerCallbacks
   /** World x of the next column to generate. */
   private frontierX = FIRST_COLUMN_X
+  /** Index of the previous column's pattern, to avoid repeating it. */
+  private lastPattern = -1
 
   constructor(
     private readonly world: RAPIER.World,
@@ -60,6 +79,16 @@ export class BlockSpawner {
     }
   }
 
+  /** Queue every block's bob target before the physics step. */
+  bobAll(timeSec: number): void {
+    for (const b of this.blocks) b.bob(timeSec)
+  }
+
+  /** Sync every block's view to its body after the physics step. */
+  syncViews(): void {
+    for (const b of this.blocks) b.syncView()
+  }
+
   /** Destroy blocks that have scrolled well behind the left view edge. */
   cullBehind(cameraX: number): void {
     const cutoff = cameraX - BLOCK_CULL_BEHIND
@@ -69,50 +98,52 @@ export class BlockSpawner {
     }
   }
 
-  /** A column of blocks at world x `cx`, random rows filled with clear lanes. */
+  /** A column of blocks at world x `cx`, shaped by a deliberate pattern (not a
+   * random scatter), avoiding an immediate repeat of the previous column. */
   private spawnColumnAt(cx: number, rng: Rng): void {
-    // Fill roughly 30-55% of rows so the ball has clear lanes to navigate.
-    const minFill = Math.max(1, Math.floor(TOTAL_ROWS * 0.3))
-    const maxFill = Math.max(1, Math.floor(TOTAL_ROWS * 0.55))
-    const fillCount = rng.intRange(minFill, maxFill)
-
-    const rows = Array.from({ length: TOTAL_ROWS }, (_, i) => i)
-    // Fisher-Yates shuffle, take first fillCount.
-    for (let i = rows.length - 1; i > 0; i--) {
-      const j = rng.intRange(0, i)
-      const tmp = rows[i]
-      const swapped = rows[j]
-      if (tmp !== undefined && swapped !== undefined) {
-        rows[i] = swapped
-        rows[j] = tmp
-      }
+    let p = rng.intRange(0, COLUMN_PATTERNS.length - 1)
+    if (p === this.lastPattern) p = (p + 1) % COLUMN_PATTERNS.length
+    this.lastPattern = p
+    const pattern = COLUMN_PATTERNS[p]
+    if (!pattern) return
+    // Don't repeat a sticker within the same column.
+    const usedNames = new Set<string>()
+    for (const row of pattern) {
+      if (row < TOTAL_ROWS) this.spawnBlockAt(cx, row, rng, usedNames)
     }
+  }
 
-    for (let r = 0; r < fillCount; r++) {
-      const row = rows[r]
-      if (row === undefined) continue
+  /** One block at column `cx`, row `row`, with a random sticker (distinct from
+   * others already in this column) and a freely varied display size. */
+  private spawnBlockAt(cx: number, row: number, rng: Rng, usedNames: Set<string>): void {
+    const available = BRICK_NAMES.filter((n) => !usedNames.has(n))
+    const name = rng.pick(available.length > 0 ? available : BRICK_NAMES)
+    usedNames.add(name)
+    const displayBase = rng.intRange(BLOCK_SIZE_MIN, BLOCK_H)
+    // Nearest available asset resolution for that size.
+    const assetSize = SCROLL_BRICK_SIZES.reduce((best, s) =>
+      Math.abs(s - displayBase) < Math.abs(best - displayBase) ? s : best,
+    )
+    const texture = Assets.get(`scroll-brick-${name}-${assetSize}`)
+    if (!texture) return
 
-      // Random sticker + a freely-varied display size in [MIN, BLOCK_H]; the
-      // texture is the nearest available asset resolution for that size.
-      const name = rng.pick(BRICK_NAMES)
-      const displayBase = rng.intRange(BLOCK_SIZE_MIN, BLOCK_H)
-      const assetSize = SCROLL_BRICK_SIZES.reduce((best, s) =>
-        Math.abs(s - displayBase) < Math.abs(best - displayBase) ? s : best,
-      )
-      const texture = Assets.get(`scroll-brick-${name}-${assetSize}`)
-      if (!texture) continue
+    // displayBase ≤ BLOCK_H so a block always fits inside its row cell
+    // (ROW_HEIGHT = BLOCK_H + gap) and never overlaps its neighbours.
+    const aspect = texture.width / texture.height
+    const { width, height } = sizeForAspect(displayBase, aspect)
 
-      // displayBase ≤ BLOCK_H so a block always fits inside its row cell
-      // (ROW_HEIGHT = BLOCK_H + gap) and never overlaps its neighbours.
-      const aspect = texture.width / texture.height
-      const { width, height } = sizeForAspect(displayBase, aspect)
+    // Jitter off the grid: X freely, Y only within the cell's spare room.
+    const slackY = Math.max(0, Math.floor((ROW_HEIGHT - height) / 2))
+    const jx = rng.intRange(-BLOCK_JITTER, BLOCK_JITTER)
+    const jy = rng.intRange(-Math.min(BLOCK_JITTER, slackY), Math.min(BLOCK_JITTER, slackY))
 
-      const cy = BLOCK_AREA_TOP + row * ROW_HEIGHT + BLOCK_H / 2
-      const block = new Block(this.world, texture, cx, cy, width, height)
-      this.parent.addChild(block)
-      this.blocks.push(block)
-      this.callbacks.onBlockAdded?.(block)
-    }
+    // Per-row horizontal stagger so the column's blocks don't line up vertically.
+    const staggerX = row * BLOCK_ROW_STAGGER_X
+    const cy = BLOCK_AREA_TOP + row * ROW_HEIGHT + BLOCK_H / 2 + jy
+    const block = new Block(this.world, texture, cx + staggerX + jx, cy, width, height)
+    this.parent.addChild(block)
+    this.blocks.push(block)
+    this.callbacks.onBlockAdded?.(block)
   }
 
   destroyBlock(block: Block): void {
@@ -131,6 +162,13 @@ export class BlockSpawner {
     block.removeFromWorld(this.world)
     const idx = this.blocks.indexOf(block)
     if (idx >= 0) this.blocks.splice(idx, 1)
+  }
+
+  /** Clear all blocks and rewind to the start, e.g. to rebuild with a new seed. */
+  reset(): void {
+    this.clear()
+    this.frontierX = FIRST_COLUMN_X
+    this.lastPattern = -1
   }
 
   clear(): void {

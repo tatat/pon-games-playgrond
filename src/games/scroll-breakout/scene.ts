@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier2d-compat'
 import { Assets, Container, Graphics, Rectangle } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { makeVirtualKeypad } from '../../engine/input/virtual-keypad'
+import { Rng } from '../../engine/rng'
 import { Scene, type SceneDelta } from '../../engine/scene'
 import { Easings } from '../../engine/util/tween'
 import { useRuntimeStore } from '../../store/runtime'
@@ -20,6 +21,7 @@ import {
   AIM_ROTATE_SPEED,
   BALL_DEATH_Y,
   BALL_LAUNCH_SPEED,
+  BALL_RADIUS,
   BALL_RESET_DELAY_MS,
   BALL_START_Y,
   BRICK_NAMES,
@@ -28,6 +30,7 @@ import {
   CEILING_BAND_H,
   CEILING_Y,
   DISTANCE_SCORE_FACTOR,
+  FIXED_COURSE_SEED,
   PADDLE_START_X,
   PADDLE_STICKER,
   PADDLE_STICKER_SIZE,
@@ -39,6 +42,7 @@ import {
 import { HUD, loadScoreFont } from './hud'
 import { Paddle } from './paddle'
 import { Starfield } from './starfield'
+import { useScrollBreakoutStore } from './store'
 
 const BACKGROUND_COLOR = 0x0a0a14
 const DEG_TO_RAD = Math.PI / 180
@@ -76,6 +80,9 @@ export class MainScene extends Scene {
   private ceiling!: ChevronBand
   private floor!: ChevronBand
   private blockSpawner!: BlockSpawner
+  /** RNG for the obstacle layout — a fixed seed (same course every run) or the
+   * session RNG (fresh each run), per the player's setting. */
+  private blockRng!: Rng
   private walls: Wall[] = []
   private phase: Phase = 'title'
   private lives = STARTING_LIVES
@@ -83,6 +90,8 @@ export class MainScene extends Scene {
   /** World scroll offset; the camera follows the paddle. */
   private cameraX = 0
   private resetCountdownMs = 0
+  /** Wall-clock since scene start, driving the block bob. */
+  private elapsedSec = 0
   private paddleColliderHandle = -1
   private ballColliderHandle = -1
   private blockByCollider = new Map<number, Block>()
@@ -162,9 +171,24 @@ export class MainScene extends Scene {
       onBlockAdded: (b) => this.blockByCollider.set(b.colliderHandle, b),
       onBlockRemoved: (b) => this.blockByCollider.delete(b.colliderHandle),
     })
+    // Fixed-course setting → a constant seed so every run/restart is identical;
+    // otherwise use the session RNG so each run is fresh.
+    this.blockRng = this.pickBlockRng()
     // Populate the course from the start; FIRST_COLUMN_X keeps the near 4/5
     // (and the start/aim text) clear, so blocks only appear toward the right.
-    this.blockSpawner.ensureAhead(this.cameraX, this.rng)
+    this.blockSpawner.ensureAhead(this.cameraX, this.blockRng)
+
+    // Re-roll the course live when the fixed-course setting is toggled, but only
+    // while it's static (title / aim) — mid-run we leave it for the next run.
+    this.use(
+      useScrollBreakoutStore.subscribe((s, prev) => {
+        if (s.fixedCourse === prev.fixedCourse) return
+        if (this.phase !== 'title' && this.phase !== 'aiming') return
+        this.blockRng = this.pickBlockRng()
+        this.blockSpawner.reset()
+        this.blockSpawner.ensureAhead(this.cameraX, this.blockRng)
+      }),
+    )
 
     // Make sure the Orbitron score font is ready before the HUD text is built.
     await loadScoreFont()
@@ -220,6 +244,7 @@ export class MainScene extends Scene {
 
   override onUpdate(dt: SceneDelta): void {
     const { dtMs, dtSec } = dt
+    this.elapsedSec += dtSec
     const launchJustPressed = this.input.wasJustPressed('launch')
 
     if (launchJustPressed) {
@@ -252,12 +277,14 @@ export class MainScene extends Scene {
 
     // Push paddle velocity (input + jump arc) to the body before the step.
     this.paddle.applyMotion(dtSec)
-    // Walls track the visible window; set before the step (kinematic bodies).
+    // Bob the blocks (kinematic) and track walls — both set before the step.
+    this.blockSpawner.bobAll(this.elapsedSec)
     this.updateWalls()
     this.world.timestep = dtSec
     this.world.step(this.eventQueue)
     this.drainContacts()
     this.paddle.clampToBounds()
+    this.blockSpawner.syncViews()
 
     const prevCameraX = this.cameraX
     this.updateCamera()
@@ -271,6 +298,7 @@ export class MainScene extends Scene {
       this.ball.setPosition(this.paddle.worldX, BALL_START_Y)
     }
     this.ball.syncView()
+    this.ball.animate(dtSec)
     // Aiming (guide + angle steering) is only live once past the title screen.
     const aiming = this.phase === 'aiming' || this.phase === 'resetting'
     this.updateAim(aiming, left, right, dtSec)
@@ -282,7 +310,7 @@ export class MainScene extends Scene {
 
     if (this.phase === 'playing') {
       this.maintainBallSpeed()
-      this.blockSpawner.ensureAhead(this.cameraX, this.rng)
+      this.blockSpawner.ensureAhead(this.cameraX, this.blockRng)
       this.blockSpawner.cullBehind(this.cameraX)
 
       this.reportScore()
@@ -360,6 +388,9 @@ export class MainScene extends Scene {
       if (!isBall1 && !isBall2) return
       const other = isBall1 ? h2 : h1
 
+      // Juicy feedback on every bounce — walls, paddle and blocks alike.
+      this.spawnBounceFx()
+
       // The paddle bounce is left entirely to the physics (circular collider,
       // restitution 1); the contact only drives a visual "boing".
       if (other === this.paddleColliderHandle) {
@@ -373,6 +404,30 @@ export class MainScene extends Scene {
     })
   }
 
+  /** A bounce pop on the ball plus an expanding ring at the impact point. The
+   * ring is redrawn each frame at a growing radius with a constant line width,
+   * so the outline stays crisp instead of softening as it would if scaled. */
+  private spawnBounceFx(): void {
+    this.ball.pop()
+    const t = this.ball.body.translation()
+    const ring = new Graphics()
+    ring.position.set(t.x, t.y)
+    ring.zIndex = 8
+    this.worldLayer.addChild(ring)
+    const r0 = BALL_RADIUS + 2
+    void this.tween({
+      duration: 240,
+      ease: Easings.easeOutQuad,
+      onUpdate: (k) => {
+        ring
+          .clear()
+          .circle(0, 0, r0 + k * 26)
+          .stroke({ width: 3, color: 0xffffff, alpha: 0.85 * (1 - k) })
+      },
+      onComplete: () => ring.destroy(),
+    })
+  }
+
   /** Keep the ball at a steady speed: the physics decides the direction (so the
    * circular paddle, walls and dashing all bounce naturally), and this clamps
    * the magnitude so dashing can't pump it out of control or grazes stall it. */
@@ -382,6 +437,12 @@ export class MainScene extends Scene {
     if (speed < 1) return
     const k = BALL_LAUNCH_SPEED / speed
     this.ball.setVelocity(v.x * k, v.y * k)
+  }
+
+  /** A fresh fixed-seed RNG (same course every run) or the session RNG (fresh
+   * each run), per the player's setting. */
+  private pickBlockRng(): Rng {
+    return useScrollBreakoutStore.getState().fixedCourse ? new Rng(FIXED_COURSE_SEED) : this.rng
   }
 
   private onBlockHit(block: Block): void {

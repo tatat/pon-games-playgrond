@@ -84,10 +84,21 @@ export const BLOCK_GAP_Y = 10
 
 /** World-space gap between successive block columns. */
 export const BLOCK_COLUMN_GAP = 240
+/** Per-block random position jitter (px) so the deliberate patterns don't look
+ * mechanically grid-snapped. X is free; Y is additionally capped to the cell's
+ * spare room so blocks still never overlap their row neighbours. */
+export const BLOCK_JITTER = 28
+/** Horizontal stagger per row (px): each row is shifted right by row × this, so
+ * a column's blocks land at distinct x (a diagonal) instead of a vertical bar.
+ * Intra-row spacing stays BLOCK_COLUMN_GAP, so nothing overlaps. */
+export const BLOCK_ROW_STAGGER_X = 70
 /** Generate columns until the frontier is this far past the right view edge. */
 export const BLOCK_SPAWN_AHEAD = 400
 /** Destroy blocks this far behind the left view edge. */
 export const BLOCK_CULL_BEHIND = 600
+
+/** Seed used when the "fixed course" setting is on, so every run is identical. */
+export const FIXED_COURSE_SEED = 0x5c2055
 
 /** Base sizes used to look up sticker assets (same @2x naming as breakout-clone). */
 export const SCROLL_BRICK_SIZES = [64, 96, 128] as const
@@ -95,6 +106,12 @@ export const SCROLL_BRICK_SIZES = [64, 96, 128] as const
 /** Vertical range where blocks are spawned. */
 export const BLOCK_AREA_TOP = 64
 export const BLOCK_AREA_BOTTOM = 586
+
+/** Gentle floating bob for blocks — visual only; the collider stays put.
+ * Amplitude (px), frequency (rad/s) and a small rotation sway (rad). */
+export const BLOCK_BOB_AMP = 7
+export const BLOCK_BOB_FREQ = 2.2
+export const BLOCK_BOB_ROT = 0.06
 
 /** Score per world pixel advanced — 1 point every 100px, so points accrue
  * slowly and each one feels earned. */

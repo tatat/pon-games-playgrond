@@ -2,9 +2,15 @@ import RAPIER from '@dimforge/rapier2d-compat'
 import { Container, Graphics } from 'pixi.js'
 import { BALL_RADIUS } from './constants'
 
+/** Scale punch on bounce: snaps to 1 + AMP, then eases back to 1. */
+const POP_AMP = 0.55
+const POP_DECAY = 16
+
 export class Ball extends Container {
   readonly body: RAPIER.RigidBody
   readonly colliderHandle: number
+  /** Time since the last bounce pop; < 0 when idle. */
+  private popTime = -1
 
   constructor(world: RAPIER.World, startX: number, startY: number) {
     super()
@@ -50,9 +56,27 @@ export class Ball extends Container {
     this.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true)
   }
 
+  /** Trigger a scale punch — call when the ball bounces. */
+  pop(): void {
+    this.popTime = 0
+  }
+
   syncView(): void {
     const t = this.body.translation()
     this.position.set(t.x, t.y)
+  }
+
+  /** Ease the bounce pop each frame (visual only — the collider is unchanged). */
+  animate(dtSec: number): void {
+    if (this.popTime < 0) return
+    this.popTime += dtSec
+    const a = POP_AMP * Math.exp(-this.popTime * POP_DECAY)
+    if (a < 0.02) {
+      this.popTime = -1
+      this.scale.set(1)
+    } else {
+      this.scale.set(1 + a)
+    }
   }
 
   removeFromWorld(world: RAPIER.World): void {

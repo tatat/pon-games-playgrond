@@ -4,9 +4,11 @@ import { attachAutoPause } from '../../engine/auto-pause'
 import { attachLayout } from '../../engine/layout'
 import { Rng } from '../../engine/rng'
 import { SceneManager } from '../../engine/scene-manager'
+import { useRuntimeStore } from '../../store/runtime'
 import type { GameContext, GameHandle, GameModule } from '../types'
 import { GAME_ID } from './constants'
 import { MainScene, type MainSceneOptions } from './scene'
+import { buildScrollBreakoutSettingsPanel } from './settings-panel'
 
 export const scrollBreakoutGame: GameModule = {
   uiTheme: {
@@ -16,7 +18,8 @@ export const scrollBreakoutGame: GameModule = {
 
   async start(app: Application, ctx: GameContext, signal: AbortSignal): Promise<GameHandle> {
     const rng = new Rng(ctx.config.seed)
-    const layout = attachLayout(app, {})
+    const gameSettings = buildScrollBreakoutSettingsPanel(useRuntimeStore.getState().uiTheme)
+    const layout = attachLayout(app, { gameSettings })
     const autoPause = attachAutoPause(app)
     const sm = new SceneManager(layout, app.ticker, GAME_ID, rng)
 
