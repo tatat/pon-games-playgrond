@@ -29,6 +29,14 @@ export default function Home() {
             Breakout Clone
           </Link>
         </li>
+        <li>
+          <Link
+            to="/rally-runner"
+            style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
+          >
+            Rally Runner
+          </Link>
+        </li>
       </ul>
     </div>
   )
