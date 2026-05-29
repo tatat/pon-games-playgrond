@@ -89,8 +89,9 @@ export const SCROLL_BRICK_SIZES = [64, 96, 128] as const
 export const BLOCK_AREA_TOP = 64
 export const BLOCK_AREA_BOTTOM = 586
 
-/** Score per world pixel advanced (distance travelled). */
-export const DISTANCE_SCORE_FACTOR = 0.1
+/** Score per world pixel advanced — 1 point every 100px, so points accrue
+ * slowly and each one feels earned. */
+export const DISTANCE_SCORE_FACTOR = 0.01
 
 /** Sticker asset names shared with breakout-clone. */
 export const BRICK_NAMES = ['d1', 'd2', 'r1', 'r2', 't1', 't2'] as const

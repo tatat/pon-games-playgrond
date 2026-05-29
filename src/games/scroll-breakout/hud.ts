@@ -2,13 +2,40 @@ import { Container, Graphics, Text } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 
 const WHITE = 0xffffff
+/** Shared alert red: the game-over text and a negative score use this. */
+const ALERT_RED = 0xff6b6b
 const FONT = 'Courier, "Courier New", monospace'
+/** Comic/pop display face for the score (Google Fonts), with fallbacks. */
+const SCORE_FONT = '"Luckiest Guy", system-ui, sans-serif'
 
 const TITLE_TEXT = 'Press SPACE / TAP to start\n\n← → / A D : Move    SHIFT : Fast'
 const AIM_TEXT = 'Aim with ← →     SPACE / TAP : Launch'
 
+const SCORE_FONT_LINK_ID = 'sb-score-font'
+const SCORE_FONT_HREF = 'https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap'
+
+/** Ensure the score web font is loaded before the HUD builds its text, so the
+ * score renders in it rather than a fallback. Idempotent, and resolves even if
+ * the network/font is unavailable (the HUD then falls back to system-ui). */
+export async function loadScoreFont(): Promise<void> {
+  if (typeof document === 'undefined') return
+  if (!document.getElementById(SCORE_FONT_LINK_ID)) {
+    const link = document.createElement('link')
+    link.id = SCORE_FONT_LINK_ID
+    link.rel = 'stylesheet'
+    link.href = SCORE_FONT_HREF
+    document.head.appendChild(link)
+  }
+  try {
+    await document.fonts.load('64px "Luckiest Guy"')
+  } catch {
+    // Font unavailable — fall back to system-ui.
+  }
+}
+
 export class HUD extends Container {
-  private readonly scoreText: Text
+  private readonly scoreLabel: Text
+  private readonly scoreValue: Text
   private readonly startText: Text
   private readonly gameOverText: Text
   private readonly overlay: Graphics
@@ -17,18 +44,36 @@ export class HUD extends Container {
     super()
     this.zIndex = 100
 
+    // Score is added before the overlay so it renders behind it — the title /
+    // game-over dim sits on top of the big number.
+    this.scoreLabel = new Text({
+      text: 'SCORE',
+      style: {
+        fill: 0x9a9ab5,
+        fontSize: 16,
+        fontFamily: SCORE_FONT,
+        letterSpacing: 3,
+      },
+    })
+    this.scoreLabel.position.set(50, 40)
+    this.addChild(this.scoreLabel)
+
+    this.scoreValue = new Text({
+      text: '0',
+      style: {
+        fill: WHITE,
+        fontSize: 170,
+        fontFamily: SCORE_FONT,
+      },
+    })
+    // Number's left edge aligned to the SCORE label.
+    this.scoreValue.position.set(50, 40)
+    this.addChild(this.scoreValue)
+
     this.overlay = new Graphics()
       .rect(0, 0, DESIGN_W, DESIGN_H)
       .fill({ color: 0x000000, alpha: 0.55 })
     this.addChild(this.overlay)
-
-    this.scoreText = new Text({
-      text: 'Score: 0',
-      style: { fill: WHITE, fontSize: 20, fontFamily: FONT },
-    })
-    this.scoreText.position.set(20, 16)
-    this.scoreText.zIndex = 101
-    this.addChild(this.scoreText)
 
     this.startText = new Text({
       text: TITLE_TEXT,
@@ -48,7 +93,7 @@ export class HUD extends Container {
     this.gameOverText = new Text({
       text: '',
       style: {
-        fill: 0xff6b6b,
+        fill: ALERT_RED,
         fontSize: 32,
         fontFamily: FONT,
         align: 'center',
@@ -63,7 +108,9 @@ export class HUD extends Container {
   }
 
   setScore(score: number): void {
-    this.scoreText.text = `Score: ${score}`
+    this.scoreValue.text = `${score}`
+    // Below the start point the score goes negative — flag it in alert red.
+    this.scoreValue.tint = score < 0 ? ALERT_RED : WHITE
   }
 
   /** Opening screen: dimmed overlay + title/instructions. */

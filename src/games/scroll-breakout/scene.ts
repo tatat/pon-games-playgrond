@@ -37,7 +37,7 @@ import {
   WALL_THICKNESS,
   WORLD_MIN_X,
 } from './constants'
-import { HUD } from './hud'
+import { HUD, loadScoreFont } from './hud'
 import { Paddle } from './paddle'
 import { Starfield } from './starfield'
 
@@ -167,6 +167,8 @@ export class MainScene extends Scene {
     // (and the start/aim text) clear, so blocks only appear toward the right.
     this.blockSpawner.ensureAhead(this.cameraX, this.rng)
 
+    // Make sure the Orbitron score font is ready before the HUD text is built.
+    await loadScoreFont()
     this.hud = new HUD()
     this.addChild(this.hud)
     this.hud.setScore(0)
