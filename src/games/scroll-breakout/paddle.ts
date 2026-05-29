@@ -4,10 +4,17 @@ import {
   PADDLE_CENTER_Y,
   PADDLE_DISPLAY_H,
   PADDLE_FAST_MULT,
+  PADDLE_JUMP_GRAVITY,
+  PADDLE_JUMP_SPEED,
+  PADDLE_MAX_TILT_DEG,
+  PADDLE_MAX_TILT_FAST_DEG,
   PADDLE_MIN_X,
   PADDLE_RADIUS,
   PADDLE_SPEED,
+  PADDLE_TILT_LERP,
 } from './constants'
+
+const DEG_TO_RAD = Math.PI / 180
 
 /** The player avatar: a Sticker-Drift-style sticker sprite riding a simple
  * circular collider. The scene's contact handler reshapes the ball's velocity
@@ -16,15 +23,22 @@ import {
 export class Paddle extends Container {
   readonly body: RAPIER.RigidBody
   readonly colliderHandle: number
+  /** Sticker sprite; tilted toward the travel direction (collider unaffected). */
+  private readonly sprite: Sprite
+  private tilt = 0
+  /** Horizontal speed from input and vertical speed from a jump arc. */
+  private vx = 0
+  private vy = 0
+  private grounded = true
 
   constructor(world: RAPIER.World, startX: number, texture: Texture) {
     super()
 
-    const sprite = new Sprite(texture)
-    sprite.anchor.set(0.5)
+    this.sprite = new Sprite(texture)
+    this.sprite.anchor.set(0.5)
     // @2x textures report their logical height; scale to the target display height.
-    sprite.scale.set(PADDLE_DISPLAY_H / texture.height)
-    this.addChild(sprite)
+    this.sprite.scale.set(PADDLE_DISPLAY_H / texture.height)
+    this.addChild(this.sprite)
 
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicVelocityBased().setTranslation(startX, PADDLE_CENTER_Y),
@@ -38,29 +52,46 @@ export class Paddle extends Container {
     this.position.set(startX, PADDLE_CENTER_Y)
   }
 
-  setVelocityX(vx: number): void {
-    this.body.setLinvel({ x: vx, y: 0 }, true)
-  }
-
   get velocityX(): number {
-    return this.body.linvel().x
+    return this.vx
   }
 
   applyInput(left: boolean, right: boolean, fast: boolean): void {
     const speed = PADDLE_SPEED * (fast ? PADDLE_FAST_MULT : 1)
-    if (left && !right) this.setVelocityX(-speed)
-    else if (right && !left) this.setVelocityX(speed)
-    else this.setVelocityX(0)
+    if (left && !right) this.vx = -speed
+    else if (right && !left) this.vx = speed
+    else this.vx = 0
   }
 
-  /** World-space left clamp only; the paddle advances rightward without bound
-   * (the camera follows it). */
+  /** Start a hop if standing on the ground line. */
+  jump(): void {
+    if (!this.grounded) return
+    this.vy = -PADDLE_JUMP_SPEED
+    this.grounded = false
+  }
+
+  /** Integrate jump gravity and push the combined velocity to the body. Call
+   * each frame before the physics step. */
+  applyMotion(dtSec: number): void {
+    if (!this.grounded) this.vy += PADDLE_JUMP_GRAVITY * dtSec
+    this.body.setLinvel({ x: this.vx, y: this.vy }, true)
+  }
+
+  /** After the step: clamp to the world-left edge and land back on the ground
+   * line. The paddle advances rightward without bound (the camera follows it). */
   clampToBounds(): void {
-    const x = this.body.translation().x
-    if (x >= PADDLE_MIN_X) return
-    const y = this.body.translation().y
-    this.body.setTranslation({ x: PADDLE_MIN_X, y }, true)
-    if (this.body.linvel().x < 0) this.body.setLinvel({ x: 0, y: 0 }, true)
+    const t = this.body.translation()
+    let { x, y } = t
+    if (x < PADDLE_MIN_X) {
+      x = PADDLE_MIN_X
+      if (this.vx < 0) this.vx = 0
+    }
+    if (!this.grounded && this.vy >= 0 && y >= PADDLE_CENTER_Y) {
+      y = PADDLE_CENTER_Y
+      this.vy = 0
+      this.grounded = true
+    }
+    if (x !== t.x || y !== t.y) this.body.setTranslation({ x, y }, true)
   }
 
   get worldX(): number {
@@ -70,6 +101,20 @@ export class Paddle extends Container {
   syncView(): void {
     const t = this.body.translation()
     this.position.set(t.x, t.y)
+  }
+
+  /** Ease the sprite's tilt toward the current travel direction. Only the
+   * sprite rotates — the circular collider and body stay put, so hit detection
+   * is unchanged. */
+  lean(dtSec: number): void {
+    const vx = this.body.linvel().x
+    // Dashing (velocity above the normal speed) leans the sprite further.
+    const dashing = Math.abs(vx) > PADDLE_SPEED * 1.01
+    const maxDeg = dashing ? PADDLE_MAX_TILT_FAST_DEG : PADDLE_MAX_TILT_DEG
+    const target = Math.sign(vx) * maxDeg * DEG_TO_RAD
+    const k = Math.min(1, dtSec * PADDLE_TILT_LERP)
+    this.tilt += (target - this.tilt) * k
+    this.sprite.rotation = this.tilt
   }
 
   removeFromWorld(world: RAPIER.World): void {

@@ -6,21 +6,21 @@ import {
   CEILING_COLORS,
   CEILING_PULSE_MS,
   CEILING_TILE_W,
-  CEILING_Y,
 } from './constants'
 
-/** A solid band along the top edge, sliced into ">"-shaped slabs whose seams
- * interlock (each slab's right edge is a chevron point, its left edge the
- * matching notch). The two slab colours swap every CEILING_PULSE_MS (ABAB ⇄
- * BABA) so the chevrons read as flowing right. White-base, recoloured by tint. */
-export class Ceiling extends Container {
+/** A solid band sliced into ">"-shaped slabs whose seams interlock (each slab's
+ * right edge is a chevron point, its left edge the matching notch). The two slab
+ * colours swap every CEILING_PULSE_MS (ABAB ⇄ BABA) so the chevrons read as
+ * flowing right. White-base, recoloured by tint. Used for both the ceiling and
+ * floor rails; `topY` is the band's top edge in screen space. */
+export class ChevronBand extends Container {
   private readonly slabs: Graphics[] = []
   private elapsedMs = 0
   private phase = 0
 
-  constructor() {
+  constructor(topY: number) {
     super()
-    this.y = CEILING_Y
+    this.y = topY
     const w = CEILING_TILE_W
     const h = CEILING_BAND_H
     const d = CEILING_CHEVRON_DEPTH

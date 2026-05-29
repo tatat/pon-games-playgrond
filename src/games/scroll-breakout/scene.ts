@@ -7,12 +7,15 @@ import { useRuntimeStore } from '../../store/runtime'
 import { Ball } from './ball'
 import type { Block } from './block'
 import { BlockSpawner } from './block-spawner'
-import { Ceiling } from './ceiling'
+import { ChevronBand } from './chevron-band'
 import {
+  AIM_ALPHA_MAX,
+  AIM_ALPHA_MIN,
   AIM_DEFAULT_DEG,
   AIM_LINE_LEN,
   AIM_MAX_DEG,
   AIM_MIN_DEG,
+  AIM_PULSE_PERIOD_SEC,
   AIM_ROTATE_SPEED,
   BALL_DEATH_Y,
   BALL_LAUNCH_SPEED,
@@ -21,6 +24,8 @@ import {
   BRICK_NAMES,
   CAMERA_FOLLOW_LEFT,
   CAMERA_FOLLOW_RIGHT,
+  CEILING_BAND_H,
+  CEILING_Y,
   DISTANCE_SCORE_FACTOR,
   PADDLE_BOUNCE_INFLUENCE,
   PADDLE_RADIUS,
@@ -30,6 +35,7 @@ import {
   SCROLL_BRICK_SIZES,
   STARTING_LIVES,
   WALL_THICKNESS,
+  WORLD_MIN_X,
 } from './constants'
 import { HUD } from './hud'
 import { Paddle } from './paddle'
@@ -63,9 +69,13 @@ export class MainScene extends Scene {
   /** Aim guide shown before launch; left/right rotate launchAngleDeg. */
   private aim!: Graphics
   private launchAngleDeg = AIM_DEFAULT_DEG
+  /** Drives the aim guide's slow opacity pulse. */
+  private aimPulseSec = 0
   private hud!: HUD
   private starfield!: Starfield
-  private ceiling!: Ceiling
+  /** Chevron rails along the top and bottom edges. */
+  private ceiling!: ChevronBand
+  private floor!: ChevronBand
   private blockSpawner!: BlockSpawner
   private walls: Wall[] = []
   private phase: Phase = 'title'
@@ -92,9 +102,13 @@ export class MainScene extends Scene {
     this.starfield.zIndex = -50
     this.addChild(this.starfield)
 
-    this.ceiling = new Ceiling()
+    this.ceiling = new ChevronBand(CEILING_Y)
     this.ceiling.zIndex = -5
     this.addChild(this.ceiling)
+
+    this.floor = new ChevronBand(DESIGN_H - CEILING_BAND_H)
+    this.floor.zIndex = -5
+    this.addChild(this.floor)
 
     await this.preload(
       [
@@ -140,7 +154,7 @@ export class MainScene extends Scene {
     for (let x = 0; x < AIM_LINE_LEN; x += dash + gap) {
       this.aim.moveTo(x, 0).lineTo(Math.min(x + dash, AIM_LINE_LEN), 0)
     }
-    this.aim.stroke({ width: 3, color: 0xffffff, alpha: 0.7, cap: 'round' })
+    this.aim.stroke({ width: 3, color: 0xffffff, alpha: 1, cap: 'round' })
     this.aim.zIndex = 9
     this.aim.visible = false
     this.worldLayer.addChild(this.aim)
@@ -215,6 +229,9 @@ export class MainScene extends Scene {
       } else if (this.phase === 'aiming') {
         // Second press launches along the chosen angle.
         this.startGame()
+      } else if (this.phase === 'playing') {
+        // While playing, the action button makes the avatar hop.
+        this.paddle.jump()
       } else if (this.phase === 'gameover') {
         this.options.onRequestRestart?.()
       }
@@ -232,6 +249,8 @@ export class MainScene extends Scene {
       this.paddle.applyInput(false, false, false)
     }
 
+    // Push paddle velocity (input + jump arc) to the body before the step.
+    this.paddle.applyMotion(dtSec)
     // Walls track the visible window; set before the step (kinematic bodies).
     this.updateWalls()
     this.world.timestep = dtSec
@@ -244,6 +263,7 @@ export class MainScene extends Scene {
     this.worldLayer.x = -this.cameraX
 
     this.paddle.syncView()
+    this.paddle.lean(dtSec)
     // Ball rides the paddle on the title / aim / reset screens.
     const onPaddle = this.phase === 'title' || this.phase === 'aiming' || this.phase === 'resetting'
     if (onPaddle) {
@@ -255,6 +275,7 @@ export class MainScene extends Scene {
     this.updateAim(aiming, left, right, dtSec)
     this.starfield.update(this.cameraX - prevCameraX)
     this.ceiling.update(dtMs)
+    this.floor.update(dtMs)
 
     this.updateTweens(dtMs)
 
@@ -316,7 +337,7 @@ export class MainScene extends Scene {
   // ── Camera ───────────────────────────────────────────────────────────────
 
   /** Free two-way follow: keep the paddle inside a screen-space dead-zone by
-   * scrolling when it pushes an edge. Never scrolls before world x = 0. */
+   * scrolling when it pushes an edge. Never scrolls before WORLD_MIN_X. */
   private updateCamera(): void {
     const screenX = this.paddle.worldX - this.cameraX
     if (screenX > CAMERA_FOLLOW_RIGHT) {
@@ -324,7 +345,7 @@ export class MainScene extends Scene {
     } else if (screenX < CAMERA_FOLLOW_LEFT) {
       this.cameraX -= CAMERA_FOLLOW_LEFT - screenX
     }
-    if (this.cameraX < 0) this.cameraX = 0
+    if (this.cameraX < WORLD_MIN_X) this.cameraX = WORLD_MIN_X
   }
 
   // ── Contact handling ────────────────────────────────────────────────────
@@ -405,6 +426,10 @@ export class MainScene extends Scene {
     const t = this.ball.body.translation()
     this.aim.position.set(t.x, t.y)
     this.aim.rotation = -this.launchAngleDeg * DEG_TO_RAD
+    // Slow opacity pulse (blink) to draw the eye to the aim.
+    this.aimPulseSec += dtSec
+    const k = 0.5 + 0.5 * Math.sin((this.aimPulseSec / AIM_PULSE_PERIOD_SEC) * 2 * Math.PI)
+    this.aim.alpha = AIM_ALPHA_MIN + (AIM_ALPHA_MAX - AIM_ALPHA_MIN) * k
     this.aim.visible = true
   }
 
@@ -436,10 +461,10 @@ export class MainScene extends Scene {
   }
 
   private currentScore(): number {
-    // Distance the ball has carried forward from the start point; the ball
-    // falling back (or being left behind) lowers the score.
-    const distance = Math.max(0, this.ball.body.translation().x - PADDLE_START_X)
-    return Math.floor(distance * DISTANCE_SCORE_FACTOR)
+    // Signed distance from the start point: backing up past the start (into the
+    // negative region) drives the score below zero.
+    const distance = this.ball.body.translation().x - PADDLE_START_X
+    return Math.trunc(distance * DISTANCE_SCORE_FACTOR)
   }
 
   private reportScore(): void {
