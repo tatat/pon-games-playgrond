@@ -82,8 +82,13 @@ export const BLOCK_SIZE_MIN = 64
 export const BLOCK_H = 112
 export const BLOCK_GAP_Y = 10
 
-/** World-space gap between successive block columns. */
+/** World-space gap between successive block columns at the start; it tightens
+ * toward BLOCK_COLUMN_GAP_MIN as the difficulty ramps with distance. */
 export const BLOCK_COLUMN_GAP = 240
+export const BLOCK_COLUMN_GAP_MIN = 190
+/** Distance (world px, past the first column) over which difficulty ramps from
+ * 0 (easiest) to 1 (hardest): tighter columns and fuller block patterns. */
+export const DIFFICULTY_RAMP_DISTANCE = 6000
 /** Per-block random position jitter (px) so the deliberate patterns don't look
  * mechanically grid-snapped. X is free; Y is additionally capped to the cell's
  * spare room so blocks still never overlap their row neighbours. */

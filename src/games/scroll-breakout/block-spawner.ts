@@ -7,6 +7,7 @@ import {
   BLOCK_AREA_BOTTOM,
   BLOCK_AREA_TOP,
   BLOCK_COLUMN_GAP,
+  BLOCK_COLUMN_GAP_MIN,
   BLOCK_CULL_BEHIND,
   BLOCK_GAP_Y,
   BLOCK_H,
@@ -15,6 +16,7 @@ import {
   BLOCK_SIZE_MIN,
   BLOCK_SPAWN_AHEAD,
   BRICK_NAMES,
+  DIFFICULTY_RAMP_DISTANCE,
   SCROLL_BRICK_SIZES,
 } from './constants'
 
@@ -30,19 +32,28 @@ const TOTAL_ROWS = Math.floor((BLOCK_AREA_BOTTOM - BLOCK_AREA_TOP) / ROW_HEIGHT)
 const FIRST_COLUMN_X = DESIGN_W * 0.8
 
 /** Hand-authored column shapes (filled row indices, 0 = top) instead of random
- * scatter, so each column reads as deliberate with an obvious lane. Indices
- * beyond TOTAL_ROWS are ignored, so this degrades gracefully if the row count
- * changes. */
+ * scatter, so each column reads as deliberate with an obvious lane. Ordered
+ * easy → hard (block count) — the difficulty ramp widens the pickable range.
+ * Indices beyond TOTAL_ROWS are ignored, so this degrades gracefully if the row
+ * count changes. */
 const COLUMN_PATTERNS: readonly (readonly number[])[] = [
+  [0], // lone top
+  [3], // lone bottom
   [0, 1], // high wall — lane along the bottom
   [2, 3], // low wall — lane along the top
   [1, 2], // mid bar — lanes top and bottom
   [0, 3], // pincer — lane through the middle
-  [0], // lone top
-  [3], // lone bottom
   [0, 1, 2], // tall stack from the top — only the bottom open
   [1, 2, 3], // tall stack from the bottom — only the top open
 ]
+/** Highest pattern index pickable at difficulty 0 (only the 1–2 block shapes);
+ * the ramp raises the ceiling toward the full set. */
+const EASY_PATTERN_HI = 3
+
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
+const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
+/** 0 (easiest) at the first column, ramping to 1 over DIFFICULTY_RAMP_DISTANCE. */
+const difficultyAt = (x: number): number => clamp01((x - FIRST_COLUMN_X) / DIFFICULTY_RAMP_DISTANCE)
 
 /** Derive display {width, height} for a texture at a given baseSize,
  * matching breakout-clone's sizeForAspect logic. */
@@ -70,12 +81,14 @@ export class BlockSpawner {
     this.callbacks = callbacks
   }
 
-  /** Generate columns until the frontier is past the right view edge. */
+  /** Generate columns until the frontier is past the right view edge. Column
+   * spacing tightens with distance as the difficulty ramps. */
   ensureAhead(cameraX: number, rng: Rng): void {
     const limit = cameraX + DESIGN_W + BLOCK_SPAWN_AHEAD
     while (this.frontierX < limit) {
       this.spawnColumnAt(this.frontierX, rng)
-      this.frontierX += BLOCK_COLUMN_GAP
+      const gap = lerp(BLOCK_COLUMN_GAP, BLOCK_COLUMN_GAP_MIN, difficultyAt(this.frontierX))
+      this.frontierX += gap
     }
   }
 
@@ -99,10 +112,12 @@ export class BlockSpawner {
   }
 
   /** A column of blocks at world x `cx`, shaped by a deliberate pattern (not a
-   * random scatter), avoiding an immediate repeat of the previous column. */
+   * random scatter), avoiding an immediate repeat. The pickable pattern range
+   * widens with distance, so fuller/harder shapes appear as you progress. */
   private spawnColumnAt(cx: number, rng: Rng): void {
-    let p = rng.intRange(0, COLUMN_PATTERNS.length - 1)
-    if (p === this.lastPattern) p = (p + 1) % COLUMN_PATTERNS.length
+    const hi = Math.round(lerp(EASY_PATTERN_HI, COLUMN_PATTERNS.length - 1, difficultyAt(cx)))
+    let p = rng.intRange(0, hi)
+    if (p === this.lastPattern) p = p >= hi ? 0 : p + 1
     this.lastPattern = p
     const pattern = COLUMN_PATTERNS[p]
     if (!pattern) return
