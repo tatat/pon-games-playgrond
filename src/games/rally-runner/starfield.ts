@@ -13,7 +13,7 @@ interface Star {
 
 /** Parallax background: faint circles drifting left and wrapping to the right
  * edge, their speed scaled by the world scroll speed. Ported from
- * sticker-drift's Starfield to give scroll-breakout a sense of flowing motion. */
+ * sticker-drift's Starfield to give rally-runner a sense of flowing motion. */
 export class Starfield extends Container {
   private readonly stars: Star[] = []
 

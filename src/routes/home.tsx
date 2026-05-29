@@ -31,10 +31,10 @@ export default function Home() {
         </li>
         <li>
           <Link
-            to="/scroll-breakout"
+            to="/rally-runner"
             style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
           >
-            Scroll Breakout
+            Rally Runner
           </Link>
         </li>
       </ul>

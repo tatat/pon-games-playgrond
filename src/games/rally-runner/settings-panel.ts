@@ -1,18 +1,18 @@
 import type { GameSettingsPanel, SettingsRow } from '../../engine/settings-ui'
 import { makeCheckbox } from '../../engine/ui/checkbox'
 import type { UiTheme } from '../../engine/ui-theme'
-import { useScrollBreakoutStore } from './store'
+import { useRallyRunnerStore } from './store'
 
-/** Build the scroll-breakout settings tab: a single toggle choosing between a
+/** Build the rally-runner settings tab: a single toggle choosing between a
  * fixed (same every run) and a random obstacle course. Persisted via
- * `useScrollBreakoutStore`; read when a run starts. */
-export function buildScrollBreakoutSettingsPanel(_theme: UiTheme): GameSettingsPanel {
+ * `useRallyRunnerStore`; read when a run starts. */
+export function buildRallyRunnerSettingsPanel(_theme: UiTheme): GameSettingsPanel {
   const disposers: Array<() => void> = []
 
   const fixed = makeCheckbox({
-    getValue: () => useScrollBreakoutStore.getState().fixedCourse,
-    onChange: (v) => useScrollBreakoutStore.getState().setFixedCourse(v),
-    subscribe: (cb) => useScrollBreakoutStore.subscribe(cb),
+    getValue: () => useRallyRunnerStore.getState().fixedCourse,
+    onChange: (v) => useRallyRunnerStore.getState().setFixedCourse(v),
+    subscribe: (cb) => useRallyRunnerStore.subscribe(cb),
   })
   disposers.push(() => fixed.dispose())
 

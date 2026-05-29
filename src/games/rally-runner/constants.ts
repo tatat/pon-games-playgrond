@@ -1,6 +1,6 @@
 import { DESIGN_W } from '../../engine/constants'
 
-export const GAME_ID = 'scroll-breakout'
+export const GAME_ID = 'rally-runner'
 
 /** Leftmost world x the camera may scroll to — two screens behind the origin,
  * so the player can back up into open space well left of the start. */

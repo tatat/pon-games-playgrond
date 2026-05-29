@@ -42,7 +42,7 @@ import {
 import { HUD, loadScoreFont } from './hud'
 import { Paddle } from './paddle'
 import { Starfield } from './starfield'
-import { useScrollBreakoutStore } from './store'
+import { useRallyRunnerStore } from './store'
 
 const BACKGROUND_COLOR = 0x0a0a14
 const DEG_TO_RAD = Math.PI / 180
@@ -181,7 +181,7 @@ export class MainScene extends Scene {
     // Re-roll the course live when the fixed-course setting is toggled, but only
     // while it's static (title / aim) — mid-run we leave it for the next run.
     this.use(
-      useScrollBreakoutStore.subscribe((s, prev) => {
+      useRallyRunnerStore.subscribe((s, prev) => {
         if (s.fixedCourse === prev.fixedCourse) return
         if (this.phase !== 'title' && this.phase !== 'aiming') return
         this.blockRng = this.pickBlockRng()
@@ -442,7 +442,7 @@ export class MainScene extends Scene {
   /** A fresh fixed-seed RNG (same course every run) or the session RNG (fresh
    * each run), per the player's setting. */
   private pickBlockRng(): Rng {
-    return useScrollBreakoutStore.getState().fixedCourse ? new Rng(FIXED_COURSE_SEED) : this.rng
+    return useRallyRunnerStore.getState().fixedCourse ? new Rng(FIXED_COURSE_SEED) : this.rng
   }
 
   private onBlockHit(block: Block): void {
