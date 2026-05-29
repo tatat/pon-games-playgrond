@@ -29,6 +29,14 @@ export default function Home() {
             Breakout Clone
           </Link>
         </li>
+        <li>
+          <Link
+            to="/scroll-breakout"
+            style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
+          >
+            Scroll Breakout
+          </Link>
+        </li>
       </ul>
     </div>
   )

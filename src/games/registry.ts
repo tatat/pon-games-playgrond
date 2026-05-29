@@ -5,6 +5,7 @@ import type { GameModule } from './types'
 export const games = {
   'sticker-drift': () => import('./sticker-drift').then((m) => m.stickerDriftGame),
   'breakout-clone': () => import('./breakout-clone').then((m) => m.breakoutCloneGame),
+  'scroll-breakout': () => import('./scroll-breakout').then((m) => m.scrollBreakoutGame),
 } satisfies Record<string, () => Promise<GameModule>>
 
 export type GameId = keyof typeof games
