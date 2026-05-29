@@ -9,6 +9,11 @@ import { GAME_ID } from './constants'
 import { MainScene, type MainSceneOptions } from './scene'
 
 export const scrollBreakoutGame: GameModule = {
+  uiTheme: {
+    fontSans: 'Courier, "Courier New", monospace',
+    fontMono: 'Courier, "Courier New", monospace',
+  },
+
   async start(app: Application, ctx: GameContext, signal: AbortSignal): Promise<GameHandle> {
     const rng = new Rng(ctx.config.seed)
     const layout = attachLayout(app, {})
