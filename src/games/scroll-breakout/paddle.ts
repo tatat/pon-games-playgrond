@@ -9,6 +9,9 @@ import {
   PADDLE_MAX_TILT_DEG,
   PADDLE_MAX_TILT_FAST_DEG,
   PADDLE_MIN_X,
+  PADDLE_POP_AMP,
+  PADDLE_POP_DECAY,
+  PADDLE_POP_FREQ,
   PADDLE_RADIUS,
   PADDLE_SPEED,
   PADDLE_TILT_LERP,
@@ -25,7 +28,11 @@ export class Paddle extends Container {
   readonly colliderHandle: number
   /** Sticker sprite; tilted toward the travel direction (collider unaffected). */
   private readonly sprite: Sprite
+  /** Base uniform scale (from the @2x texture); pop/squash modulates around it. */
+  private readonly baseScale: number
   private tilt = 0
+  /** Time since the last ball-contact "boing"; < 0 when idle. */
+  private popTime = -1
   /** Horizontal speed from input and vertical speed from a jump arc. */
   private vx = 0
   private vy = 0
@@ -37,7 +44,8 @@ export class Paddle extends Container {
     this.sprite = new Sprite(texture)
     this.sprite.anchor.set(0.5)
     // @2x textures report their logical height; scale to the target display height.
-    this.sprite.scale.set(PADDLE_DISPLAY_H / texture.height)
+    this.baseScale = PADDLE_DISPLAY_H / texture.height
+    this.sprite.scale.set(this.baseScale)
     this.addChild(this.sprite)
 
     this.body = world.createRigidBody(
@@ -103,10 +111,15 @@ export class Paddle extends Container {
     this.position.set(t.x, t.y)
   }
 
-  /** Ease the sprite's tilt toward the current travel direction. Only the
-   * sprite rotates — the circular collider and body stay put, so hit detection
-   * is unchanged. */
-  lean(dtSec: number): void {
+  /** Trigger a "boing" squash — call when the ball hits the paddle. */
+  pop(): void {
+    this.popTime = 0
+  }
+
+  /** Per-frame sprite animation: ease the tilt toward the travel direction and
+   * run the contact squash. Only the sprite rotates/scales — the circular
+   * collider and body stay put, so hit detection is unchanged. */
+  animate(dtSec: number): void {
     const vx = this.body.linvel().x
     // Dashing (velocity above the normal speed) leans the sprite further.
     const dashing = Math.abs(vx) > PADDLE_SPEED * 1.01
@@ -115,6 +128,19 @@ export class Paddle extends Container {
     const k = Math.min(1, dtSec * PADDLE_TILT_LERP)
     this.tilt += (target - this.tilt) * k
     this.sprite.rotation = this.tilt
+
+    // Damped squash-and-stretch wobble after a hit (wider + shorter, settling).
+    if (this.popTime >= 0) {
+      this.popTime += dtSec
+      const decay = Math.exp(-this.popTime * PADDLE_POP_DECAY)
+      if (decay < 0.03) {
+        this.popTime = -1
+        this.sprite.scale.set(this.baseScale)
+      } else {
+        const s = PADDLE_POP_AMP * Math.sin(this.popTime * PADDLE_POP_FREQ) * decay
+        this.sprite.scale.set(this.baseScale * (1 + s), this.baseScale * (1 - s))
+      }
+    }
   }
 
   removeFromWorld(world: RAPIER.World): void {

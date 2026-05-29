@@ -18,6 +18,10 @@ export const PADDLE_MAX_TILT_DEG = 13
 export const PADDLE_MAX_TILT_FAST_DEG = 26
 /** Per-second easing factor for the lean toward its target. */
 export const PADDLE_TILT_LERP = 12
+/** "Boing" squash on ball contact: amplitude, wobble frequency (rad/s), decay. */
+export const PADDLE_POP_AMP = 0.24
+export const PADDLE_POP_FREQ = 24
+export const PADDLE_POP_DECAY = 12
 /** Display height of the sticker sprite; width follows its aspect ratio. */
 export const PADDLE_DISPLAY_H = 92
 /** Which sticker the avatar wears and the asset size to load for it. */
@@ -71,8 +75,11 @@ export const STARTING_LIVES = 1
 export const CAMERA_FOLLOW_LEFT = 160
 export const CAMERA_FOLLOW_RIGHT = 700
 
-/** Max block height for a row; width is computed per-texture from its natural aspect ratio. */
-export const BLOCK_H = 80
+/** Block display size range: each block picks a size in [MIN, BLOCK_H]. BLOCK_H
+ * doubles as the row cell height (so blocks never overlap their neighbours);
+ * width is computed per-texture from its natural aspect ratio. */
+export const BLOCK_SIZE_MIN = 64
+export const BLOCK_H = 112
 export const BLOCK_GAP_Y = 10
 
 /** World-space gap between successive block columns. */

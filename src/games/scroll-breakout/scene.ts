@@ -3,6 +3,7 @@ import { Assets, Container, Graphics, Rectangle } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { makeVirtualKeypad } from '../../engine/input/virtual-keypad'
 import { Scene, type SceneDelta } from '../../engine/scene'
+import { Easings } from '../../engine/util/tween'
 import { useRuntimeStore } from '../../store/runtime'
 import { Ball } from './ball'
 import type { Block } from './block'
@@ -27,8 +28,6 @@ import {
   CEILING_BAND_H,
   CEILING_Y,
   DISTANCE_SCORE_FACTOR,
-  PADDLE_BOUNCE_INFLUENCE,
-  PADDLE_RADIUS,
   PADDLE_START_X,
   PADDLE_STICKER,
   PADDLE_STICKER_SIZE,
@@ -265,7 +264,7 @@ export class MainScene extends Scene {
     this.worldLayer.x = -this.cameraX
 
     this.paddle.syncView()
-    this.paddle.lean(dtSec)
+    this.paddle.animate(dtSec)
     // Ball rides the paddle on the title / aim / reset screens.
     const onPaddle = this.phase === 'title' || this.phase === 'aiming' || this.phase === 'resetting'
     if (onPaddle) {
@@ -282,6 +281,7 @@ export class MainScene extends Scene {
     this.updateTweens(dtMs)
 
     if (this.phase === 'playing') {
+      this.maintainBallSpeed()
       this.blockSpawner.ensureAhead(this.cameraX, this.rng)
       this.blockSpawner.cullBehind(this.cameraX)
 
@@ -360,8 +360,10 @@ export class MainScene extends Scene {
       if (!isBall1 && !isBall2) return
       const other = isBall1 ? h2 : h1
 
+      // The paddle bounce is left entirely to the physics (circular collider,
+      // restitution 1); the contact only drives a visual "boing".
       if (other === this.paddleColliderHandle) {
-        this.shapePaddleBounce()
+        this.paddle.pop()
         return
       }
       const block = this.blockByCollider.get(other)
@@ -371,26 +373,30 @@ export class MainScene extends Scene {
     })
   }
 
-  /** Dome-angle bounce, measured from the horizontal so edge hits send the
-   * ball sideways (toward the blocks) rather than just up.
-   * relX=+1 (right edge) → 20°, 0 (center) → 90° (straight up), -1 → 160°.
-   * The paddle's own horizontal velocity is added as english, so a moving
-   * paddle steers (and speeds) the bounce instead of the speed being constant. */
-  private shapePaddleBounce(): void {
-    const ballX = this.ball.body.translation().x
-    const paddleX = this.paddle.body.translation().x
-    const relX = Math.max(-1, Math.min(1, (ballX - paddleX) / PADDLE_RADIUS))
-    const angleDeg = 90 - relX * 70
-    const angleRad = angleDeg * DEG_TO_RAD
-    const vx =
-      Math.cos(angleRad) * BALL_LAUNCH_SPEED + this.paddle.velocityX * PADDLE_BOUNCE_INFLUENCE
-    const vy = -Math.sin(angleRad) * BALL_LAUNCH_SPEED
-    this.ball.setVelocity(vx, vy)
+  /** Keep the ball at a steady speed: the physics decides the direction (so the
+   * circular paddle, walls and dashing all bounce naturally), and this clamps
+   * the magnitude so dashing can't pump it out of control or grazes stall it. */
+  private maintainBallSpeed(): void {
+    const v = this.ball.body.linvel()
+    const speed = Math.hypot(v.x, v.y)
+    if (speed < 1) return
+    const k = BALL_LAUNCH_SPEED / speed
+    this.ball.setVelocity(v.x * k, v.y * k)
   }
 
   private onBlockHit(block: Block): void {
-    // Blocks are obstacles only — destroying one is not worth points.
-    this.blockSpawner.destroyBlock(block)
+    // Blocks are obstacles only — no points. Detach from the sim, then play a
+    // quick "burst" (scale up + fade) on the leftover view before destroying it.
+    this.blockSpawner.detachBlock(block)
+    void this.tween({
+      duration: 170,
+      ease: Easings.easeOutQuad,
+      onUpdate: (t) => {
+        block.scale.set(1 + t * 0.7)
+        block.alpha = 1 - t
+      },
+      onComplete: () => block.destroy({ children: true }),
+    })
   }
 
   // ── Phase transitions ───────────────────────────────────────────────────

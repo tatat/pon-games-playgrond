@@ -10,6 +10,7 @@ import {
   BLOCK_CULL_BEHIND,
   BLOCK_GAP_Y,
   BLOCK_H,
+  BLOCK_SIZE_MIN,
   BLOCK_SPAWN_AHEAD,
   BRICK_NAMES,
   SCROLL_BRICK_SIZES,
@@ -91,16 +92,19 @@ export class BlockSpawner {
       const row = rows[r]
       if (row === undefined) continue
 
-      // Random name + asset resolution per block, like breakout-clone.
+      // Random sticker + a freely-varied display size in [MIN, BLOCK_H]; the
+      // texture is the nearest available asset resolution for that size.
       const name = rng.pick(BRICK_NAMES)
-      const baseSize = rng.pick(SCROLL_BRICK_SIZES)
-      const texture = Assets.get(`scroll-brick-${name}-${baseSize}`)
+      const displayBase = rng.intRange(BLOCK_SIZE_MIN, BLOCK_H)
+      const assetSize = SCROLL_BRICK_SIZES.reduce((best, s) =>
+        Math.abs(s - displayBase) < Math.abs(best - displayBase) ? s : best,
+      )
+      const texture = Assets.get(`scroll-brick-${name}-${assetSize}`)
       if (!texture) continue
 
-      // Cap the display box to BLOCK_H so a block always fits inside its row
-      // cell (ROW_HEIGHT = BLOCK_H + gap) and never overlaps its neighbours.
+      // displayBase ≤ BLOCK_H so a block always fits inside its row cell
+      // (ROW_HEIGHT = BLOCK_H + gap) and never overlaps its neighbours.
       const aspect = texture.width / texture.height
-      const displayBase = Math.min(baseSize, BLOCK_H)
       const { width, height } = sizeForAspect(displayBase, aspect)
 
       const cy = BLOCK_AREA_TOP + row * ROW_HEIGHT + BLOCK_H / 2
@@ -116,6 +120,15 @@ export class BlockSpawner {
     block.removeFromWorld(this.world)
     this.parent.removeChild(block)
     block.destroy({ children: true })
+    const idx = this.blocks.indexOf(block)
+    if (idx >= 0) this.blocks.splice(idx, 1)
+  }
+
+  /** Remove a block from the simulation (body + tracking) but leave its view in
+   * the scene so the caller can play a burst animation, then destroy it. */
+  detachBlock(block: Block): void {
+    this.callbacks.onBlockRemoved?.(block)
+    block.removeFromWorld(this.world)
     const idx = this.blocks.indexOf(block)
     if (idx >= 0) this.blocks.splice(idx, 1)
   }

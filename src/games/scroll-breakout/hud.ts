@@ -7,6 +7,9 @@ const ALERT_RED = 0xff6b6b
 const FONT = 'Courier, "Courier New", monospace'
 /** Comic/pop display face for the score (Google Fonts), with fallbacks. */
 const SCORE_FONT = '"Luckiest Guy", system-ui, sans-serif'
+/** Points the score must reverse (from its recent peak/trough) before the
+ * trend colour flips — a little grace so small wobbles don't recolour it. */
+const SCORE_TREND_GRACE = 2
 
 const TITLE_TEXT = 'Press SPACE / TAP to start\n\n← → / A D : Move    SHIFT : Fast'
 const AIM_TEXT = 'Aim with ← →     SPACE / TAP : Launch'
@@ -39,6 +42,11 @@ export class HUD extends Container {
   private readonly startText: Text
   private readonly gameOverText: Text
   private readonly overlay: Graphics
+  /** Trend colouring with hysteresis: track whether we're currently rising and
+   * the peak/trough reference the score must reverse past (by SCORE_TREND_GRACE)
+   * before the colour flips. Applies to both directions. */
+  private colorRising = true
+  private colorRef = 0
 
   constructor() {
     super()
@@ -109,8 +117,23 @@ export class HUD extends Container {
 
   setScore(score: number): void {
     this.scoreValue.text = `${score}`
-    // Below the start point the score goes negative — flag it in alert red.
-    this.scoreValue.tint = score < 0 ? ALERT_RED : WHITE
+    // Trend colour with grace: white while rising, red while falling; only flip
+    // once the score reverses SCORE_TREND_GRACE past its recent peak/trough.
+    if (this.colorRising) {
+      if (score > this.colorRef) this.colorRef = score
+      else if (score <= this.colorRef - SCORE_TREND_GRACE) {
+        this.colorRising = false
+        this.colorRef = score
+        this.scoreValue.tint = ALERT_RED
+      }
+    } else {
+      if (score < this.colorRef) this.colorRef = score
+      else if (score >= this.colorRef + SCORE_TREND_GRACE) {
+        this.colorRising = true
+        this.colorRef = score
+        this.scoreValue.tint = WHITE
+      }
+    }
   }
 
   /** Opening screen: dimmed overlay + title/instructions. */
