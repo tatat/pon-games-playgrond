@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier2d-compat'
-import { Container, Graphics, Rectangle } from 'pixi.js'
+import { Assets, Container, Graphics, Rectangle } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { makeVirtualKeypad } from '../../engine/input/virtual-keypad'
 import { Scene, type SceneDelta } from '../../engine/scene'
@@ -9,18 +9,24 @@ import type { Block } from './block'
 import { BlockSpawner } from './block-spawner'
 import { Ceiling } from './ceiling'
 import {
+  AIM_DEFAULT_DEG,
+  AIM_LINE_LEN,
+  AIM_MAX_DEG,
+  AIM_MIN_DEG,
+  AIM_ROTATE_SPEED,
   BALL_DEATH_Y,
   BALL_LAUNCH_SPEED,
   BALL_RESET_DELAY_MS,
   BALL_START_Y,
-  BLOCK_SCORE,
   BRICK_NAMES,
   CAMERA_FOLLOW_LEFT,
   CAMERA_FOLLOW_RIGHT,
   DISTANCE_SCORE_FACTOR,
   PADDLE_BOUNCE_INFLUENCE,
+  PADDLE_RADIUS,
   PADDLE_START_X,
-  PADDLE_WIDTH,
+  PADDLE_STICKER,
+  PADDLE_STICKER_SIZE,
   SCROLL_BRICK_SIZES,
   STARTING_LIVES,
   WALL_THICKNESS,
@@ -32,7 +38,7 @@ import { Starfield } from './starfield'
 const BACKGROUND_COLOR = 0x0a0a14
 const DEG_TO_RAD = Math.PI / 180
 
-type Phase = 'waiting' | 'playing' | 'resetting' | 'gameover'
+type Phase = 'title' | 'aiming' | 'playing' | 'resetting' | 'gameover'
 
 interface Wall {
   body: RAPIER.RigidBody
@@ -54,14 +60,16 @@ export class MainScene extends Scene {
   private worldLayer!: Container
   private paddle!: Paddle
   private ball!: Ball
+  /** Aim guide shown before launch; left/right rotate launchAngleDeg. */
+  private aim!: Graphics
+  private launchAngleDeg = AIM_DEFAULT_DEG
   private hud!: HUD
   private starfield!: Starfield
   private ceiling!: Ceiling
   private blockSpawner!: BlockSpawner
   private walls: Wall[] = []
-  private phase: Phase = 'waiting'
+  private phase: Phase = 'title'
   private lives = STARTING_LIVES
-  private blockBonus = 0
   private lastReportedScore = 0
   /** World scroll offset; the camera follows the paddle. */
   private cameraX = 0
@@ -89,12 +97,18 @@ export class MainScene extends Scene {
     this.addChild(this.ceiling)
 
     await this.preload(
-      BRICK_NAMES.flatMap((name) =>
-        SCROLL_BRICK_SIZES.map((size) => ({
-          alias: `scroll-brick-${name}-${size}`,
-          src: `games/breakout-clone/stickers/${name}-${size}@2x.png`,
-        })),
-      ),
+      [
+        ...BRICK_NAMES.flatMap((name) =>
+          SCROLL_BRICK_SIZES.map((size) => ({
+            alias: `scroll-brick-${name}-${size}`,
+            src: `games/breakout-clone/stickers/${name}-${size}@2x.png`,
+          })),
+        ),
+        {
+          alias: 'scroll-player',
+          src: `games/sticker-drift/stickers/${PADDLE_STICKER}-${PADDLE_STICKER_SIZE}@2x.png`,
+        },
+      ],
       signal,
     )
 
@@ -107,7 +121,7 @@ export class MainScene extends Scene {
     this.eventQueue = new RAPIER.EventQueue(true)
     this.createWalls()
 
-    this.paddle = new Paddle(this.world, PADDLE_START_X)
+    this.paddle = new Paddle(this.world, PADDLE_START_X, Assets.get('scroll-player'))
     this.paddle.zIndex = 10
     this.worldLayer.addChild(this.paddle)
     this.paddleColliderHandle = this.paddle.colliderHandle
@@ -118,17 +132,30 @@ export class MainScene extends Scene {
     this.worldLayer.addChild(this.ball)
     this.ballColliderHandle = this.ball.colliderHandle
 
+    // Aim guide: a simple dashed line along +x, drawn once and rotated to the
+    // launch angle each frame while aiming. Lives in the world layer at the ball.
+    this.aim = new Graphics()
+    const dash = 7
+    const gap = 6
+    for (let x = 0; x < AIM_LINE_LEN; x += dash + gap) {
+      this.aim.moveTo(x, 0).lineTo(Math.min(x + dash, AIM_LINE_LEN), 0)
+    }
+    this.aim.stroke({ width: 3, color: 0xffffff, alpha: 0.7, cap: 'round' })
+    this.aim.zIndex = 9
+    this.aim.visible = false
+    this.worldLayer.addChild(this.aim)
+
     this.blockSpawner = new BlockSpawner(this.world, this.worldLayer, {
       onBlockAdded: (b) => this.blockByCollider.set(b.colliderHandle, b),
       onBlockRemoved: (b) => this.blockByCollider.delete(b.colliderHandle),
     })
-    // Populate the course ahead so it's visible on the start screen.
+    // Populate the course from the start; FIRST_COLUMN_X keeps the near 4/5
+    // (and the start/aim text) clear, so blocks only appear toward the right.
     this.blockSpawner.ensureAhead(this.cameraX, this.rng)
 
     this.hud = new HUD()
     this.addChild(this.hud)
     this.hud.setScore(0)
-    this.hud.setLives(this.lives)
 
     this.bindInput({
       left: ['ArrowLeft', 'KeyA'],
@@ -180,10 +207,17 @@ export class MainScene extends Scene {
     const { dtMs, dtSec } = dt
     const launchJustPressed = this.input.wasJustPressed('launch')
 
-    if (this.phase === 'waiting' && launchJustPressed) {
-      this.startGame()
-    } else if (this.phase === 'gameover' && launchJustPressed) {
-      this.options.onRequestRestart?.()
+    if (launchJustPressed) {
+      if (this.phase === 'title') {
+        // First press dismisses the opening screen and enters aim mode.
+        this.phase = 'aiming'
+        this.hud.showAiming()
+      } else if (this.phase === 'aiming') {
+        // Second press launches along the chosen angle.
+        this.startGame()
+      } else if (this.phase === 'gameover') {
+        this.options.onRequestRestart?.()
+      }
     }
 
     const left = this.input.isDown('left')
@@ -210,10 +244,15 @@ export class MainScene extends Scene {
     this.worldLayer.x = -this.cameraX
 
     this.paddle.syncView()
-    if (this.phase === 'waiting' || this.phase === 'resetting') {
+    // Ball rides the paddle on the title / aim / reset screens.
+    const onPaddle = this.phase === 'title' || this.phase === 'aiming' || this.phase === 'resetting'
+    if (onPaddle) {
       this.ball.setPosition(this.paddle.worldX, BALL_START_Y)
     }
     this.ball.syncView()
+    // Aiming (guide + angle steering) is only live once past the title screen.
+    const aiming = this.phase === 'aiming' || this.phase === 'resetting'
+    this.updateAim(aiming, left, right, dtSec)
     this.starfield.update(this.cameraX - prevCameraX)
     this.ceiling.update(dtMs)
 
@@ -317,7 +356,7 @@ export class MainScene extends Scene {
   private shapePaddleBounce(): void {
     const ballX = this.ball.body.translation().x
     const paddleX = this.paddle.body.translation().x
-    const relX = Math.max(-1, Math.min(1, (ballX - paddleX) / (PADDLE_WIDTH / 2)))
+    const relX = Math.max(-1, Math.min(1, (ballX - paddleX) / PADDLE_RADIUS))
     const angleDeg = 90 - relX * 70
     const angleRad = angleDeg * DEG_TO_RAD
     const vx =
@@ -327,8 +366,7 @@ export class MainScene extends Scene {
   }
 
   private onBlockHit(block: Block): void {
-    this.blockBonus += BLOCK_SCORE
-    this.reportScore()
+    // Blocks are obstacles only — destroying one is not worth points.
     this.blockSpawner.destroyBlock(block)
   }
 
@@ -342,20 +380,37 @@ export class MainScene extends Scene {
   }
 
   private launchBall(): void {
-    // Launch up-and-to-the-right (~60° from horizontal) with slight jitter,
-    // so the ball heads toward the incoming blocks from the start.
-    const angleDeg = 60 + this.rng.intRange(-15, 15)
-    const angleRad = angleDeg * DEG_TO_RAD
+    // Fire along the angle the player aimed before launching.
+    const angleRad = this.launchAngleDeg * DEG_TO_RAD
+    this.aim.visible = false
     this.ball.setVelocity(
       Math.cos(angleRad) * BALL_LAUNCH_SPEED,
       -Math.sin(angleRad) * BALL_LAUNCH_SPEED,
     )
   }
 
+  /** While aiming (aim / reset screens), left/right rotate the launch angle and
+   * the guide is drawn from the ball along it. Hidden once the ball is in play. */
+  private updateAim(aiming: boolean, left: boolean, right: boolean, dtSec: number): void {
+    if (!aiming) {
+      this.aim.visible = false
+      return
+    }
+    // Right key leans the aim rightward (toward the horizon), left key leftward.
+    const dir = (left ? 1 : 0) - (right ? 1 : 0)
+    if (dir !== 0) {
+      const next = this.launchAngleDeg + dir * AIM_ROTATE_SPEED * dtSec
+      this.launchAngleDeg = Math.max(AIM_MIN_DEG, Math.min(AIM_MAX_DEG, next))
+    }
+    const t = this.ball.body.translation()
+    this.aim.position.set(t.x, t.y)
+    this.aim.rotation = -this.launchAngleDeg * DEG_TO_RAD
+    this.aim.visible = true
+  }
+
   private ballDied(): void {
     if (this.phase !== 'playing') return
     this.lives--
-    this.hud.setLives(this.lives)
     this.ball.freeze()
 
     if (this.lives <= 0) {
@@ -384,7 +439,7 @@ export class MainScene extends Scene {
     // Distance the ball has carried forward from the start point; the ball
     // falling back (or being left behind) lowers the score.
     const distance = Math.max(0, this.ball.body.translation().x - PADDLE_START_X)
-    return Math.floor(distance * DISTANCE_SCORE_FACTOR) + this.blockBonus
+    return Math.floor(distance * DISTANCE_SCORE_FACTOR)
   }
 
   private reportScore(): void {

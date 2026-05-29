@@ -1,10 +1,17 @@
 export const GAME_ID = 'scroll-breakout'
 
-export const PADDLE_GROUND_Y = 720 - 30
-/** Half-width doubles as the dome radius. */
-export const PADDLE_WIDTH = 120
+/** The avatar is a Sticker-Drift-style sticker sprite with a simple circular
+ * hit area (no kamaboko hull). Centre sits near the bottom of the screen. */
+export const PADDLE_CENTER_Y = 720 - 52
+/** Radius of the circular collider. */
+export const PADDLE_RADIUS = 42
+/** Display height of the sticker sprite; width follows its aspect ratio. */
+export const PADDLE_DISPLAY_H = 92
+/** Which sticker the avatar wears and the asset size to load for it. */
+export const PADDLE_STICKER = 'd1'
+export const PADDLE_STICKER_SIZE = 96
 /** Left clamp in world space: the paddle's centre can't go before this x. */
-export const PADDLE_MIN_X = PADDLE_WIDTH / 2
+export const PADDLE_MIN_X = PADDLE_RADIUS
 export const PADDLE_SPEED = 420
 export const PADDLE_FAST_MULT = 1.75
 /** Fraction of the paddle's horizontal velocity added to the ball's bounce as
@@ -17,13 +24,23 @@ export const PADDLE_START_X = 320
 export const BALL_RADIUS = 9
 export const BALL_LAUNCH_SPEED = 320
 export const BALL_DEATH_Y = 720 + BALL_RADIUS
-/** Dome radius = half paddle width; ball sits just above the dome peak. */
-export const BALL_START_Y = PADDLE_GROUND_Y - PADDLE_WIDTH / 2 - BALL_RADIUS - 5
+/** Ball rests just above the top of the circular paddle. */
+export const BALL_START_Y = PADDLE_CENTER_Y - PADDLE_RADIUS - BALL_RADIUS - 4
 export const BALL_RESET_DELAY_MS = 1200
+
+/** Aiming before launch: left/right rotate the launch angle (degrees measured
+ * from the horizontal, 90 = straight up). The ball fires along it on launch. */
+export const AIM_DEFAULT_DEG = 60
+export const AIM_MIN_DEG = 20
+export const AIM_MAX_DEG = 160
+/** Rotation speed of the aim while a direction key is held (deg/sec). */
+export const AIM_ROTATE_SPEED = 90
+/** Length of the aim guide line drawn from the ball. */
+export const AIM_LINE_LEN = 72
 
 export const WALL_THICKNESS = 50
 
-export const STARTING_LIVES = 3
+export const STARTING_LIVES = 1
 
 /** Camera follows the paddle (the avatar). While the paddle stays inside this
  * screen-space dead-zone the camera holds still; pushing past an edge scrolls
@@ -49,7 +66,6 @@ export const SCROLL_BRICK_SIZES = [64, 96, 128] as const
 export const BLOCK_AREA_TOP = 64
 export const BLOCK_AREA_BOTTOM = 586
 
-export const BLOCK_SCORE = 80
 /** Score per world pixel advanced (distance travelled). */
 export const DISTANCE_SCORE_FACTOR = 0.1
 

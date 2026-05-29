@@ -1,6 +1,5 @@
 import RAPIER from '@dimforge/rapier2d-compat'
 import { Container, Sprite, type Texture } from 'pixi.js'
-import { BLOCK_SCORE } from './constants'
 
 /** One block: a sticker sprite + a fixed physics body at a world position.
  * The camera scrolls the world; blocks themselves don't move.
@@ -9,7 +8,6 @@ import { BLOCK_SCORE } from './constants'
 export class Block extends Container {
   readonly body: RAPIER.RigidBody
   readonly colliderHandle: number
-  readonly scoreValue = BLOCK_SCORE
 
   constructor(
     world: RAPIER.World,

@@ -1,62 +1,41 @@
 import RAPIER from '@dimforge/rapier2d-compat'
-import { Container, Graphics } from 'pixi.js'
+import { Container, Sprite, type Texture } from 'pixi.js'
 import {
+  PADDLE_CENTER_Y,
+  PADDLE_DISPLAY_H,
   PADDLE_FAST_MULT,
-  PADDLE_GROUND_Y,
   PADDLE_MIN_X,
+  PADDLE_RADIUS,
   PADDLE_SPEED,
-  PADDLE_START_X,
-  PADDLE_WIDTH,
 } from './constants'
 
-const DOME_RADIUS = PADDLE_WIDTH / 2
-
-/** Half-disc (semicircle) player paddle: flat side down, dome up.
- * Physics body: convex hull matching the dome profile.
- * The scene's contact handler reshapes the ball's velocity on hit
- * (dome-angle logic) rather than relying on the collider shape alone. */
+/** The player avatar: a Sticker-Drift-style sticker sprite riding a simple
+ * circular collider. The scene's contact handler reshapes the ball's velocity
+ * on hit (relative to the paddle centre), so the round shape just needs to be a
+ * clean bumper — no dome/hull geometry. */
 export class Paddle extends Container {
   readonly body: RAPIER.RigidBody
   readonly colliderHandle: number
 
-  constructor(world: RAPIER.World, startX: number = PADDLE_START_X) {
+  constructor(world: RAPIER.World, startX: number, texture: Texture) {
     super()
 
-    this.drawDome()
+    const sprite = new Sprite(texture)
+    sprite.anchor.set(0.5)
+    // @2x textures report their logical height; scale to the target display height.
+    sprite.scale.set(PADDLE_DISPLAY_H / texture.height)
+    this.addChild(sprite)
 
     this.body = world.createRigidBody(
-      RAPIER.RigidBodyDesc.kinematicVelocityBased().setTranslation(startX, PADDLE_GROUND_Y),
+      RAPIER.RigidBodyDesc.kinematicVelocityBased().setTranslation(startX, PADDLE_CENTER_Y),
     )
-
-    // Convex hull of the dome arc. The arc endpoints land on the flat
-    // baseline (y = 0), so the hull closes into a clean half-disc and the
-    // ball rides the curved surface rather than passing through arc corners.
-    const hw = PADDLE_WIDTH / 2
-    const arcSteps = 12
-    const pts: number[] = []
-    for (let i = 0; i <= arcSteps; i++) {
-      const angle = Math.PI - (i / arcSteps) * Math.PI // π → 0
-      pts.push(Math.cos(angle) * hw, -Math.sin(angle) * DOME_RADIUS)
-    }
-
-    const hullDesc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts))
-    const shapeDesc = hullDesc ?? RAPIER.ColliderDesc.cuboid(hw, DOME_RADIUS / 2)
-    const collider = world.createCollider(shapeDesc.setRestitution(1).setFriction(0), this.body)
+    const collider = world.createCollider(
+      RAPIER.ColliderDesc.ball(PADDLE_RADIUS).setRestitution(1).setFriction(0),
+      this.body,
+    )
     this.colliderHandle = collider.handle
 
-    this.position.set(startX, PADDLE_GROUND_Y)
-  }
-
-  private drawDome(): void {
-    const hw = PADDLE_WIDTH / 2
-    // Origin = physics body center = midpoint of the flat baseline.
-    const g = new Graphics()
-    // arc(false) = clockwise in screen space = bows through negative-y = dome UP.
-    g.moveTo(-hw, 0)
-    g.arc(0, 0, hw, Math.PI, 0, false)
-    g.closePath() // flat baseline along the diameter
-    g.fill(0xffffff)
-    this.addChild(g)
+    this.position.set(startX, PADDLE_CENTER_Y)
   }
 
   setVelocityX(vx: number): void {

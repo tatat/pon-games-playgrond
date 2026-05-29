@@ -12,7 +12,6 @@ import {
   BLOCK_H,
   BLOCK_SPAWN_AHEAD,
   BRICK_NAMES,
-  PADDLE_START_X,
   SCROLL_BRICK_SIZES,
 } from './constants'
 
@@ -23,8 +22,9 @@ export interface BlockSpawnerCallbacks {
 
 const ROW_HEIGHT = BLOCK_H + BLOCK_GAP_Y
 const TOTAL_ROWS = Math.floor((BLOCK_AREA_BOTTOM - BLOCK_AREA_TOP) / ROW_HEIGHT)
-/** First column sits ahead of the paddle's start so the course is visible. */
-const FIRST_COLUMN_X = PADDLE_START_X + 300
+/** First column starts ~4/5 across the opening screen, leaving the near 4/5
+ * (where the avatar and start/aim text sit) clear so nothing overlaps the text. */
+const FIRST_COLUMN_X = DESIGN_W * 0.8
 
 /** Derive display {width, height} for a texture at a given baseSize,
  * matching breakout-clone's sizeForAspect logic. */

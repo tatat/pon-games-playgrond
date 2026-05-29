@@ -27,7 +27,8 @@ export const scrollBreakoutGame: GameModule = {
         onScoreChange: (s) => ctx.onScoreChange(s),
         onGameOver: (score) => ctx.onGameOver({ score }),
         onRequestRestart: () => {
-          void sm.changeTo(new MainScene({ ...sceneOptions, startImmediately: true }))
+          // Fresh scene in the waiting phase so the player can aim again.
+          void sm.changeTo(new MainScene(sceneOptions))
         },
       }
       await sm.changeTo(new MainScene(sceneOptions))

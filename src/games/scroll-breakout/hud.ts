@@ -4,9 +4,11 @@ import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 const WHITE = 0xffffff
 const FONT = 'Courier, "Courier New", monospace'
 
+const TITLE_TEXT = 'Press SPACE / TAP to start\n\n← → / A D : Move    SHIFT : Fast'
+const AIM_TEXT = 'Aim with ← →     SPACE / TAP : Launch'
+
 export class HUD extends Container {
   private readonly scoreText: Text
-  private readonly livesText: Text
   private readonly startText: Text
   private readonly gameOverText: Text
   private readonly overlay: Graphics
@@ -28,17 +30,8 @@ export class HUD extends Container {
     this.scoreText.zIndex = 101
     this.addChild(this.scoreText)
 
-    this.livesText = new Text({
-      text: 'Lives: 3',
-      style: { fill: WHITE, fontSize: 20, fontFamily: FONT },
-    })
-    this.livesText.anchor.set(1, 0)
-    this.livesText.position.set(DESIGN_W - 20, 16)
-    this.livesText.zIndex = 101
-    this.addChild(this.livesText)
-
     this.startText = new Text({
-      text: 'Press SPACE or TAP to start\n\n← → / A D : Move    SHIFT : Fast',
+      text: TITLE_TEXT,
       style: {
         fill: WHITE,
         fontSize: 24,
@@ -73,12 +66,18 @@ export class HUD extends Container {
     this.scoreText.text = `Score: ${score}`
   }
 
-  setLives(lives: number): void {
-    this.livesText.text = `Lives: ${lives}`
+  /** Opening screen: dimmed overlay + title/instructions. */
+  showStart(): void {
+    this.startText.text = TITLE_TEXT
+    this.overlay.visible = true
+    this.startText.visible = true
+    this.gameOverText.visible = false
   }
 
-  showStart(): void {
-    this.overlay.visible = true
+  /** Aim screen: clear view of the course with a small launch hint. */
+  showAiming(): void {
+    this.startText.text = AIM_TEXT
+    this.overlay.visible = false
     this.startText.visible = true
     this.gameOverText.visible = false
   }
