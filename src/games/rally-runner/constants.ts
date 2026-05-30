@@ -105,9 +105,7 @@ export const BLOCK_CULL_BEHIND = 600
 /** Seed used when the "fixed course" setting is on, so every run is identical. */
 export const FIXED_COURSE_SEED = 0x5c2055
 
-/** Base sizes used to look up the block sticker assets. The sticker art is
- * duplicated into rally-runner's own `public/games/rally-runner/stickers/`
- * dir (copied from breakout-clone) so this game owns its assets outright. */
+/** Sizes loaded for the block sticker assets (`@2x` naming). */
 export const SCROLL_BRICK_SIZES = [64, 96, 128] as const
 
 /** Vertical range where blocks are spawned. */
@@ -124,8 +122,7 @@ export const BLOCK_BOB_ROT = 0.06
  * slowly and each one feels earned. */
 export const DISTANCE_SCORE_FACTOR = 0.01
 
-/** Block sticker family ids. Same names as breakout-clone, but the art is
- * duplicated under rally-runner's own asset dir (see SCROLL_BRICK_SIZES). */
+/** Block sticker family ids. */
 export const BRICK_NAMES = ['d1', 'd2', 'r1', 'r2', 't1', 't2'] as const
 
 /** Parallax starfield that sells the sense of forward motion (à la sticker-drift). */
