@@ -138,25 +138,21 @@ const FLOWS: Flow[] = [
   {
     id: 'phase-rpg',
     name: 'RPG (field + battle)',
-    caption: 'Field scene (explore + talk) changes to a separate Battle scene, then back.',
+    caption: 'Field scene (explore + event) changes to a separate Battle scene, then back.',
     nodes: [
       { id: 'title', col: 0, band: 0, scene: 'Title' },
       { id: 'explore', col: 1, band: 0, scene: 'Field' },
-      { id: 'talk', col: 2, band: -1, scene: 'Field', label: 'event/talk' },
+      { id: 'event', col: 2, band: 0, scene: 'Field', label: 'event/talk' },
       { id: 'battle', col: 3, band: 0, scene: 'Battle' },
       { id: 'result', col: 4, band: 0, scene: 'Battle' },
     ],
     edges: [
       ['title', 'explore'],
-      ['explore', 'talk'],
-      ['explore', 'battle'],
-      ['talk', 'battle'],
+      ['explore', 'event'],
+      ['event', 'battle'],
       ['battle', 'result'],
     ],
-    paths: [
-      ['title', 'explore', 'battle', 'result'],
-      ['title', 'explore', 'talk', 'battle', 'result'],
-    ],
+    paths: [['title', 'explore', 'event', 'battle', 'result']],
     // Victory returns to the field, not the title.
     loopTo: 'explore',
   },
