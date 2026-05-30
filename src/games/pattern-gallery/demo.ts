@@ -1,5 +1,6 @@
 import type { Container } from 'pixi.js'
 import type { InputManager } from '../../engine/input/index'
+import type { ActionButtonSpec, StickActions } from '../../engine/input/virtual-keypad'
 import type { Rng } from '../../engine/rng'
 import type { SceneDelta } from '../../engine/scene'
 import type { UiTheme } from '../../engine/ui-theme'
@@ -74,6 +75,20 @@ export interface ParamSpec {
   options?: readonly string[]
 }
 
+/** On-screen virtual-pad layout for an interactive demo. The gallery turns
+ * this into a full keypad (adding an Option button wired to pause). Omit it
+ * for non-interactive demos — they get no pad. */
+export interface DemoPad {
+  /** Left thumbstick (movement). */
+  stick?: StickActions
+  /** Right thumbstick (aim) — for twin-stick demos. */
+  rightStick?: StickActions
+  /** Primary hold/tap button (usually `action`). */
+  a?: ActionButtonSpec
+  /** Secondary button (usually `dash`). */
+  b?: ActionButtonSpec
+}
+
 export interface DemoParams {
   /** Current value of `key` (its `default` until the user drags the slider). */
   get(key: string): number
@@ -105,6 +120,9 @@ export interface PatternDemo {
   /** Optional tunable knobs. Rendered as the right-hand slider panel; absent
    * or empty → the panel shows "no tunable parameters". */
   readonly params?: readonly ParamSpec[]
+  /** On-screen controls for touch / coarse-pointer play. Shown only when the
+   * virtual pad is enabled (settings / coarse pointer); see `DemoPad`. */
+  readonly controls?: DemoPad
   mount(ctx: DemoContext): DemoHandle
 }
 

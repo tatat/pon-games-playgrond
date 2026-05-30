@@ -6,6 +6,10 @@ import { axis, clamp, FLOOR_INSET, hint } from './shared'
 
 const towerDefense: PatternDemo = {
   id: 'tower-defense-style',
+  controls: {
+    stick: { left: 'left', right: 'right', up: 'up', down: 'down' },
+    a: { action: 'action', label: 'BUILD' },
+  },
   name: 'Tower-defense-style',
   caption: 'Pick a slot ← →, build with Space; towers auto-fire at enemies on the path.',
   category: 'system',
@@ -328,6 +332,10 @@ const towerDefense: PatternDemo = {
 
 const turnBased: PatternDemo = {
   id: 'turn-based-style',
+  controls: {
+    stick: { left: 'left', right: 'right', up: 'up', down: 'down' },
+    a: { action: 'action', label: 'OK' },
+  },
   name: 'Turn-based-style',
   caption: 'Tactics grid: move within range ← → ↑ ↓ + Space; enemies act on their turn.',
   category: 'system',

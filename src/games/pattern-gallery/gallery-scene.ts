@@ -1,5 +1,6 @@
 import { Container, Graphics, type Text } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
+import { makeVirtualKeypad, type VirtualKeypad } from '../../engine/input/virtual-keypad'
 import { Scene, type SceneDelta } from '../../engine/scene'
 import type { UiTheme } from '../../engine/ui-theme'
 import { useRuntimeStore } from '../../store/runtime'
@@ -38,6 +39,9 @@ export class GalleryScene extends Scene {
   private captionText!: Text
   private active?: DemoHandle
   private paramPanel?: ParamPanel
+  /** On-screen pad for the current demo (rebuilt on select, if it declares
+   * `controls`). Self-hides unless the virtual pad is enabled. */
+  private keypad?: VirtualKeypad
   private stageMask!: Graphics
   private stageFrame!: Graphics
   private labelBar!: Graphics
@@ -113,6 +117,9 @@ export class GalleryScene extends Scene {
       this.paramPanel.dispose()
       this.paramPanel.view.destroy({ children: true })
     }
+    // Drop the previous demo's on-screen pad.
+    this.keypad?.dispose()
+    this.keypad = undefined
 
     // A param-less demo (e.g. the phase flows) widens the stage to fill the
     // param-panel column; otherwise the stage is narrower and the panel shows.
@@ -152,6 +159,20 @@ export class GalleryScene extends Scene {
       height: STAGE_H - 2 * pad,
     })
 
+    // On-screen pad for demos that declare one. It self-hides unless the
+    // virtual pad is enabled (settings / coarse pointer), and feeds the same
+    // `BINDINGS` actions the keyboard does. Option taps drive the pause overlay.
+    if (demo.controls) {
+      const c = demo.controls
+      this.keypad = makeVirtualKeypad(this.input, this.layout, {
+        stick: c.stick,
+        rightStick: c.rightStick,
+        actions: { a: c.a, b: c.b },
+        option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+      })
+      this.layout.uiLayer.addChild(this.keypad.view)
+    }
+
     this.nameText.text = demo.name
     // Place the token right after the name (measured at runtime).
     this.idText.position.x = this.nameText.position.x + this.nameText.width + 14
@@ -170,5 +191,7 @@ export class GalleryScene extends Scene {
     this.active?.dispose?.()
     this.active = undefined
     this.paramPanel?.dispose()
+    this.keypad?.dispose()
+    this.keypad = undefined
   }
 }

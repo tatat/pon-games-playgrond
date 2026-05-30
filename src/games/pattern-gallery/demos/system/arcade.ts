@@ -7,6 +7,7 @@ import { axis, clamp, FLOOR_INSET, hint } from './shared'
 
 const endlessDodge: PatternDemo = {
   id: 'endless-dodge-style',
+  controls: { stick: { left: 'left', right: 'right', up: 'up', down: 'down' } },
   name: 'Endless-dodge-style',
   caption: 'Steer with ← → ↑ ↓ / WASD; obstacles scroll in endlessly.',
   category: 'system',
@@ -73,6 +74,7 @@ const endlessDodge: PatternDemo = {
 
 const verticalScroller: PatternDemo = {
   id: 'vertical-scroller-style',
+  controls: { stick: { left: 'left', right: 'right' } },
   name: 'Vertical-scroller-style',
   caption: 'Steer the bottom ship with ← → / A D; obstacles descend endlessly.',
   category: 'system',
@@ -156,6 +158,7 @@ const verticalScroller: PatternDemo = {
 
 const shmup: PatternDemo = {
   id: 'shmup-style',
+  controls: { stick: { left: 'left', right: 'right', up: 'up', down: 'down' } },
   name: 'Shmup-style',
   caption: 'Move + auto-fire; enemies spray radial bullet patterns (bullet-hell).',
   category: 'system',
@@ -276,6 +279,7 @@ const shmup: PatternDemo = {
 
 const autoRunner: PatternDemo = {
   id: 'auto-runner-style',
+  controls: { a: { action: 'action', label: 'JUMP' } },
   name: 'Auto-runner-style',
   caption: 'The world scrolls itself; your only verb is a timed jump (Flappy / runner).',
   category: 'system',
@@ -352,6 +356,7 @@ const autoRunner: PatternDemo = {
 
 const snake: PatternDemo = {
   id: 'snake-style',
+  controls: { stick: { left: 'left', right: 'right', up: 'up', down: 'down' } },
   name: 'Snake-style',
   caption: 'Grid snake: turn with ← → ↑ ↓ (no reverse), eat to grow, crash to reset.',
   category: 'system',

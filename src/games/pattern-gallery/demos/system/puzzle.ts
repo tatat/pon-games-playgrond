@@ -5,6 +5,10 @@ import { axis, clamp, FLOOR_INSET, hint } from './shared'
 
 const fallingBlock: PatternDemo = {
   id: 'falling-block-style',
+  controls: {
+    stick: { left: 'left', right: 'right', down: 'down' },
+    a: { action: 'action', label: 'ROTATE' },
+  },
   name: 'Falling-block-style',
   caption: 'Tetromino grid: move ← →, rotate Space, soft-drop ↓; full rows clear (Tetris).',
   category: 'system',
@@ -178,6 +182,7 @@ const fallingBlock: PatternDemo = {
 
 const gridMove: PatternDemo = {
   id: 'grid-move-style',
+  controls: { stick: { left: 'left', right: 'right', up: 'up', down: 'down' } },
   name: 'Grid-move-style',
   caption: 'Step cell-to-cell on a tile grid (top-down Zelda / roguelike movement).',
   category: 'system',

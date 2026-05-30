@@ -6,6 +6,7 @@ import { axis, clamp, FLOOR_INSET, hint } from './shared'
 
 const breakout: PatternDemo = {
   id: 'breakout-style',
+  controls: { stick: { left: 'left', right: 'right' } },
   name: 'Breakout-style',
   caption: 'Paddle + bouncing ball + brick grid. Move with ← → / A D.',
   category: 'system',
@@ -154,6 +155,7 @@ const breakout: PatternDemo = {
 
 const aimLaunch: PatternDemo = {
   id: 'aim-launch-style',
+  controls: { stick: { left: 'left', right: 'right' }, a: { action: 'action', label: 'LAUNCH' } },
   name: 'Aim-launch-style',
   caption: 'Aim with ← →, launch with Space; the ball bounces then resets.',
   category: 'system',
@@ -263,6 +265,10 @@ const aimLaunch: PatternDemo = {
 
 const twinStick: PatternDemo = {
   id: 'twin-stick-style',
+  controls: {
+    stick: { left: 'moveLeft', right: 'moveRight', up: 'moveUp', down: 'moveDown' },
+    rightStick: { left: 'aimLeft', right: 'aimRight', up: 'aimUp', down: 'aimDown' },
+  },
   name: 'Twin-stick-style',
   caption: 'Move with WASD, aim with the arrow keys (independent clusters).',
   category: 'system',
@@ -299,6 +305,7 @@ const twinStick: PatternDemo = {
 
 const singleStick: PatternDemo = {
   id: 'single-stick-style',
+  controls: { stick: { left: 'left', right: 'right', up: 'up', down: 'down' } },
   name: 'Single-stick-style',
   caption: 'Move with ← → ↑ ↓ / WASD; the ship turns to face its travel direction.',
   category: 'system',
@@ -335,6 +342,7 @@ const singleStick: PatternDemo = {
 
 const tank: PatternDemo = {
   id: 'tank-style',
+  controls: { stick: { left: 'left', right: 'right', up: 'up', down: 'down' } },
   name: 'Tank-style',
   caption: 'Rotate with ← →, drive forward/back with ↑ ↓ (tank controls).',
   category: 'system',
@@ -369,6 +377,7 @@ const tank: PatternDemo = {
 
 const inertia: PatternDemo = {
   id: 'inertia-style',
+  controls: { stick: { left: 'left', right: 'right', up: 'up' } },
   name: 'Inertia-style',
   caption: 'Asteroids thrust: turn, accelerate along facing, drift with momentum.',
   category: 'system',
@@ -415,6 +424,11 @@ const inertia: PatternDemo = {
 
 const platformer: PatternDemo = {
   id: 'platformer-style',
+  controls: {
+    stick: { left: 'left', right: 'right' },
+    a: { action: 'action', label: 'JUMP' },
+    b: { action: 'dash', label: 'DASH' },
+  },
   name: 'Platformer-style',
   caption: 'Run, multi-jump, dash, wall-cling + wall-jump — side-scroll Metroidvania kit.',
   category: 'system',
