@@ -25,11 +25,11 @@ export type PatternCategory =
 
 /** Display order of the categories in the menu. */
 export const CATEGORY_ORDER: readonly PatternCategory[] = [
+  'system',
   'layout',
   'phases',
   'motion',
   'ui',
-  'system',
   'shapes',
   'sprites',
   'bands',
@@ -104,11 +104,11 @@ export interface PatternDemo {
 
 /** The single source of truth for the vocabulary: every demo, in menu order. */
 export const DEMOS: readonly PatternDemo[] = [
+  ...systemDemos,
   ...layoutDemos,
   ...phasesDemos,
   ...motionDemos,
   ...uiDemos,
-  ...systemDemos,
   ...shapesDemos,
   ...spritesDemos,
   ...bandDemos,
