@@ -18,6 +18,14 @@ describe('useRuntimeStore', () => {
     expect(useRuntimeStore.getState().gamePaused).toBe(false)
   })
 
+  it('flips gamePaused via toggleGamePaused', () => {
+    expect(useRuntimeStore.getState().gamePaused).toBe(false)
+    useRuntimeStore.getState().toggleGamePaused()
+    expect(useRuntimeStore.getState().gamePaused).toBe(true)
+    useRuntimeStore.getState().toggleGamePaused()
+    expect(useRuntimeStore.getState().gamePaused).toBe(false)
+  })
+
   it('does not persist (no `.persist` middleware)', () => {
     expect((useRuntimeStore as unknown as { persist?: unknown }).persist).toBeUndefined()
   })

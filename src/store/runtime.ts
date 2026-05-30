@@ -11,6 +11,9 @@ export interface RuntimeState {
    * stay responsive. */
   gamePaused: boolean
   setGamePaused(b: boolean): void
+  /** Flip `gamePaused`. Used by the on-screen Option button so a second tap
+   * closes the pause overlay (matching the `,` shortcut). */
+  toggleGamePaused(): void
   /** Active typography theme. Set by `GameMount` from `GameModule.uiTheme`
    * before the game's `start()` runs, so engine UI built during `start()`
    * (settings modal, FPS counter) picks up the right fonts. */
@@ -21,6 +24,7 @@ export interface RuntimeState {
 export const useRuntimeStore = create<RuntimeState>((set) => ({
   gamePaused: false,
   setGamePaused: (b) => set({ gamePaused: b }),
+  toggleGamePaused: () => set((s) => ({ gamePaused: !s.gamePaused })),
   uiTheme: defaultUiTheme,
   setUiTheme: (t) => set({ uiTheme: t }),
 }))

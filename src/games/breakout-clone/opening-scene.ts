@@ -165,7 +165,7 @@ export class OpeningScene extends Scene {
     // module places it at the viewport bottom-right corner (Pattern 1).
     const keypad = this.use(
       makeVirtualKeypad(this.input, this.layout, {
-        option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+        option: { tap: () => useRuntimeStore.getState().toggleGamePaused() },
       }),
     )
     this.layout.uiLayer.addChild(keypad.view)
