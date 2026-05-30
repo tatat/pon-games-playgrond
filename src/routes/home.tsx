@@ -37,6 +37,14 @@ export default function Home() {
             Rally Runner
           </Link>
         </li>
+        <li>
+          <Link
+            to="/pattern-gallery"
+            style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
+          >
+            Pattern Gallery
+          </Link>
+        </li>
       </ul>
     </div>
   )

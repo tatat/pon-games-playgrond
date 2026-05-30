@@ -5,4 +5,5 @@ export default [
   route('sticker-drift', 'routes/sticker-drift.tsx'),
   route('breakout-clone', 'routes/breakout-clone.tsx'),
   route('rally-runner', 'routes/rally-runner.tsx'),
+  route('pattern-gallery', 'routes/pattern-gallery.tsx'),
 ] satisfies RouteConfig
