@@ -7,6 +7,7 @@ import {
   BINDINGS,
   COLORS,
   CONTENT_PAD,
+  GAP,
   LABEL_H,
   LABEL_Y,
   MARGIN,
@@ -37,8 +38,13 @@ export class GalleryScene extends Scene {
   private captionText!: Text
   private active?: DemoHandle
   private paramPanel?: ParamPanel
+  private stageMask!: Graphics
+  private stageFrame!: Graphics
+  private labelBar!: Graphics
   /** Right-column height, shared by the menu and the param panel. */
   private readonly columnH = DESIGN_H - STAGE_Y - MARGIN
+  /** Stage width when a demo has no params — reclaims the param-panel column. */
+  private readonly stageFullW = STAGE_W + GAP + PARAMS_W
 
   async onEnter(signal: AbortSignal): Promise<void> {
     this.bindInput(BINDINGS)
@@ -52,29 +58,24 @@ export class GalleryScene extends Scene {
     this.use(this.menu)
     this.addChild(this.menu.view)
 
-    // Stage: a clipped layer the demos draw into.
+    // Stage: a clipped layer the demos draw into. The mask / frame / label bar
+    // are (re)sized per demo in `select()` — a param-less demo widens the stage
+    // to reclaim the param-panel column.
     const stageClip = new Container()
     stageClip.position.set(STAGE_X, STAGE_Y)
-    const mask = new Graphics().rect(0, 0, STAGE_W, STAGE_H).fill(0xffffff)
-    stageClip.addChild(mask)
-    stageClip.mask = mask
+    this.stageMask = new Graphics()
+    stageClip.addChild(this.stageMask)
+    stageClip.mask = this.stageMask
     // Origin is reset per-demo in `select()` (padded vs. full-bleed).
     this.demoLayer = new Container()
     stageClip.addChild(this.demoLayer)
     this.addChild(stageClip)
-    this.addChild(
-      new Graphics()
-        .rect(STAGE_X, STAGE_Y, STAGE_W, STAGE_H)
-        .stroke({ color: COLORS.border, width: 1 }),
-    )
+    this.stageFrame = new Graphics()
+    this.addChild(this.stageFrame)
 
-    // Label bar.
-    this.addChild(
-      new Graphics()
-        .roundRect(STAGE_X, LABEL_Y, STAGE_W, LABEL_H, RADIUS.panel)
-        .fill(COLORS.panel)
-        .stroke({ color: COLORS.border, width: 1 }),
-    )
+    // Label bar (also resized in `select()`).
+    this.labelBar = new Graphics()
+    this.addChild(this.labelBar)
     this.nameText = text('', {
       fill: COLORS.text,
       fontSize: 22,
@@ -113,10 +114,30 @@ export class GalleryScene extends Scene {
       this.paramPanel.view.destroy({ children: true })
     }
 
-    // Fresh param panel (knobs reset to their defaults for the new demo).
+    // A param-less demo (e.g. the phase flows) widens the stage to fill the
+    // param-panel column; otherwise the stage is narrower and the panel shows.
+    const hasParams = (demo.params?.length ?? 0) > 0
+    const contentW = hasParams ? STAGE_W : this.stageFullW
+
+    this.stageMask.clear().rect(0, 0, contentW, STAGE_H).fill(0xffffff)
+    this.stageFrame
+      .clear()
+      .rect(STAGE_X, STAGE_Y, contentW, STAGE_H)
+      .stroke({ color: COLORS.border, width: 1 })
+    this.labelBar
+      .clear()
+      .roundRect(STAGE_X, LABEL_Y, contentW, LABEL_H, RADIUS.panel)
+      .fill(COLORS.panel)
+      .stroke({ color: COLORS.border, width: 1 })
+
+    // Fresh param panel (knobs reset to their defaults for the new demo). The
+    // panel still provides the `params` accessor; its view is only shown when
+    // the demo actually has knobs.
     this.paramPanel = makeParamPanel(demo.params ?? [], PARAMS_W, this.columnH, this.theme)
-    this.paramPanel.view.position.set(PARAMS_X, STAGE_Y)
-    this.addChild(this.paramPanel.view)
+    if (hasParams) {
+      this.paramPanel.view.position.set(PARAMS_X, STAGE_Y)
+      this.addChild(this.paramPanel.view)
+    }
 
     // Diagrams/explainers inset by CONTENT_PAD; full-screen demos draw edge-to-edge.
     const pad = demo.pad ? CONTENT_PAD : 0
@@ -127,7 +148,7 @@ export class GalleryScene extends Scene {
       input: this.input,
       theme: this.theme,
       params: this.paramPanel.params,
-      width: STAGE_W - 2 * pad,
+      width: contentW - 2 * pad,
       height: STAGE_H - 2 * pad,
     })
 

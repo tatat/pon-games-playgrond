@@ -24,6 +24,9 @@ interface Flow {
   edges: ReadonlyArray<readonly [string, string]>
   /** Highlight sequences; one is picked at random each loop. */
   paths: string[][]
+  /** Node the loop-back arrow returns to (defaults to the first node). RPG-like
+   * flows loop back to the field, not the title. */
+  loopTo?: string
 }
 
 /** Common game progression FSMs. Each splits its phases across Scenes
@@ -132,6 +135,31 @@ const FLOWS: Flow[] = [
       ['title', 'chapter', 'choice', 'routeB', 'ending'],
     ],
   },
+  {
+    id: 'phase-rpg',
+    name: 'RPG (field + battle)',
+    caption: 'Field scene (explore + talk) changes to a separate Battle scene, then back.',
+    nodes: [
+      { id: 'title', col: 0, band: 0, scene: 'Title' },
+      { id: 'explore', col: 1, band: 0, scene: 'Field' },
+      { id: 'talk', col: 2, band: -1, scene: 'Field', label: 'event/talk' },
+      { id: 'battle', col: 3, band: 0, scene: 'Battle' },
+      { id: 'result', col: 4, band: 0, scene: 'Battle' },
+    ],
+    edges: [
+      ['title', 'explore'],
+      ['explore', 'talk'],
+      ['explore', 'battle'],
+      ['talk', 'battle'],
+      ['battle', 'result'],
+    ],
+    paths: [
+      ['title', 'explore', 'battle', 'result'],
+      ['title', 'explore', 'talk', 'battle', 'result'],
+    ],
+    // Victory returns to the field, not the title.
+    loopTo: 'explore',
+  },
 ]
 
 /** Dashed segment list pushed into `g` (stroke once afterwards). */
@@ -168,6 +196,9 @@ function arrowhead(
   ]).fill(color)
 }
 
+/** Time each highlighted state holds before advancing. */
+const STEP_MS = 1100
+
 function makeFlowDemo(flow: Flow): PatternDemo {
   return {
     id: flow.id,
@@ -175,18 +206,7 @@ function makeFlowDemo(flow: Flow): PatternDemo {
     caption: flow.caption,
     category: 'phases',
     pad: true,
-    params: [
-      {
-        key: 'step',
-        label: 'Step interval',
-        min: 400,
-        max: 2500,
-        step: 100,
-        default: 1200,
-        unit: 'ms',
-      },
-    ],
-    mount({ stage, width, height, theme, rng, params }: DemoContext): DemoHandle {
+    mount({ stage, width, height, theme, rng }: DemoContext): DemoHandle {
       const root = new Container()
       stage.addChild(root)
 
@@ -279,11 +299,13 @@ function makeFlowDemo(flow: Flow): PatternDemo {
       inScene.stroke({ color: COLORS.muted, width: 1.5 })
       cross.stroke({ color: COLORS.accent, width: 2 })
 
-      // Restart edge (last column → first) is always a changeTo; routed below.
+      // Loop-back edge (last column → loopTo, default the first node) is a
+      // changeTo; routed below the graph.
       const first = flow.nodes.find((n) => n.col === 0 && n.band === 0) ?? flow.nodes[0]
       const last = flow.nodes.find((n) => n.col === maxCol) ?? flow.nodes[flow.nodes.length - 1]
-      if (first && last) {
-        const pf = center(first)
+      const loopTarget = (flow.loopTo && byId.get(flow.loopTo)) || first
+      if (loopTarget && last) {
+        const pf = center(loopTarget)
         const pl = center(last)
         const yBottom = height - 14
         const restart = new Graphics()
@@ -348,7 +370,7 @@ function makeFlowDemo(flow: Flow): PatternDemo {
       return {
         update: (dt) => {
           elapsed += dt.dtMs
-          if (elapsed < params.get('step')) return
+          if (elapsed < STEP_MS) return
           elapsed = 0
           idx++
           if (idx >= sequence.length) {
