@@ -15,6 +15,23 @@ Architecture and conventions live under `docs/`:
 
 Always consult these before adding patterns; do not invent parallel ones.
 
+## Pattern gallery — shared design vocabulary
+
+`src/games/pattern-gallery/` is a catalog "game" (route `/pattern-gallery`) that puts common game-design patterns on screen, each under a **stable English token** (`id`). It exists to make requirement-building easier: instead of describing a behaviour in prose, point at its token and both human and agent mean the same thing.
+
+Categories and example tokens (the live list is `DEMOS` in `src/games/pattern-gallery/demo.ts` — the single source of truth):
+
+- **system** — genre/control archetypes: `breakout-style`, `endless-dodge-style`, `vertical-scroller-style`, `shmup-style`, `aim-launch-style`, `twin-stick-style`, `single-stick-style`, `tank-style`, `inertia-style`, `grid-move-style`, `falling-block-style`, `tower-defense-style`, `turn-based-style`, `rpg-battle-style`, `snake-style`, `platformer-style`, `auto-runner-style`, `adv-style`
+- **layout** — `title-screen`, `hud-corners`, `hud-topbar`, `result-screen`, `letterbox-area` (virtual-pad placement)
+- **phases** — scene-FSM flows with Scene-boundary framing: `phase-arcade`, `phase-stage`, `phase-roguelike`, `phase-match`, `phase-vn`
+- **motion** — `easings` (named curves: `easeOutBack`, `easeOutElastic`, …), `tween-targets`, `particles`, `screen-shake`, `hit-flash`
+- **ui** — `segmented-control`, `checkbox`, `stepper`, `slider`, `button`, `modal-dialog`, `toast`
+- **shapes** — `shape-primitives`; **sprites** — `image-fit` (contain/cover/stretch); **bands** — `band-shapes`, `flow-technique` (`flow-color-phase` vs `flow-scroll`), `edge-rail`
+
+**Using it to build requirements:** reference a token (and, where shown, its numeric param) to specify behaviour quickly — e.g. "the boss is `breakout-style` with ball speed ~420", "use `flow-color-phase` for the rail at pulse 220ms", "transitions are a `phase-stage` flow", "juice = `hit-flash` + `screen-shake`", "ease the panel in with `easeOutBack`".
+
+**Adding patterns:** when a needed pattern is missing, add it — a new `PatternDemo` in the right `src/games/pattern-gallery/demos/*.ts` (each declares `id` / `name` / `caption` / `category`, optional numeric `params`, optional `pad`), exported through that file's array and aggregated in `demo.ts`. Keep demos keyboard/pointer via Pixi only, randomness via the seeded `Rng`, and redraw `Graphics`/`Text` on change (not per frame) — same conventions as the rest of the repo.
+
 ## File operations: prefer built-in tools
 
 When the host environment exposes structured tools, **use them in preference to shell commands**. This keeps diffs reviewable, avoids accidental destruction, and is friendlier to permission prompts.
@@ -104,6 +121,8 @@ After every install (or first checkout) run `npm run prepare` to install the hus
 - **No `Math.random()`** in simulation code — use the seeded `Rng` from `engine/rng`. See `docs/architecture/rng.md`.
 - **No raw `MouseEvent` / `TouchEvent`** in game code — everything goes through Pixi's `pointerdown` / `pointerup` etc. See `docs/architecture/input.md`.
 - **Comment what the code is, not what it stopped being.** A comment should explain the current state for a fresh reader. When something reverts from a special case back to the ordinary one (e.g. an asset that used to be borrowed from another game now lives in this game's own dir), don't add a comment narrating that history — the ordinary case needs no annotation, and the note goes stale. Provenance and "why we changed it" belong in the commit message, not the source.
+- **Be deliberate with padding / margin / gap.** These get eyeballed and left "good enough" too often, which is where layouts look slightly off. When you place something inside a frame, leave intentional breathing room from the border — don't let a highlight, fill, or label sit flush against (or one pixel inside) the edge it lives in. Derive insets from a shared constant or the parent's own padding rather than a fresh magic number, and check both sides: an element abutting one edge usually wants matching clearance on the opposite edge. If a value is arbitrary, say so in a brief comment; if it mirrors another spacing, reuse that constant so the two stay in step.
+- **Keep corner radii and drop shadows subtle.** Large radii and heavy/large shadows read as cheap. Prefer tight, restrained values (see `RADIUS` in `src/games/pattern-gallery/constants.ts` for the scale in use — `card` is small, not large). A bigger surface does **not** want a bigger radius — if anything it wants a tighter one; scaling the radius up with the box is the usual mistake. Shadows should be a faint hint of depth, not a visible halo.
 
 ## TypeScript notes
 
