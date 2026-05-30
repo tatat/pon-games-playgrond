@@ -1302,7 +1302,7 @@ const towerDefense: PatternDemo = {
   caption: 'Pick a slot ← →, build with Space; towers auto-fire at enemies on the path.',
   category: 'system',
   params: [
-    { key: 'range', label: 'Tower range', min: 60, max: 240, step: 10, default: 130, unit: 'px' },
+    { key: 'range', label: 'Tower range', min: 1, max: 5, step: 1, default: 2, unit: 'cells' },
     {
       key: 'spawn',
       label: 'Spawn interval',
@@ -1404,11 +1404,29 @@ const towerDefense: PatternDemo = {
 
     const buildable = (c: number, r: number): boolean =>
       !pathSet.has(`${c},${r}`) && !occupied.has(`${c},${r}`)
+    // Range is a Manhattan radius in cells → a diamond block of cells.
+    const fillRange = (
+      g: Graphics,
+      tc: number,
+      tr: number,
+      range: number,
+      color: number,
+      alpha: number,
+    ): void => {
+      for (let dr = -range; dr <= range; dr++) {
+        for (let dc = -range; dc <= range; dc++) {
+          if (Math.abs(dc) + Math.abs(dr) > range) continue
+          const c = tc + dc
+          const r = tr + dr
+          if (c < 0 || c >= cols || r < 0 || r >= rows) continue
+          g.rect(gx + c * cell, gy + r * cell, cell, cell).fill({ color, alpha })
+        }
+      }
+    }
     const redrawTowers = (): void => {
       towerG.clear()
       const range = params.get('range')
-      for (const t of towers)
-        towerG.circle(ccx(t.c), ccy(t.r), range).fill({ color: COLORS.accent, alpha: 0.05 })
+      for (const t of towers) fillRange(towerG, t.c, t.r, range, COLORS.accent, 0.08)
       for (const t of towers) {
         towerG
           .roundRect(ccx(t.c) - cell * 0.3, ccy(t.r) - cell * 0.3, cell * 0.6, cell * 0.6, 4)
@@ -1420,14 +1438,10 @@ const towerDefense: PatternDemo = {
       const ok = buildable(cc, cr)
       const afford = gold >= COST
       const col = !ok ? COLORS.faint : afford ? 0x6ee7b7 : 0xf4978e
+      if (ok && afford) fillRange(cursorG, cc, cr, params.get('range'), col, 0.14)
       cursorG
         .rect(gx + cc * cell + 1, gy + cr * cell + 1, cell - 2, cell - 2)
         .stroke({ color: col, width: 3 })
-      if (ok && afford) {
-        cursorG
-          .circle(ccx(cc), ccy(cr), params.get('range'))
-          .stroke({ color: col, width: 1, alpha: 0.5 })
-      }
     }
 
     // ── Enemy + shot pools ───────────────────────────────────────────────
@@ -1472,11 +1486,18 @@ const towerDefense: PatternDemo = {
     const SHOT_SPEED = 360
     const FIRE_CD = 0.5
     let spawnT = 0
+    let lastRange = params.get('range')
 
     return {
       update: (dt) => {
         const s = dt.dtSec
         let cursorDirty = false
+        const range = params.get('range')
+        if (range !== lastRange) {
+          lastRange = range
+          redrawTowers()
+          cursorDirty = true
+        }
 
         const mx = axis(input, 'left', 'right')
         const my = axis(input, 'up', 'down')
@@ -1522,18 +1543,21 @@ const towerDefense: PatternDemo = {
           e.g.position.set(p.x, p.y)
         }
 
-        // Towers fire at the nearest in-range enemy.
-        const range = params.get('range')
+        // Towers fire at an enemy whose cell is within Manhattan `range`
+        // (the highlighted diamond), picking the closest one to aim at.
         for (const t of towers) {
           t.cool -= s
           if (t.cool > 0) continue
           const tx = ccx(t.c)
           const ty = ccy(t.r)
           let best: Enemy | null = null
-          let bestD = range
+          let bestD = Number.POSITIVE_INFINITY
           for (const e of enemies) {
             if (!e.alive) continue
             const p = posOf(e.p)
+            const ec = clamp(Math.floor((p.x - gx) / cell), 0, cols - 1)
+            const er = clamp(Math.floor((p.y - gy) / cell), 0, rows - 1)
+            if (Math.abs(ec - t.c) + Math.abs(er - t.r) > range) continue
             const d = Math.hypot(p.x - tx, p.y - ty)
             if (d < bestD) {
               bestD = d
