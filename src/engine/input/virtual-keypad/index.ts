@@ -198,6 +198,16 @@ export function makeVirtualKeypad(
     const vpH = m.viewportH
     const canvasBottomY = m.marginTop + m.gameH
 
+    // Notch avoidance: in the `sides` layout (landscape with side margins)
+    // the pad anchors to the viewport's left/right edges, which is exactly
+    // where a phone's display cutout sits. Push *both* side clusters in by
+    // the larger of the two safe-area insets, so the pad clears the notch
+    // and stays left/right symmetric (the cutout is on one side only, so
+    // honouring each inset independently would shift one cluster but not
+    // the other). Only `sides` is affected — `bottom` / `overlay` keep
+    // their geometry, and the inset is 0 on devices without a cutout.
+    const inset = m.area === 'sides' ? Math.max(m.safeArea.left, m.safeArea.right) : 0
+
     // Right cluster — pattern depends on how many slots are filled.
     // Option always counts when present; A / B add to the count.
     const rightCount = (optionButton ? 1 : 0) + (aButton ? 1 : 0) + (bButton ? 1 : 0)
@@ -217,8 +227,9 @@ export function makeVirtualKeypad(
     // read as "single button stuck in the corner".
     const outerPad = rightCount === 3 ? PAD : STICK_PAD
 
-    // Horizontal anchor: viewport-anchored (canvas-lean is bottom only).
-    const rightCenterX = vpW - outerPad - halfAnchorCell
+    // Horizontal anchor: viewport-anchored (canvas-lean is bottom only),
+    // pulled in by the safe-area inset so the cluster clears the notch.
+    const rightCenterX = vpW - inset - outerPad - halfAnchorCell
 
     // Vertical anchor: hug `canvas-bottom + outerPad` when the bottom
     // margin has room; fall back to `vp_bottom - outerPad` when the
@@ -234,11 +245,11 @@ export function makeVirtualKeypad(
     // landscape position (no bottom margin) unchanged.
     const stickY = Math.min(canvasBottomY + STICK_LEAN_PAD + STICK_R, vpH - STICK_PAD - STICK_R)
     if (stick) {
-      stick.position.set(STICK_PAD + STICK_R, stickY)
+      stick.position.set(inset + STICK_PAD + STICK_R, stickY)
     }
     // Right stick mirrors the left one against the right edge.
     if (rightStick) {
-      rightStick.position.set(vpW - STICK_PAD - STICK_R, stickY)
+      rightStick.position.set(vpW - inset - STICK_PAD - STICK_R, stickY)
     }
 
     if (rightStick) {
