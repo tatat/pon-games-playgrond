@@ -42,6 +42,8 @@ Pixi v8's `Assets` parses filenames for a `@<n>x` suffix and sets `texture.sourc
 
 This matters when porting from Phaser (which does not auto-detect `@2x`): a Phaser source that does `setScale(0.5)` against `foo@2x.png` becomes `setScale(1.0)` in Pixi, and any formula that assumed "image is 2× target size" loses its ×2 factor. Sanity-check by spawning two known-size sprites side-by-side and comparing to the original build.
 
+To **produce** these `@2x` variants from a source image (resize all discrete sizes, trim transparent bounds), use `sharp` — see AGENTS.md § "Image / asset processing" for the convention and where conversion scripts live.
+
 ## Dynamic asset names
 
 `preload` is called from `onEnter`, so the entry list can be built with normal JS expressions — useful for level-indexed levels, character skins, procedurally chosen variants:

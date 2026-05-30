@@ -41,6 +41,39 @@ The same principle extends past file ops: whenever the agent's harness exposes a
 | `pkill -f vite` mid-batch alongside other tool calls you care about | Stop the tracked background task explicitly in its **own** call — a sibling call running in parallel can otherwise be cancelled when the killer terminates a harness-watched process |
 | Write screenshots / probes to the repo root (`opening.png`) | Write under `./tmp/` (`./tmp/opening.png`); gitignored, no cleanup obligation |
 
+## Running the dev server
+
+`npm run dev` is long-lived, so **agree the policy with the user before starting it** — don't just launch it. Pick one of:
+
+- **The agent runs it** in the harness's background mode (e.g. Claude Code's `run_in_background: true`), and reads the tracked task's tail when it needs the log. Stop the task explicitly when done.
+- **The user runs it** in their own terminal (`! npm run dev` in Claude Code, or a separate shell), and the agent just uses the already-running server.
+
+Only one dev server should own the port at a time. If the user already has it running, don't start a second one; if you start one, say so.
+
+**Use Playwright for static layout, ask the user for anything in motion.** Where Playwright fits depends on what you're checking:
+
+- **Static layout balance** (spacing, alignment, sizing, where things sit on screen at rest) — a Playwright screenshot is fine, and is the preferred way to eyeball it yourself.
+- **Anything in motion** (gameplay, animation, physics, timing, feel) — a DOM-snapshot tool can't meaningfully observe a real-time canvas-rendered game (Pixi), so **ask the user to look and confirm** rather than driving the browser yourself. The exception: if the thing can be checked by **instrumenting with logs** (asserting positions, velocities, state transitions, collision counts via console output you read back), that's a fair way to verify it yourself — prefer it when the property is measurable rather than visual.
+
+Playwright also backs the deterministic e2e suite (`npm run test:e2e`); that's separate from the manual checks above.
+
+## Image / asset processing
+
+Two very different jobs — keep them separate:
+
+- **Throwaway crop of a screenshot** (eyeballing a layout) — no shipped artifact. Capture the region directly (Playwright `target`/viewport) or crop in-browser via `browser_evaluate` on the canvas. Output goes under `./tmp/`. Don't reach for an image library for this.
+- **Producing a shipped asset** (a sprite/sticker that lands in `public/games/<id>/...` and ships to ponpon) — this needs a real, reproducible pipeline. Use **`sharp`** (a devDependency): high-quality resize, transparent-bounds `.trim()`, PNG output, batch size variants.
+
+When generating shipped sprites, follow the existing convention (see `docs/architecture/assets.md`):
+
+- Emit `@2x` PNGs — the `@2x` suffix is load-bearing, Pixi reads it as `resolution = 2`.
+- Match the existing naming: `<name>-<size>@2x.png`, where `<name>` is a short family + variant id (the current stickers use `d1`/`d2`/`r1`/`r2`/`t1`/`t2`) and `<size>` is the logical height in px. Generate **all** the discrete sizes a game already uses — the current ladder is `64`, `96`, `128`, `160`, `192`, `224`, `256`, `300`.
+- Keep source/original images out of `public/` (use `./tmp/` or a non-served location); only the generated variants belong under `public/`.
+
+Script placement: a one-off conversion can live in `./tmp/` and be discarded. If the same processing will recur, promote it to a checked-in `scripts/asset-*.mjs` so it's re-runnable.
+
+`sharp` ships prebuilt libvips binaries via optional npm deps — **no install script**, so it works under `.npmrc`'s `ignore-scripts=true`. `min-release-age` still applies on upgrades (drop a patch and retry if a fresh release is inside the window).
+
 ## Daily commands
 
 ```bash
