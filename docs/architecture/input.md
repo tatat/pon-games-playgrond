@@ -112,7 +112,7 @@ The horizontal axis is **not** canvas-aware — the right cluster always anchors
 
 The **stick** uses the same canvas-lean idea on the bottom axis but with its own larger inset — a single circle hugging `canvas-bottom + pad` like the right cluster would, looked like it was glued to the playfield, so the stick gets a softer lean that pulls it down closer to the right cluster's anchor button. The horizontal stick anchor is just viewport-left + a slightly larger outer pad than the right cluster's buttons.
 
-There is no `sides` / `bottom` / `overlay` placement mode — one position formula handles every viewport size.
+There is no `sides` / `bottom` / `overlay` placement mode — one position formula handles every viewport size. The single exception is **notch avoidance**: in the `sides` layout (landscape with side margins, where the pad's left/right anchors line up with a phone's display cutout), both side clusters are pushed in by `max(env(safe-area-inset-left), env(safe-area-inset-right))` — the max (not each side's own inset) so the pad clears the cutout while staying left/right symmetric, since the cutout is on one side only. The insets are surfaced as `layout.current().safeArea` (see `engine/layout.ts`), read via a hidden `viewport-fit=cover` probe element. They are `0` on devices without cutouts and in the `bottom` / `overlay` layouts, so the base formula is unchanged everywhere else.
 
 ### Right cluster — 3 patterns
 
