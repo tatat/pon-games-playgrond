@@ -283,11 +283,19 @@ const aimLaunch: PatternDemo = {
     let vx = 0
     let vy = 0
     let flightMs = 0
+    // Only re-rasterize the label / redraw the aim line when they change.
+    let phaseText = ''
+    let lastAngle = Number.NaN
+    const setPhase = (t: string): void => {
+      if (phaseText === t) return
+      phaseText = t
+      phaseLabel.text = t
+    }
 
     return {
       update: (dt) => {
         if (!flying) {
-          phaseLabel.text = 'AIM'
+          setPhase('AIM')
           // Sweep the aim left/right within an upward cone.
           angle = clamp(
             angle + axis(input, 'left', 'right') * 2.4 * dt.dtSec,
@@ -296,12 +304,15 @@ const aimLaunch: PatternDemo = {
           )
           const ux = Math.cos(angle)
           const uy = Math.sin(angle)
-          aim
-            .clear()
-            .moveTo(origin.x, origin.y)
-            .lineTo(origin.x + ux * 90, origin.y + uy * 90)
-            .stroke({ color: COLORS.accent, width: 3 })
-          aim.circle(origin.x, origin.y, 6).fill(COLORS.text)
+          if (angle !== lastAngle) {
+            lastAngle = angle
+            aim
+              .clear()
+              .moveTo(origin.x, origin.y)
+              .lineTo(origin.x + ux * 90, origin.y + uy * 90)
+              .stroke({ color: COLORS.accent, width: 3 })
+            aim.circle(origin.x, origin.y, 6).fill(COLORS.text)
+          }
           if (input.wasJustPressed('action')) {
             flying = true
             flightMs = 0
@@ -313,8 +324,11 @@ const aimLaunch: PatternDemo = {
             ball.visible = true
           }
         } else {
-          phaseLabel.text = 'FLY'
-          aim.clear()
+          if (phaseText !== 'FLY') {
+            setPhase('FLY')
+            aim.clear()
+            lastAngle = Number.NaN
+          }
           flightMs += dt.dtMs
           const s = dt.dtSec
           bx += vx * s
@@ -1153,6 +1167,11 @@ const verticalScroller: PatternDemo = {
       o.x = ctx.rng.intRange(20, width - 20)
       o.y = -o.size
       o.speed = ctx.rng.intRange(120, 260)
+      // Redraw only when the size changes (here), not every frame.
+      o.g
+        .clear()
+        .roundRect(-o.size / 2, -o.size / 2, o.size, o.size, 5)
+        .fill(COLORS.rowActive)
     }
     for (let i = 0; i < 5; i++) {
       const g = new Graphics()
@@ -1180,10 +1199,6 @@ const verticalScroller: PatternDemo = {
         for (const o of obstacles) {
           o.y += o.speed * rate * s
           if (o.y > height + o.size) respawn(o)
-          o.g
-            .clear()
-            .roundRect(-o.size / 2, -o.size / 2, o.size, o.size, 5)
-            .fill(COLORS.rowActive)
           o.g.position.set(o.x, o.y)
         }
       },
