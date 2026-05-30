@@ -56,7 +56,10 @@ export interface DemoContext {
   height: number
 }
 
-/** A tunable numeric knob shown as one slider in the param panel. */
+/** A tunable knob shown as one row in the param panel. A plain spec is a
+ * slider; adding `options` makes it a discrete stepper (‹ name ›) whose value
+ * is the chosen index — `min`/`max`/`step` should then span the option indices
+ * (`0`…`options.length - 1`, step `1`). */
 export interface ParamSpec {
   key: string
   label: string
@@ -66,6 +69,9 @@ export interface ParamSpec {
   default: number
   /** Suffix shown after the value (e.g. 'ms', 'px', '×'). */
   unit?: string
+  /** Named choices. When set, the row is a stepper and the value is the index
+   * into this list; the current name is shown (and is the shared vocabulary). */
+  options?: readonly string[]
 }
 
 export interface DemoParams {

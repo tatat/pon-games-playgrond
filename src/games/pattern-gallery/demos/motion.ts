@@ -52,6 +52,11 @@ const EASINGS: { name: string; fn: Ease }[] = [
   },
 ]
 
+/** Easing names in `EASINGS` order — the stepper options for `tween-targets`. */
+const EASING_NAMES: readonly string[] = EASINGS.map((e) => e.name)
+/** Default selection: `linear`, the neutral baseline to step away from. */
+const DEFAULT_EASING = EASING_NAMES.indexOf('linear')
+
 const easings: PatternDemo = {
   id: 'easings',
   name: 'Easing gallery',
@@ -132,10 +137,19 @@ const easings: PatternDemo = {
 const tweenTargets: PatternDemo = {
   id: 'tween-targets',
   name: 'Tween targets',
-  caption: 'One eased value (yoyo) driving position, scale, rotation and alpha.',
+  caption: 'The same eased value applied to different properties.',
   category: 'motion',
   pad: true,
   params: [
+    {
+      key: 'easing',
+      label: 'Easing',
+      min: 0,
+      max: EASING_NAMES.length - 1,
+      step: 1,
+      default: DEFAULT_EASING,
+      options: EASING_NAMES,
+    },
     {
       key: 'duration',
       label: 'Duration',
@@ -150,34 +164,72 @@ const tweenTargets: PatternDemo = {
     const root = new Container()
     stage.addChild(root)
 
-    const cy = height * 0.5
-    const x0 = width * 0.18
-    const x1 = width * 0.82
-    const box = new Graphics().roundRect(-26, -26, 52, 52, 8).fill(COLORS.accent)
-    box.position.set(x0, cy)
-    root.addChild(box)
+    // 0→1→0 so yoyo rows ease out *and* back; one-way rows take the raw 0→1.
+    const tri = (p: number): number => 1 - Math.abs(2 * p - 1)
 
-    const label = tag(
-      'one easeInOutSine value (yoyo) → position · scale · rotation · alpha',
-      theme.fontSans,
-    )
-    label.anchor.set(0.5)
-    label.position.set(width / 2, height - 20)
-    root.addChild(label)
+    const rowDefs = ['move-x', 'move-y', 'scale', 'rotate', 'fade'] as const
+    const n = rowDefs.length
+    const rowH = height / n
+    const trackX0 = width * 0.34
+    const trackX1 = width * 0.92
+    const objX = (trackX0 + trackX1) / 2
 
-    const easeInOutSine: Ease = (t) => -(Math.cos(Math.PI * t) - 1) / 2
+    const rows: { apply(p: number, e: Ease): void }[] = []
+    rowDefs.forEach((kind, i) => {
+      const cy = (i + 0.5) * rowH
+      const lbl = tag(kind, theme.fontMono)
+      lbl.anchor.set(0, 0.5)
+      lbl.position.set(2, cy)
+      root.addChild(lbl)
+
+      const obj = new Graphics().roundRect(-16, -16, 32, 32, 6).fill(COLORS.accent)
+      obj.position.set(objX, cy)
+
+      if (kind === 'move-x') {
+        root.addChild(
+          new Graphics()
+            .moveTo(trackX0, cy)
+            .lineTo(trackX1, cy)
+            .stroke({ color: COLORS.border, width: 1 }),
+        )
+        root.addChild(obj)
+        rows.push({
+          apply: (p, e) => obj.position.set(trackX0 + (trackX1 - trackX0) * e(p), cy),
+        })
+      } else if (kind === 'move-y') {
+        const top = cy - rowH * 0.3
+        const bottom = cy + rowH * 0.3
+        root.addChild(
+          new Graphics()
+            .moveTo(objX - 26, bottom + 16)
+            .lineTo(objX + 26, bottom + 16)
+            .stroke({ color: COLORS.border, width: 1 }),
+        )
+        obj.position.set(objX, top)
+        root.addChild(obj)
+        rows.push({ apply: (p, e) => (obj.y = top + e(p) * (bottom - top)) })
+      } else if (kind === 'scale') {
+        root.addChild(obj)
+        rows.push({ apply: (p, e) => obj.scale.set(0.5 + 0.9 * e(tri(p))) })
+      } else if (kind === 'rotate') {
+        root.addChild(obj)
+        rows.push({ apply: (p, e) => (obj.rotation = e(p) * Math.PI * 2) })
+      } else {
+        root.addChild(obj)
+        rows.push({
+          apply: (p, e) => (obj.alpha = Math.max(0, Math.min(1, 0.1 + 0.9 * e(tri(p))))),
+        })
+      }
+    })
+
     let elapsed = 0
     return {
       update: (dt) => {
         const d = params.get('duration')
-        elapsed = (elapsed + dt.dtMs) % (d * 2)
-        const phase = elapsed / d
-        const tri = phase < 1 ? phase : 2 - phase // yoyo 0→1→0
-        const e = easeInOutSine(tri)
-        box.position.set(x0 + (x1 - x0) * e, cy)
-        box.scale.set(0.7 + 0.8 * e)
-        box.rotation = e * Math.PI
-        box.alpha = 0.35 + 0.65 * e
+        const ease = EASINGS[params.get('easing')]?.fn ?? ((t) => t)
+        elapsed = (elapsed + dt.dtMs) % (d + 250) // brief hold before looping
+        const p = Math.min(1, elapsed / d)
+        for (const r of rows) r.apply(p, ease)
       },
     }
   },
