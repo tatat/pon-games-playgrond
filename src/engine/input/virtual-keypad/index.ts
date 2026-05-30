@@ -13,6 +13,8 @@ export type { StickActions } from './stick'
 export interface ActionButtonSpec {
   action: Action
   label?: string
+  /** Override the label font size (e.g. for longer words like LAUNCH). */
+  labelSize?: number
   glyph?: KeypadGlyph
 }
 
@@ -138,6 +140,7 @@ export function makeVirtualKeypad(
     const spec = config.actions.a
     aButton = new PadButton({
       label: spec.label,
+      labelSize: spec.labelSize,
       glyph: spec.glyph,
       onPress: () => input.press(spec.action),
       onRelease: () => input.release(spec.action),
@@ -152,6 +155,7 @@ export function makeVirtualKeypad(
     const spec = config.actions.b
     bButton = new PadButton({
       label: spec.label,
+      labelSize: spec.labelSize,
       glyph: spec.glyph,
       onPress: () => input.press(spec.action),
       onRelease: () => input.release(spec.action),
