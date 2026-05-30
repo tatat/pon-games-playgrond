@@ -105,7 +105,7 @@ export const BLOCK_CULL_BEHIND = 600
 /** Seed used when the "fixed course" setting is on, so every run is identical. */
 export const FIXED_COURSE_SEED = 0x5c2055
 
-/** Base sizes used to look up sticker assets (same @2x naming as breakout-clone). */
+/** Sizes loaded for the block sticker assets (`@2x` naming). */
 export const SCROLL_BRICK_SIZES = [64, 96, 128] as const
 
 /** Vertical range where blocks are spawned. */
@@ -122,7 +122,7 @@ export const BLOCK_BOB_ROT = 0.06
  * slowly and each one feels earned. */
 export const DISTANCE_SCORE_FACTOR = 0.01
 
-/** Sticker asset names shared with breakout-clone. */
+/** Block sticker family ids. */
 export const BRICK_NAMES = ['d1', 'd2', 'r1', 'r2', 't1', 't2'] as const
 
 /** Parallax starfield that sells the sense of forward motion (à la sticker-drift). */

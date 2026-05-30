@@ -61,6 +61,8 @@ Playwright also backs the deterministic e2e suite (`npm run test:e2e`); that's s
 
 ## Image / asset processing
 
+**Each game owns its own images — don't share image assets across games.** A game loads only from its own `public/games/<id>/...` dir. If two games need the same picture, **copy it** into each game's dir; a byte-identical duplicate is accepted and preferred over a cross-game reference. (This keeps games independently shippable to ponpon and lets one game's art evolve without disturbing another's.) Sounds and other assets follow the same per-game ownership.
+
 Two very different jobs — keep them separate:
 
 - **Throwaway crop of a screenshot** (eyeballing a layout) — no shipped artifact. Capture the region directly (Playwright `target`/viewport) or crop in-browser via `browser_evaluate` on the canvas. Output goes under `./tmp/`. Don't reach for an image library for this.
@@ -101,6 +103,7 @@ After every install (or first checkout) run `npm run prepare` to install the hus
 - **Cancellation**: setup-phase async takes `AbortSignal`; cleanup paths (`destroy`, `onExit`) do not. See `docs/architecture/plugin-interface.md` § Cancellation convention.
 - **No `Math.random()`** in simulation code — use the seeded `Rng` from `engine/rng`. See `docs/architecture/rng.md`.
 - **No raw `MouseEvent` / `TouchEvent`** in game code — everything goes through Pixi's `pointerdown` / `pointerup` etc. See `docs/architecture/input.md`.
+- **Comment what the code is, not what it stopped being.** A comment should explain the current state for a fresh reader. When something reverts from a special case back to the ordinary one (e.g. an asset that used to be borrowed from another game now lives in this game's own dir), don't add a comment narrating that history — the ordinary case needs no annotation, and the note goes stale. Provenance and "why we changed it" belong in the commit message, not the source.
 
 ## TypeScript notes
 
