@@ -6,6 +6,7 @@ import { HINT_GAP, hint } from './shared'
 
 const rpgBattle: PatternDemo = {
   id: 'rpg-battle-style',
+  controls: { stick: { up: 'up', down: 'down' }, a: { action: 'action', label: 'OK' } },
   name: 'RPG-battle-style',
   caption: 'JRPG command battle: choose Attack/Magic/Guard (↑ ↓ + Space); the foe counters.',
   category: 'system',
@@ -295,6 +296,7 @@ const rpgBattle: PatternDemo = {
 
 const adv: PatternDemo = {
   id: 'adv-style',
+  controls: { a: { action: 'action', label: 'NEXT' } },
   name: 'ADV / novel-style',
   caption: 'Typewriter dialogue you advance line by line — tap-to-progress (mobile VN).',
   category: 'system',

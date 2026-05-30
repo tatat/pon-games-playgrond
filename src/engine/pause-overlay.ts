@@ -61,8 +61,7 @@ export function attachPauseOverlay(
   const onKey = (e: KeyboardEvent): void => {
     if (e.code === 'Comma') {
       e.preventDefault()
-      const s = useRuntimeStore.getState()
-      s.setGamePaused(!s.gamePaused)
+      useRuntimeStore.getState().toggleGamePaused()
     } else if (e.code === 'Escape') {
       const s = useRuntimeStore.getState()
       if (s.gamePaused) {

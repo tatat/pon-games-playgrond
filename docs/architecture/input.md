@@ -48,6 +48,7 @@ export class InputManager {
 ### Slots
 
 - **Stick slot** (left side) — a single Xbox-style thumbstick: outer ring with a draggable inner knob, sized slightly larger than the right cluster's buttons so it visibly reads as a different kind of control. The knob resolves into 1–2 simultaneously-active discrete direction actions (`left` / `right` / `up` / `down`). A diagonal drag activates both axes (e.g. `left` + `up`). Continuous-vector output is intentionally not exposed today.
+- **Right stick slot** (right side, optional) — a second thumbstick for twin-stick (aim) controls, set via `rightStick`. It mirrors the left stick against the right edge and **takes the place of the A / B cluster** — the two are mutually exclusive, and when a right stick is present `actions` is ignored and the Option button sits diagonally up-left of the aim stick (Pattern 2 geometry, measured from the stick's radius).
 - **A button** / **B button** (right side) — two hold-buttons drawn as circles. Both `actions.a` and `actions.b` are optional.
 - **Option button** (right side) — a single tap-button drawn as a smaller circle with a hamburger glyph. The scene wires its `tap` handler to whatever opens the in-game menu (settings, pause modal, etc.).
 
@@ -69,7 +70,17 @@ export interface KeypadConfig {
     up?: Action;
     down?: Action;
   };
-  /** Right-side A / B hold-buttons. Either or both may be assigned. */
+  /** Right-side thumbstick (aim). When set it owns the bottom-right corner,
+   * so it is mutually exclusive with `actions`; the Option button sits
+   * diagonally up-left of it. Same shape and behaviour as `stick`. */
+  rightStick?: {
+    left?: Action;
+    right?: Action;
+    up?: Action;
+    down?: Action;
+  };
+  /** Right-side A / B hold-buttons. Either or both may be assigned. Ignored
+   * when `rightStick` is set. */
   actions?: {
     a?: { action: Action; label?: string; glyph?: KeypadGlyph };
     b?: { action: Action; label?: string; glyph?: KeypadGlyph };

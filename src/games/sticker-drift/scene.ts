@@ -121,7 +121,7 @@ export class MainScene extends Scene {
         actions: {
           a: { action: 'float', glyph: 'float' },
         },
-        option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+        option: { tap: () => useRuntimeStore.getState().toggleGamePaused() },
       }),
     )
     this.layout.uiLayer.addChild(keypad.view)

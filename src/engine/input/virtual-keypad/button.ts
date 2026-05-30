@@ -9,6 +9,9 @@ export interface PadButtonOptions {
   glyph?: KeypadGlyph
   /** Plain text label (used when no pictogram fits, e.g. JUMP / FAST). */
   label?: string
+  /** Label font size. Defaults to `LABEL_FONT_SIZE`; lower it for longer
+   * words (e.g. LAUNCH / ROTATE) that would otherwise crowd the disc. */
+  labelSize?: number
   /** Hold semantics: fired on `pointerdown` / `pointerup` (and friends). */
   onPress?(): void
   onRelease?(): void
@@ -47,7 +50,7 @@ export class PadButton extends Container {
       const fontFamily = useRuntimeStore.getState().uiTheme.fontSans
       this.labelText = new Text({
         text: opts.label,
-        style: { fill: 0xffffff, fontSize: LABEL_FONT_SIZE, fontFamily },
+        style: { fill: 0xffffff, fontSize: opts.labelSize ?? LABEL_FONT_SIZE, fontFamily },
       })
       this.labelText.anchor.set(0.5)
       this.labelText.alpha = 0.75
