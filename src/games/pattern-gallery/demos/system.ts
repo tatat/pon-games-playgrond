@@ -1667,14 +1667,16 @@ const turnBased: PatternDemo = {
       alive: boolean
       view: Container
       fill: Graphics
+      flash: Graphics
+      flashT: number
     }
     const HP_MAX = 3
+    const FLASH_DUR = 0.32
     const makeUnit = (ally: boolean): Unit => {
       const view = new Container()
       const col = ally ? COLORS.accent : 0xff6bd1
-      view.addChild(
-        new Graphics().roundRect(-cell * 0.32, -cell * 0.32, cell * 0.64, cell * 0.64, 5).fill(col),
-      )
+      const body = cell * 0.64
+      view.addChild(new Graphics().roundRect(-body / 2, -body / 2, body, body, 5).fill(col))
       const bw = cell * 0.6
       view.addChild(
         new Graphics().rect(-bw / 2, -cell * 0.45, bw, 4).fill({ color: 0x000000, alpha: 0.5 }),
@@ -1683,8 +1685,12 @@ const turnBased: PatternDemo = {
       fill.pivot.set(-bw / 2, 0)
       fill.position.set(-bw / 2, 0)
       view.addChild(fill)
+      // White hit-flash overlay (on top), revealed briefly when struck.
+      const flash = new Graphics().roundRect(-body / 2, -body / 2, body, body, 5).fill(0xffffff)
+      flash.alpha = 0
+      view.addChild(flash)
       root.addChild(view)
-      return { c: 0, r: 0, hp: HP_MAX, ally, alive: true, view, fill }
+      return { c: 0, r: 0, hp: HP_MAX, ally, alive: true, view, fill, flash, flashT: 0 }
     }
     const player = makeUnit(true)
     const enemies = [makeUnit(false), makeUnit(false)]
@@ -1697,8 +1703,7 @@ const turnBased: PatternDemo = {
     const unitAt = (c: number, r: number): Unit | undefined =>
       allUnits().find((u) => u.alive && u.c === c && u.r === r)
     const refreshHp = (u: Unit): void => {
-      u.fill.scale.x = u.hp / HP_MAX
-      u.view.visible = u.alive
+      u.fill.scale.x = Math.max(0, u.hp) / HP_MAX
     }
 
     const resetBoard = (): void => {
@@ -1710,7 +1715,13 @@ const turnBased: PatternDemo = {
         e.alive = true
         place(e, cols - 2, 1 + i * 2)
       })
-      for (const u of allUnits()) refreshHp(u)
+      for (const u of allUnits()) {
+        refreshHp(u)
+        u.view.visible = true
+        u.view.scale.set(1)
+        u.flash.alpha = 0
+        u.flashT = 0
+      }
     }
     resetBoard()
 
@@ -1769,6 +1780,8 @@ const turnBased: PatternDemo = {
           t.hp -= 1
           if (t.hp <= 0) t.alive = false
           refreshHp(t)
+          t.flashT = FLASH_DUR // flash the struck unit
+          u.flashT = FLASH_DUR * 0.6 // small pop on the attacker too
           break
         }
       }
@@ -1797,6 +1810,16 @@ const turnBased: PatternDemo = {
 
     return {
       update: (dt) => {
+        // Decay hit-flash + pop on every unit (runs in any phase).
+        for (const u of allUnits()) {
+          if (u.flashT <= 0) continue
+          u.flashT -= dt.dtSec
+          const k = Math.max(0, u.flashT) / FLASH_DUR
+          u.flash.alpha = k
+          u.view.scale.set(1 + 0.3 * k)
+          if (u.flashT <= 0 && !u.alive) u.view.visible = false
+        }
+
         if (phase === 'player') {
           let dirty = false
           if (input.wasJustPressed('left')) {
@@ -1849,6 +1872,264 @@ const turnBased: PatternDemo = {
             attackAround(e, true) // hit the player if now adjacent
           }
           if (enemyQueue.length === 0) startPlayerTurn()
+        }
+      },
+    }
+  },
+}
+
+const rpgBattle: PatternDemo = {
+  id: 'rpg-battle-style',
+  name: 'RPG-battle-style',
+  caption: 'JRPG command battle: choose Attack/Magic/Guard (↑ ↓ + Space); the foe counters.',
+  category: 'system',
+  params: [
+    {
+      key: 'speed',
+      label: 'Message speed',
+      min: 200,
+      max: 1200,
+      step: 100,
+      default: 550,
+      unit: 'ms',
+    },
+  ],
+  mount(ctx) {
+    const { width, input, params, theme, rng } = ctx
+    const root = new Container()
+    ctx.stage.addChild(root)
+    hint(ctx, '↑ ↓ : choose command · Space : confirm')
+
+    const hero = { hp: 30, max: 30, mp: 20, mpMax: 20, guard: false }
+    const enemy = { hp: 40, max: 40, alive: true }
+    const ey = ctx.height * 0.3
+
+    // ── Enemy ────────────────────────────────────────────────────────────
+    const enemyView = new Container()
+    enemyView.position.set(width / 2, ey)
+    root.addChild(enemyView)
+    enemyView.addChild(new Graphics().roundRect(-48, -48, 96, 96, 12).fill(0xff6bd1))
+    const eFlash = new Graphics().roundRect(-48, -48, 96, 96, 12).fill(0xffffff)
+    eFlash.alpha = 0
+    enemyView.addChild(eFlash)
+    const eName = text('SLIME', { fill: COLORS.text, fontSize: 14, fontFamily: theme.fontMono })
+    eName.anchor.set(0.5)
+    eName.position.set(width / 2, ey - 72)
+    root.addChild(eName)
+    const ehbW = 120
+    const ehbX = width / 2 - ehbW / 2
+    root.addChild(new Graphics().rect(ehbX, ey - 60, ehbW, 6).fill({ color: 0x000000, alpha: 0.5 }))
+    const eHpFill = new Graphics().rect(ehbX, ey - 60, ehbW, 6).fill(0xff6bd1)
+    eHpFill.pivot.set(ehbX, 0)
+    eHpFill.position.set(ehbX, 0)
+    root.addChild(eHpFill)
+
+    // ── Bottom panels ────────────────────────────────────────────────────
+    const bottomY = ctx.height - FLOOR_INSET - 6
+    const panelH = 92
+    const panelY = bottomY - panelH
+    root.addChild(
+      new Graphics()
+        .roundRect(12, panelY, width * 0.44, panelH, RADIUS.panel)
+        .fill(COLORS.panel)
+        .stroke({ color: COLORS.border, width: 1 }),
+    )
+    const heroName = text('HERO', { fill: COLORS.text, fontSize: 15, fontFamily: theme.fontSans })
+    heroName.position.set(26, panelY + 10)
+    root.addChild(heroName)
+    const hpText = text('', { fill: COLORS.muted, fontSize: 14, fontFamily: theme.fontMono })
+    hpText.position.set(26, panelY + 38)
+    root.addChild(hpText)
+    const mpText = text('', { fill: COLORS.muted, fontSize: 14, fontFamily: theme.fontMono })
+    mpText.position.set(26, panelY + 60)
+    root.addChild(mpText)
+
+    const cmX = width * 0.58
+    root.addChild(
+      new Graphics()
+        .roundRect(cmX, panelY, width * 0.42 - 12, panelH, RADIUS.panel)
+        .fill(COLORS.panel)
+        .stroke({ color: COLORS.border, width: 1 }),
+    )
+    const COMMANDS = ['Attack', 'Magic (5 MP)', 'Guard']
+    const cmdTexts = COMMANDS.map((c, i) => {
+      const t = text(c, { fill: COLORS.text, fontSize: 16, fontFamily: theme.fontSans })
+      t.position.set(cmX + 34, panelY + 12 + i * 24)
+      root.addChild(t)
+      return t
+    })
+    const cursor = text('▶', { fill: COLORS.accent, fontSize: 14, fontFamily: theme.fontSans })
+    cursor.anchor.set(0.5)
+    root.addChild(cursor)
+    const msgText = text('Your move.', {
+      fill: COLORS.muted,
+      fontSize: 14,
+      fontFamily: theme.fontMono,
+    })
+    msgText.position.set(12, panelY - 24)
+    root.addChild(msgText)
+
+    // ── Floating damage numbers ──────────────────────────────────────────
+    interface Floater {
+      t: PixiText
+      life: number
+      alive: boolean
+    }
+    const floaters: Floater[] = Array.from({ length: 8 }, () => {
+      const t = text('', {
+        fill: 0xffd166,
+        fontSize: 20,
+        fontFamily: theme.fontSans,
+        fontWeight: 'bold',
+      })
+      t.anchor.set(0.5)
+      t.visible = false
+      root.addChild(t)
+      return { t, life: 0, alive: false }
+    })
+    const popNumber = (x: number, y: number, dmg: number, color: number): void => {
+      const f = floaters.find((q) => !q.alive)
+      if (!f) return
+      f.alive = true
+      f.life = 0.8
+      f.t.text = `${dmg}`
+      f.t.style.fill = color
+      f.t.position.set(x, y)
+      f.t.alpha = 1
+      f.t.visible = true
+    }
+
+    let sel = 0
+    let eFlashT = 0
+    let phase: 'input' | 'resolve' = 'input'
+    let stepT = 0
+    const steps: (() => void)[] = []
+    const gap = (): number => params.get('speed') / 1000
+
+    const setMsg = (s: string): void => {
+      if (msgText.text !== s) msgText.text = s
+    }
+    const syncStats = (): void => {
+      hpText.text = `HP ${Math.max(0, hero.hp)}/${hero.max}`
+      mpText.text = `MP ${hero.mp}/${hero.mpMax}`
+    }
+    const syncEnemy = (): void => {
+      eHpFill.scale.x = Math.max(0, enemy.hp) / enemy.max
+    }
+    const moveCursor = (): void => {
+      const t = cmdTexts[sel]
+      if (t) cursor.position.set(cmX + 22, t.y + 9)
+    }
+    syncStats()
+    syncEnemy()
+    moveCursor()
+
+    const hitEnemy = (dmg: number): void => {
+      enemy.hp -= dmg
+      if (enemy.hp <= 0) enemy.alive = false
+      syncEnemy()
+      eFlashT = 0.3
+      popNumber(width / 2, ey - 20, dmg, 0xffffff)
+    }
+    const hitHero = (dmg: number): void => {
+      hero.hp -= dmg
+      syncStats()
+      popNumber(86, panelY + 30, dmg, 0xff6b6b)
+    }
+
+    const heroTurn = (cmd: number): void => {
+      hero.guard = false
+      steps.length = 0
+      if (cmd === 0) {
+        steps.push(() => setMsg('HERO attacks!'))
+        steps.push(() => hitEnemy(rng.intRange(8, 14)))
+      } else if (cmd === 1) {
+        hero.mp -= 5
+        syncStats()
+        steps.push(() => setMsg('HERO casts Bolt!'))
+        steps.push(() => hitEnemy(rng.intRange(16, 24)))
+      } else {
+        hero.guard = true
+        steps.push(() => setMsg('HERO guards.'))
+      }
+      steps.push(() => {
+        if (!enemy.alive) {
+          enemyView.visible = false
+          steps.push(() => {
+            setMsg('Enemy defeated! A new foe appears.')
+            enemy.hp = enemy.max
+            enemy.alive = true
+            enemyView.visible = true
+            syncEnemy()
+          })
+        } else {
+          steps.push(() => setMsg('Enemy attacks!'))
+          steps.push(() => {
+            let d = rng.intRange(6, 12)
+            if (hero.guard) d = Math.ceil(d / 2)
+            hitHero(d)
+          })
+          steps.push(() => {
+            if (hero.hp <= 0) {
+              setMsg('HERO falls… and is revived.')
+              hero.hp = hero.max
+              syncStats()
+            }
+          })
+        }
+      })
+      steps.push(() => {
+        hero.mp = Math.min(hero.mpMax, hero.mp + 2)
+        syncStats()
+      })
+      phase = 'resolve'
+      stepT = gap()
+    }
+
+    return {
+      update: (dt) => {
+        if (eFlashT > 0) {
+          eFlashT -= dt.dtSec
+          eFlash.alpha = Math.max(0, eFlashT) / 0.3
+        }
+        for (const f of floaters) {
+          if (!f.alive) continue
+          f.life -= dt.dtSec
+          if (f.life <= 0) {
+            f.alive = false
+            f.t.visible = false
+            continue
+          }
+          f.t.y -= 32 * dt.dtSec
+          f.t.alpha = Math.min(1, f.life / 0.4)
+        }
+
+        if (phase === 'input') {
+          const magic = cmdTexts[1]
+          if (magic) magic.alpha = hero.mp >= 5 ? 1 : 0.4
+          if (input.wasJustPressed('up')) {
+            sel = (sel + COMMANDS.length - 1) % COMMANDS.length
+            moveCursor()
+          }
+          if (input.wasJustPressed('down')) {
+            sel = (sel + 1) % COMMANDS.length
+            moveCursor()
+          }
+          if (input.wasJustPressed('action')) {
+            if (sel === 1 && hero.mp < 5) setMsg('Not enough MP!')
+            else heroTurn(sel)
+          }
+        } else {
+          stepT -= dt.dtSec
+          if (stepT > 0) return
+          if (steps.length === 0) {
+            phase = 'input'
+            setMsg('Your move.')
+            return
+          }
+          const s = steps.shift()
+          if (s) s()
+          stepT = gap()
         }
       },
     }
@@ -1952,6 +2233,7 @@ export const systemDemos: PatternDemo[] = [
   fallingBlock,
   towerDefense,
   turnBased,
+  rpgBattle,
   platformer,
   autoRunner,
   adv,
