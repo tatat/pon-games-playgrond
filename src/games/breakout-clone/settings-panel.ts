@@ -1,4 +1,4 @@
-import type { GameSettingsPanel, SettingsRow } from '../../engine/settings-ui'
+import type { GameSettingsPanel, SettingsRow } from '../../engine/pause-overlay'
 import { makeCheckbox } from '../../engine/ui/checkbox'
 import { makeStepper } from '../../engine/ui/stepper'
 import type { UiTheme } from '../../engine/ui-theme'
@@ -32,6 +32,9 @@ export function buildBreakoutCloneSettingsPanel(theme: UiTheme): GameSettingsPan
     onChange: (v) => useBreakoutCloneStore.getState().setScale(v),
     subscribe: (cb) => useBreakoutCloneStore.subscribe(cb),
     theme,
+    width: 240,
+    height: 36,
+    fontSize: 19,
   })
   disposers.push(() => scale.dispose())
 
@@ -41,7 +44,9 @@ export function buildBreakoutCloneSettingsPanel(theme: UiTheme): GameSettingsPan
     onChange: (v) => useBreakoutCloneStore.getState().setBaseKey(v),
     subscribe: (cb) => useBreakoutCloneStore.subscribe(cb),
     theme,
-    width: 140,
+    width: 160,
+    height: 36,
+    fontSize: 19,
   })
   disposers.push(() => baseKey.dispose())
 
@@ -49,6 +54,7 @@ export function buildBreakoutCloneSettingsPanel(theme: UiTheme): GameSettingsPan
     getValue: () => useBreakoutCloneStore.getState().debugMode,
     onChange: (v) => useBreakoutCloneStore.getState().setDebugMode(v),
     subscribe: (cb) => useBreakoutCloneStore.subscribe(cb),
+    size: 26,
   })
   disposers.push(() => debug.dispose())
 

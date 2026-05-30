@@ -83,12 +83,13 @@ GameScene (Container)
 │   ├── livesIcons
 │   ├── timerText
 │   └── floatingTexts
-└── overlay (Container)        ← modal layer
-    ├── pauseOverlay
+└── overlay (Container)        ← modal layer (scene-owned)
     └── gameOverOverlay
 ```
 
 The camera transform applies only to `world`. `hud` and `overlay` stay anchored to screen coordinates inside the logical 1280×720 viewport.
+
+The **pause / settings overlay** is *not* in this scene-owned layer — it is attached once at the layout level (`engine/pause-overlay.ts`, `attachPauseOverlay`) and shared across all scenes, driven by `useRuntimeStore.gamePaused`. Scenes only trigger it (e.g. a vkeypad menu button calling `setGamePaused(true)`); they don't build their own pause UI. See [Responsive § Pause / settings overlay](./responsive.md#pause--settings-overlay).
 
 ## HUD inside canvas
 
@@ -96,5 +97,5 @@ HUD is rendered in Pixi rather than React. It scales with the game viewport and 
 
 - Subscribe to the per-game store in the HUD's constructor; store the unsubscribe and call it in the HUD's own teardown.
 - Use **BitmapText** for frequently updated text (scores, timers) to avoid texture regeneration.
-- Use `@pixi/ui` (`FancyButton`, `List`, `Slider`) for menus and pause overlays.
+- Use `@pixi/ui` (`FancyButton`, `List`, `Slider`) for menus and overlays.
 - Keep HUD elements at least 40 px from the logical edges (see [Responsive § HUD margin rule](./responsive.md#hud-margin-rule)).

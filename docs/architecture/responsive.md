@@ -112,13 +112,17 @@ No special handling. Portrait users on a landscape-only game get a small letterb
 |---|---|---|---|
 | Score, lives, timer (in-game HUD) | Pixi | `gameContainer` (HUD child) | Logical 1280×720 |
 | Damage numbers, speech bubbles | Pixi | `gameContainer` (world child) | Logical |
-| Pause / Game-over modal | Pixi | `gameContainer` (overlay child) | Logical |
-| Settings (in-game), shop, inventory | Pixi | `gameContainer` (overlay child) | Logical |
+| Pause / settings overlay (unified) | Pixi | `gameContainer` (overlay child) | Logical |
+| Game-over modal, shop, inventory | Pixi | `gameContainer` (overlay child) | Logical |
 | Touch pad (sides / bottom) | Pixi | `uiLayer` | Viewport |
 | Touch pad (overlay) | Pixi | `gameContainer` (overlay child) | Logical (half-transparent) |
 | Settings (lobby), profile | Plain React | React shell | DOM, manual |
 | Lobby, leaderboards | Plain React | React shell | DOM, manual |
 | Header, navigation | Plain React | React shell | DOM, manual |
+
+### Pause / settings overlay
+
+Pause and settings are a **single** overlay (`engine/pause-overlay.ts`, `attachPauseOverlay`), not two stacked modals. There is one dim backdrop and one panel; the settings live inline under `System` / `Game` tabs with a `Resume` button. Visibility is driven entirely by `useRuntimeStore.gamePaused` — pausing *is* opening the panel. Shortcuts: `,` toggles it, `Esc` closes (resumes). The panel uses logical coords and spans ~90% × ~83% of the 1280×720 viewport so the type stays readable; on small-scale (portrait) viewports it still scales down with `gameContainer`.
 
 ## Escape hatch: React over the canvas
 
