@@ -1314,99 +1314,143 @@ const towerDefense: PatternDemo = {
     },
   ],
   mount(ctx) {
-    const { width, input, params } = ctx
-    const h = ctx.height - FLOOR_INSET - 10
+    const { width, input, params, theme } = ctx
     const root = new Container()
     ctx.stage.addChild(root)
-    hint(ctx, '← → : select slot · Space : build tower')
+    hint(ctx, '← → ↑ ↓ : move cursor · Space : build')
 
-    // ── Path the enemies walk ──────────────────────────────────────────────
-    const pts = [
-      { x: 0, y: h * 0.25 },
-      { x: width * 0.28, y: h * 0.25 },
-      { x: width * 0.28, y: h * 0.75 },
-      { x: width * 0.62, y: h * 0.75 },
-      { x: width * 0.62, y: h * 0.3 },
-      { x: width, y: h * 0.3 },
+    const COST = 50
+    const REWARD = 20
+    let gold = 150
+
+    // ── Grid ────────────────────────────────────────────────────────────────
+    const cols = 11
+    const rows = 7
+    const fieldTop = 26
+    const fieldH = ctx.height - FLOOR_INSET - 6 - fieldTop
+    const cell = Math.floor(Math.min(width / cols, fieldH / rows))
+    const gx = Math.floor((width - cols * cell) / 2)
+    const gy = fieldTop + Math.floor((fieldH - rows * cell) / 2)
+    const ccx = (c: number): number => gx + c * cell + cell / 2
+    const ccy = (r: number): number => gy + r * cell + cell / 2
+
+    const pathCells: [number, number][] = [
+      [0, 1],
+      [1, 1],
+      [2, 1],
+      [3, 1],
+      [3, 2],
+      [3, 3],
+      [3, 4],
+      [4, 4],
+      [5, 4],
+      [6, 4],
+      [7, 4],
+      [7, 3],
+      [7, 2],
+      [7, 1],
+      [8, 1],
+      [9, 1],
+      [10, 1],
     ]
-    const segs: { ax: number; ay: number; bx: number; by: number; len: number; acc: number }[] = []
-    let total = 0
-    for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1]
-      const b = pts[i]
-      if (!a || !b) continue
-      const len = Math.hypot(b.x - a.x, b.y - a.y)
-      segs.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, len, acc: total })
-      total += len
-    }
-    const pointAt = (d: number): { x: number; y: number } => {
-      for (const s of segs) {
-        if (d <= s.acc + s.len) {
-          const t = s.len > 0 ? (d - s.acc) / s.len : 0
-          return { x: s.ax + (s.bx - s.ax) * t, y: s.ay + (s.by - s.ay) * t }
-        }
+    const pathSet = new Set(pathCells.map(([c, r]) => `${c},${r}`))
+    const pathPx = pathCells.map(([c, r]) => ({ x: ccx(c), y: ccy(r) }))
+    const END = pathPx.length - 1
+
+    // Static grid + path track.
+    const gridG = new Graphics()
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const isPath = pathSet.has(`${c},${r}`)
+        gridG
+          .rect(gx + c * cell, gy + r * cell, cell, cell)
+          .fill(isPath ? { color: COLORS.border, alpha: 0.9 } : { color: 0xffffff, alpha: 0.015 })
+          .stroke({ color: COLORS.border, width: 1, alpha: isPath ? 0 : 0.5 })
       }
-      const last = pts[pts.length - 1] ?? { x: 0, y: 0 }
-      return { x: last.x, y: last.y }
     }
-    const pathG = new Graphics()
-    pathG.moveTo(pts[0]?.x ?? 0, pts[0]?.y ?? 0)
-    for (let i = 1; i < pts.length; i++) pathG.lineTo(pts[i]?.x ?? 0, pts[i]?.y ?? 0)
-    pathG.stroke({ color: COLORS.border, width: 14 })
-    root.addChild(pathG)
+    root.addChild(gridG)
 
-    // ── Build slots + cursor ────────────────────────────────────────────────
-    const slots = [
-      { x: width * 0.14, y: h * 0.5 },
-      { x: width * 0.45, y: h * 0.5 },
-      { x: width * 0.45, y: h * 0.08 },
-      { x: width * 0.8, y: h * 0.55 },
-      { x: width * 0.82, y: h * 0.86 },
-    ]
-    const occupied = new Array<boolean>(slots.length).fill(false)
-    let sel = 0
+    // ── HUD (gold + cost) ─────────────────────────────────────────────────
+    const goldText = text(`GOLD ${gold}`, {
+      fill: 0xffd166,
+      fontSize: 15,
+      fontFamily: theme.fontMono,
+    })
+    goldText.position.set(0, 2)
+    root.addChild(goldText)
+    const costText = text(`TOWER ${COST} · kill +${REWARD}`, {
+      fill: COLORS.muted,
+      fontSize: 14,
+      fontFamily: theme.fontMono,
+    })
+    costText.anchor.set(1, 0)
+    costText.position.set(width, 3)
+    root.addChild(costText)
+    let lastGold = gold
 
+    // ── Towers + cursor ──────────────────────────────────────────────────
     const towerG = new Graphics()
     const cursorG = new Graphics()
     root.addChild(towerG, cursorG)
     interface Tower {
-      x: number
-      y: number
+      c: number
+      r: number
       cool: number
     }
     const towers: Tower[] = []
+    const occupied = new Set<string>()
+    let cc = 0
+    let cr = 0 // cursor cell (0,0 is buildable — the path starts at row 1)
 
+    const buildable = (c: number, r: number): boolean =>
+      !pathSet.has(`${c},${r}`) && !occupied.has(`${c},${r}`)
     const redrawTowers = (): void => {
       towerG.clear()
       const range = params.get('range')
+      for (const t of towers)
+        towerG.circle(ccx(t.c), ccy(t.r), range).fill({ color: COLORS.accent, alpha: 0.05 })
       for (const t of towers) {
-        towerG.circle(t.x, t.y, range).fill({ color: COLORS.accent, alpha: 0.06 })
-        towerG.circle(t.x, t.y, 13).fill(COLORS.accent)
+        towerG
+          .roundRect(ccx(t.c) - cell * 0.3, ccy(t.r) - cell * 0.3, cell * 0.6, cell * 0.6, 4)
+          .fill(COLORS.accent)
       }
     }
     const redrawCursor = (): void => {
       cursorG.clear()
-      slots.forEach((sp, i) => {
-        if (occupied[i]) return
-        cursorG.circle(sp.x, sp.y, 12).stroke({ color: COLORS.faint, width: 2 })
-      })
-      const cur = slots[sel]
-      if (cur) cursorG.circle(cur.x, cur.y, 15).stroke({ color: COLORS.accent, width: 3 })
+      const ok = buildable(cc, cr)
+      const afford = gold >= COST
+      const col = !ok ? COLORS.faint : afford ? 0x6ee7b7 : 0xf4978e
+      cursorG
+        .rect(gx + cc * cell + 1, gy + cr * cell + 1, cell - 2, cell - 2)
+        .stroke({ color: col, width: 3 })
+      if (ok && afford) {
+        cursorG
+          .circle(ccx(cc), ccy(cr), params.get('range'))
+          .stroke({ color: col, width: 1, alpha: 0.5 })
+      }
     }
 
-    // ── Enemy + projectile pools ────────────────────────────────────────────
+    // ── Enemy + shot pools ───────────────────────────────────────────────
     interface Enemy {
       g: Graphics
       alive: boolean
-      dist: number
+      p: number
       hp: number
     }
     const enemies: Enemy[] = Array.from({ length: 12 }, () => {
-      const g = new Graphics().circle(0, 0, 10).fill(COLORS.rowActive)
+      const g = new Graphics().circle(0, 0, Math.min(11, cell * 0.34)).fill(COLORS.rowActive)
       g.visible = false
       root.addChild(g)
-      return { g, alive: false, dist: 0, hp: 3 }
+      return { g, alive: false, p: 0, hp: 3 }
     })
+    const posOf = (p: number): { x: number; y: number } => {
+      const i = Math.max(0, Math.min(Math.floor(p), pathPx.length - 2))
+      const a = pathPx[i]
+      const b = pathPx[i + 1]
+      if (!a || !b) return a ?? { x: 0, y: 0 }
+      const t = p - i
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+    }
     interface Shot {
       g: Graphics
       alive: boolean
@@ -1424,57 +1468,57 @@ const towerDefense: PatternDemo = {
     redrawTowers()
     redrawCursor()
 
-    const ENEMY_SPEED = 70
-    const SHOT_SPEED = 340
+    const ENEMY_SPEED = 2.4 // cells/sec
+    const SHOT_SPEED = 360
     const FIRE_CD = 0.5
     let spawnT = 0
 
     return {
       update: (dt) => {
         const s = dt.dtSec
+        let cursorDirty = false
 
-        // Slot selection + build.
-        if (input.wasJustPressed('left')) {
-          sel = (sel - 1 + slots.length) % slots.length
-          redrawCursor()
+        const mx = axis(input, 'left', 'right')
+        const my = axis(input, 'up', 'down')
+        if (input.wasJustPressed('left') || input.wasJustPressed('right')) {
+          cc = clamp(cc + mx, 0, cols - 1)
+          cursorDirty = true
         }
-        if (input.wasJustPressed('right')) {
-          sel = (sel + 1) % slots.length
-          redrawCursor()
+        if (input.wasJustPressed('up') || input.wasJustPressed('down')) {
+          cr = clamp(cr + my, 0, rows - 1)
+          cursorDirty = true
         }
-        if (input.wasJustPressed('action') && !occupied[sel]) {
-          const sp = slots[sel]
-          if (sp) {
-            towers.push({ x: sp.x, y: sp.y, cool: 0 })
-            occupied[sel] = true
-            redrawTowers()
-            redrawCursor()
-          }
+        if (input.wasJustPressed('action') && buildable(cc, cr) && gold >= COST) {
+          towers.push({ c: cc, r: cr, cool: 0 })
+          occupied.add(`${cc},${cr}`)
+          gold -= COST
+          redrawTowers()
+          cursorDirty = true
         }
 
-        // Spawn enemies.
+        // Spawn.
         spawnT += dt.dtMs
         if (spawnT >= params.get('spawn')) {
           spawnT = 0
           const e = enemies.find((en) => !en.alive)
           if (e) {
             e.alive = true
-            e.dist = 0
+            e.p = 0
             e.hp = 3
             e.g.visible = true
           }
         }
 
-        // Move enemies along the path.
+        // Move enemies along the grid path.
         for (const e of enemies) {
           if (!e.alive) continue
-          e.dist += ENEMY_SPEED * s
-          if (e.dist >= total) {
+          e.p += ENEMY_SPEED * s
+          if (e.p >= END) {
             e.alive = false
             e.g.visible = false
             continue
           }
-          const p = pointAt(e.dist)
+          const p = posOf(e.p)
           e.g.position.set(p.x, p.y)
         }
 
@@ -1483,12 +1527,14 @@ const towerDefense: PatternDemo = {
         for (const t of towers) {
           t.cool -= s
           if (t.cool > 0) continue
+          const tx = ccx(t.c)
+          const ty = ccy(t.r)
           let best: Enemy | null = null
           let bestD = range
           for (const e of enemies) {
             if (!e.alive) continue
-            const p = pointAt(e.dist)
-            const d = Math.hypot(p.x - t.x, p.y - t.y)
+            const p = posOf(e.p)
+            const d = Math.hypot(p.x - tx, p.y - ty)
             if (d < bestD) {
               bestD = d
               best = e
@@ -1498,8 +1544,8 @@ const towerDefense: PatternDemo = {
             const sh = shots.find((x) => !x.alive)
             if (sh) {
               sh.alive = true
-              sh.x = t.x
-              sh.y = t.y
+              sh.x = tx
+              sh.y = ty
               sh.target = best
               sh.g.visible = true
               t.cool = FIRE_CD
@@ -1507,7 +1553,7 @@ const towerDefense: PatternDemo = {
           }
         }
 
-        // Move projectiles toward their target; damage on contact.
+        // Move projectiles; damage + reward gold on a kill.
         for (const sh of shots) {
           if (!sh.alive) continue
           const tgt = sh.target
@@ -1516,7 +1562,7 @@ const towerDefense: PatternDemo = {
             sh.g.visible = false
             continue
           }
-          const p = pointAt(tgt.dist)
+          const p = posOf(tgt.p)
           const dx = p.x - sh.x
           const dy = p.y - sh.y
           const d = Math.hypot(dx, dy) || 1
@@ -1526,6 +1572,8 @@ const towerDefense: PatternDemo = {
             if (tgt.hp <= 0) {
               tgt.alive = false
               tgt.g.visible = false
+              gold += REWARD
+              cursorDirty = true
             }
             sh.alive = false
             sh.g.visible = false
@@ -1535,6 +1583,12 @@ const towerDefense: PatternDemo = {
             sh.g.position.set(sh.x, sh.y)
           }
         }
+
+        if (gold !== lastGold) {
+          lastGold = gold
+          goldText.text = `GOLD ${gold}`
+        }
+        if (cursorDirty) redrawCursor()
       },
     }
   },
