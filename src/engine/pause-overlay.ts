@@ -9,7 +9,7 @@ import type { Disposable } from './util/disposable'
 
 /** One row in a `GameSettingsPanel` — a label + a pre-built Pixi control
  * (e.g. a `SegmentedControl.view`). The engine positions the row inside
- * the modal; the panel owns the control's reactive bindings. */
+ * the panel; the panel owns the control's reactive bindings. */
 export interface SettingsRow {
   label: string
   control: Container
@@ -26,63 +26,61 @@ export interface GameSettingsSection {
 
 /** Game-specific settings sections. Built by the game module (typically
  * via `pixi.js` controls + the per-game store) and handed to
- * `attachLayout` so the engine settings modal can render a "Game" tab. */
+ * `attachLayout` so the overlay can render a "Game" tab. */
 export interface GameSettingsPanel extends Disposable {
   sections: GameSettingsSection[]
 }
 
-export interface SettingsUi extends Disposable {
-  /** Open the settings modal. Used by the pause menu's "Settings" button. */
-  openSettings(): void
-}
-
-/** Attaches the settings modal (no on-screen trigger of its own) and returns
- * a handle. Caller wires `openSettings` into wherever the user can request
- * it (typically the pause menu). The modal lives in logical 1280×720
- * coords, captured from the active `uiTheme` at build time.
+/** Attaches the unified pause / settings overlay. It owns the dim backdrop,
+ * the panel, and the keyboard shortcuts; visibility is driven entirely by
+ * `useRuntimeStore.gamePaused`. There is no separate "settings" modal —
+ * pausing the game *is* opening this panel, with the settings shown inline
+ * under tabs.
  *
- * If `gameSettings` is provided, a second "Game" tab is shown alongside the
+ * Shortcuts:
+ *  - `,`   toggle the overlay (pause / resume)
+ *  - `Esc` close the overlay (resume) when open
+ *
+ * If `gameSettings` is provided a second "Game" tab is shown alongside the
  * System tab. The game panel's `dispose` is called from this attachment's
- * `dispose`, so games don't need to track it separately. */
-export function attachSettingsUi(
+ * `dispose`, so games don't track it separately. */
+export function attachPauseOverlay(
   gameContainer: Container,
   gameSettings?: GameSettingsPanel,
-): SettingsUi {
+): Disposable {
   const theme = useRuntimeStore.getState().uiTheme
-  const root = new Container()
-  // Above the pause menu overlay (z=9500) so the panel stays interactive
-  // when the user opens settings from the pause menu.
-  root.zIndex = 9700
-  gameContainer.addChild(root)
 
-  const modal = new SettingsModal(theme, gameSettings)
-  root.addChild(modal)
+  const overlay = new PauseOverlay(theme, gameSettings)
+  overlay.visible = useRuntimeStore.getState().gamePaused
+  gameContainer.addChild(overlay)
 
-  // Keyboard shortcuts:
-  //  ,    → open the settings modal directly
-  //  ESC  → close the modal if it's open. `stopImmediatePropagation` keeps
-  //         the pause-menu listener (which is attached after this one) from
-  //         also handling the same ESC and resuming the game underneath.
+  const unsubscribe = useRuntimeStore.subscribe((s) => {
+    overlay.visible = s.gamePaused
+  })
+
   const onKey = (e: KeyboardEvent): void => {
     if (e.code === 'Comma') {
       e.preventDefault()
-      modal.open()
-    } else if (e.code === 'Escape' && modal.visible) {
-      e.preventDefault()
-      e.stopImmediatePropagation()
-      modal.close()
+      const s = useRuntimeStore.getState()
+      s.setGamePaused(!s.gamePaused)
+    } else if (e.code === 'Escape') {
+      const s = useRuntimeStore.getState()
+      if (s.gamePaused) {
+        e.preventDefault()
+        s.setGamePaused(false)
+      }
     }
   }
   window.addEventListener('keydown', onKey)
 
   return {
-    openSettings: () => modal.open(),
     dispose: () => {
       window.removeEventListener('keydown', onKey)
-      modal.dispose()
+      unsubscribe()
+      overlay.dispose()
       gameSettings?.dispose()
-      gameContainer.removeChild(root)
-      root.destroy({ children: true })
+      gameContainer.removeChild(overlay)
+      overlay.destroy({ children: true })
     },
   }
 }
@@ -95,29 +93,46 @@ const SUBDUED = 0xa0a0a0
 const TAB_INACTIVE = 0x7a7a7e
 const TRACK = 0x3a3a3e
 const INACTIVE = 0x3a3a3e
+const HOVER = 0x4a4a4e
 const WHITE = 0xffffff
 
-const PANEL_W = 560
-const PANEL_H = 560
-const PANEL_RADIUS = 6
-const PANEL_PADDING_X = 32
-const ROW_GAP = 44
-const SECTION_GAP = 16
-const ROW_LABEL_W = 200
-const SLIDER_W = 240
-const SLIDER_TRACK_H = 4
-const SLIDER_KNOB_R = 8
+// Panel spans ~90% width / ~83% height of the logical 1280×720 viewport so
+// the content has room to breathe and the type can be read at a glance.
+const PANEL_W = 1152
+const PANEL_H = 600
+const PANEL_X = (DESIGN_W - PANEL_W) / 2
+const PANEL_Y = (DESIGN_H - PANEL_H) / 2
+const PANEL_RADIUS = 8
 
-const TAB_STRIP_Y = 88
-const TAB_GAP = 32
-const CONTENT_TOP_Y = 132
+// The settings rows live in a centered column rather than stretching the
+// full panel width — a 720-wide block reads better than a 1152-wide one.
+const CONTENT_W = 720
+const CONTENT_X = (PANEL_W - CONTENT_W) / 2
+const ROW_LABEL_W = 280
+const ROW_GAP = 52
+const SECTION_GAP = 20
+const SECTION_HEADER_GAP = 30
 
-// ── Modal ──────────────────────────────────────────────────────────────────
+const SLIDER_W = 360
+const SLIDER_TRACK_H = 5
+const SLIDER_KNOB_R = 9
+
+const TAB_Y = 40
+const TAB_GAP = 40
+const CONTENT_TOP_WITH_TABS = 120
+const CONTENT_TOP_NO_TABS = 92
+
+const ROW_LABEL_SIZE = 22
+const SECTION_SIZE = 15
+const TAB_SIZE = 22
+const READOUT_SIZE = 18
+const CONTROL_FONT = 20
+
+// ── Overlay ──────────────────────────────────────────────────────────────────
 
 type TabId = 'system' | 'game'
 
-class SettingsModal extends Container implements Disposable {
-  private readonly overlay: Graphics
+class PauseOverlay extends Container implements Disposable {
   private readonly panel: Container
   private readonly theme: UiTheme
   private readonly gameSettings: GameSettingsPanel | undefined
@@ -126,37 +141,34 @@ class SettingsModal extends Container implements Disposable {
     system: new Container(),
     game: new Container(),
   }
-  private readonly tabLabels: Record<TabId, Text> = {} as Record<TabId, Text>
-  private readonly tabUnderlines: Record<TabId, Graphics> = {} as Record<TabId, Graphics>
-  private pauseSnapshot = false
+  private readonly tabLabels: Partial<Record<TabId, Text>> = {}
+  private readonly tabUnderlines: Partial<Record<TabId, Graphics>> = {}
 
   constructor(theme: UiTheme, gameSettings: GameSettingsPanel | undefined) {
     super()
     this.theme = theme
     this.gameSettings = gameSettings
-    this.visible = false
-    this.zIndex = 9999
+    this.zIndex = 9500
     this.eventMode = 'static'
 
-    this.overlay = new Graphics()
-      .rect(0, 0, DESIGN_W, DESIGN_H)
-      .fill({ color: 0x000000, alpha: 0.6 })
-    this.overlay.eventMode = 'static'
-    this.overlay.on('pointertap', () => this.close())
-    this.addChild(this.overlay)
+    // Single full-viewport dim. Clicking it resumes (closes the overlay).
+    const dim = new Graphics().rect(0, 0, DESIGN_W, DESIGN_H).fill({ color: 0x000000, alpha: 0.6 })
+    dim.eventMode = 'static'
+    dim.on('pointertap', () => this.close())
+    this.addChild(dim)
 
     this.panel = new Container()
-    this.panel.position.set((DESIGN_W - PANEL_W) / 2, (DESIGN_H - PANEL_H) / 2)
+    this.panel.position.set(PANEL_X, PANEL_Y)
     this.panel.eventMode = 'static'
     this.panel.hitArea = new Rectangle(0, 0, PANEL_W, PANEL_H)
     this.panel.on('pointertap', (e) => e.stopPropagation())
     this.addChild(this.panel)
 
-    const bg = new Graphics().roundRect(0, 0, PANEL_W, PANEL_H, PANEL_RADIUS).fill(PANEL_BG)
-    this.panel.addChild(bg)
+    this.panel.addChild(
+      new Graphics().roundRect(0, 0, PANEL_W, PANEL_H, PANEL_RADIUS).fill(PANEL_BG),
+    )
 
-    this.panel.addChild(makeTitle('Settings', theme))
-    this.panel.addChild(makeCloseButton(() => this.close(), theme))
+    this.panel.addChild(makeResumeButton(() => this.close(), theme))
 
     if (this.gameSettings) this.buildTabStrip()
     this.panel.addChild(this.tabs.system)
@@ -166,14 +178,8 @@ class SettingsModal extends Container implements Disposable {
     this.setActiveTab('system')
   }
 
-  open(): void {
-    this.pauseSnapshot = useRuntimeStore.getState().gamePaused
-    this.visible = true
-    useRuntimeStore.getState().setGamePaused(true)
-  }
-  close(): void {
-    this.visible = false
-    useRuntimeStore.getState().setGamePaused(this.pauseSnapshot)
+  private close(): void {
+    useRuntimeStore.getState().setGamePaused(false)
   }
 
   dispose(): void {
@@ -185,27 +191,25 @@ class SettingsModal extends Container implements Disposable {
     const make = (id: TabId, label: string, x: number): { width: number } => {
       const t = new Text({
         text: label,
-        style: { fill: TAB_INACTIVE, fontSize: 16, fontFamily: this.theme.fontSans },
+        style: { fill: TAB_INACTIVE, fontSize: TAB_SIZE, fontFamily: this.theme.fontSans },
       })
-      t.position.set(x, TAB_STRIP_Y)
+      t.position.set(x, TAB_Y)
       t.eventMode = 'static'
       t.cursor = 'pointer'
-      const hit = new Rectangle(-10, -16, t.width + 20, t.height + 32)
-      t.hitArea = hit
+      t.hitArea = new Rectangle(-12, -16, t.width + 24, t.height + 32)
       t.on('pointertap', () => this.setActiveTab(id))
       this.panel.addChild(t)
       this.tabLabels[id] = t
 
-      // Underline: thin bar below the tab label, visible only when active.
       const underline = new Graphics().rect(0, 0, t.width, 2).fill(WHITE)
-      underline.position.set(x, TAB_STRIP_Y + t.height + 4)
+      underline.position.set(x, TAB_Y + t.height + 6)
       underline.visible = false
       this.panel.addChild(underline)
       this.tabUnderlines[id] = underline
       return { width: t.width }
     }
-    const sys = make('system', 'System', PANEL_PADDING_X)
-    make('game', 'Game', PANEL_PADDING_X + sys.width + TAB_GAP)
+    const sys = make('system', 'System', CONTENT_X)
+    make('game', 'Game', CONTENT_X + sys.width + TAB_GAP)
   }
 
   private setActiveTab(id: TabId): void {
@@ -222,31 +226,29 @@ class SettingsModal extends Container implements Disposable {
 
   private buildSystemTab(): void {
     const c = this.tabs.system
-    // When there's no Game tab the title is the only header, so the content
-    // can start right under it instead of leaving space for the strip.
-    let y = this.gameSettings ? CONTENT_TOP_Y : 88
+    let y = this.gameSettings ? CONTENT_TOP_WITH_TABS : CONTENT_TOP_NO_TABS
     const addSection = (title: string): void => {
       const t = new Text({
         text: title.toUpperCase(),
         style: {
           fill: SUBDUED,
-          fontSize: 13,
+          fontSize: SECTION_SIZE,
           fontFamily: this.theme.fontSans,
           letterSpacing: 2,
         },
       })
-      t.position.set(PANEL_PADDING_X, y)
+      t.position.set(CONTENT_X, y)
       c.addChild(t)
-      y += 24
+      y += SECTION_HEADER_GAP
     }
     const addRow = (label: string, control: Container): void => {
       const t = new Text({
         text: label,
-        style: { fill: ROW_LABEL, fontSize: 17, fontFamily: this.theme.fontSans },
+        style: { fill: ROW_LABEL, fontSize: ROW_LABEL_SIZE, fontFamily: this.theme.fontSans },
       })
-      t.position.set(PANEL_PADDING_X, y + 2)
+      t.position.set(CONTENT_X, y + 4)
       c.addChild(t)
-      control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
+      control.position.set(CONTENT_X + ROW_LABEL_W, y)
       c.addChild(control)
       y += ROW_GAP
     }
@@ -266,12 +268,8 @@ class SettingsModal extends Container implements Disposable {
 
   private buildGameTab(): void {
     const c = this.tabs.game
-    if (!this.gameSettings) {
-      // No game registered any settings — leave the tab empty; setActiveTab
-      // will prevent switching to it anyway.
-      return
-    }
-    let y = CONTENT_TOP_Y
+    if (!this.gameSettings) return
+    let y = CONTENT_TOP_WITH_TABS
     let first = true
     for (const section of this.gameSettings.sections) {
       if (!first) y += SECTION_GAP
@@ -281,23 +279,23 @@ class SettingsModal extends Container implements Disposable {
           text: section.title.toUpperCase(),
           style: {
             fill: SUBDUED,
-            fontSize: 13,
+            fontSize: SECTION_SIZE,
             fontFamily: this.theme.fontSans,
             letterSpacing: 2,
           },
         })
-        t.position.set(PANEL_PADDING_X, y)
+        t.position.set(CONTENT_X, y)
         c.addChild(t)
-        y += 24
+        y += SECTION_HEADER_GAP
       }
       for (const row of section.rows) {
         const t = new Text({
           text: row.label,
-          style: { fill: ROW_LABEL, fontSize: 17, fontFamily: this.theme.fontSans },
+          style: { fill: ROW_LABEL, fontSize: ROW_LABEL_SIZE, fontFamily: this.theme.fontSans },
         })
-        t.position.set(PANEL_PADDING_X, y + 2)
+        t.position.set(CONTENT_X, y + 4)
         c.addChild(t)
-        row.control.position.set(PANEL_PADDING_X + ROW_LABEL_W, y)
+        row.control.position.set(CONTENT_X + ROW_LABEL_W, y)
         c.addChild(row.control)
         y += ROW_GAP
       }
@@ -319,10 +317,10 @@ class SettingsModal extends Container implements Disposable {
 
     const readout = new Text({
       text: formatVolume(useSettingsStore.getState()[key]),
-      style: { fill: SUBDUED, fontSize: 17, fontFamily: this.theme.fontMono },
+      style: { fill: SUBDUED, fontSize: READOUT_SIZE, fontFamily: this.theme.fontMono },
     })
     readout.anchor.set(0, 0.5)
-    readout.position.set(SLIDER_W + 16, SLIDER_KNOB_R + 2)
+    readout.position.set(SLIDER_W + 20, SLIDER_KNOB_R + 2)
     wrap.addChild(readout)
 
     const set = (v: number): void => {
@@ -334,7 +332,6 @@ class SettingsModal extends Container implements Disposable {
     slider.onUpdate.connect(set)
     slider.onChange.connect(set)
 
-    // Reflect external state changes (e.g. console writes) back into the UI.
     this.disposables.push(
       useSettingsStore.subscribe((s) => {
         const next = s[key] * 100
@@ -371,6 +368,9 @@ class SettingsModal extends Container implements Disposable {
       onChange: (v) => useSettingsStore.getState().setMaxFps(v),
       subscribe: (cb) => useSettingsStore.subscribe(cb),
       theme: this.theme,
+      buttonW: 66,
+      buttonH: 34,
+      fontSize: CONTROL_FONT,
     })
     this.disposables.push(() => sc.dispose())
     return sc
@@ -387,6 +387,9 @@ class SettingsModal extends Container implements Disposable {
       onChange: (v) => useSettingsStore.getState().setVirtualPad(v),
       subscribe: (cb) => useSettingsStore.subscribe(cb),
       theme: this.theme,
+      buttonW: 78,
+      buttonH: 34,
+      fontSize: CONTROL_FONT,
     })
     this.disposables.push(() => sc.dispose())
     return sc
@@ -395,30 +398,43 @@ class SettingsModal extends Container implements Disposable {
 
 // ── Visual builders ─────────────────────────────────────────────────────────
 
-function makeTitle(text: string, theme: UiTheme): Text {
-  const t = new Text({
-    text,
-    style: { fill: WHITE, fontSize: 32, fontFamily: theme.fontSans, letterSpacing: 1 },
-  })
-  t.position.set(PANEL_PADDING_X, 32)
-  return t
-}
+const RESUME_W = 184
+const RESUME_H = 48
+const RESUME_PAD_X = 18
 
-function makeCloseButton(onPress: () => void, theme: UiTheme): Container {
+function makeResumeButton(onPress: () => void, theme: UiTheme): Container {
   const c = new Container()
+  c.position.set(PANEL_W - CONTENT_X - RESUME_W, 28)
   c.eventMode = 'static'
   c.cursor = 'pointer'
-  // 80×80 logical hit area centred on the visible × glyph. The modal scales
-  // to ~0.3× on portrait phones; 80 logical px keeps the physical target
-  // near Apple HIG 44pt.
-  c.hitArea = new Rectangle(-60, -8, 80, 80)
-  c.position.set(PANEL_W - 32, 14)
-  const x = new Text({
-    text: '×',
-    style: { fill: SUBDUED, fontSize: 52, fontFamily: theme.fontSans },
+  c.hitArea = new Rectangle(0, 0, RESUME_W, RESUME_H)
+
+  const bg = new Graphics()
+  const draw = (hovered: boolean): void => {
+    bg.clear()
+    bg.roundRect(0, 0, RESUME_W, RESUME_H, 6).fill(hovered ? HOVER : INACTIVE)
+  }
+  draw(false)
+  c.addChild(bg)
+
+  const label = new Text({
+    text: 'Resume',
+    style: { fill: WHITE, fontSize: 20, fontFamily: theme.fontSans },
   })
-  x.anchor.set(1, 0)
-  c.addChild(x)
+  label.anchor.set(0, 0.5)
+  label.position.set(RESUME_PAD_X, RESUME_H / 2)
+  c.addChild(label)
+
+  const hint = new Text({
+    text: '[Esc]',
+    style: { fill: SUBDUED, fontSize: 15, fontFamily: theme.fontMono },
+  })
+  hint.anchor.set(1, 0.5)
+  hint.position.set(RESUME_W - RESUME_PAD_X, RESUME_H / 2)
+  c.addChild(hint)
+
+  c.on('pointerover', () => draw(true))
+  c.on('pointerout', () => draw(false))
   c.on('pointertap', onPress)
   return c
 }
@@ -437,16 +453,17 @@ function makeSliderKnob(): Graphics {
   return new Graphics().circle(0, SLIDER_KNOB_R, SLIDER_KNOB_R).fill(WHITE)
 }
 
-const CHECKBOX_SIZE = 22
+const CHECKBOX_SIZE = 26
 function makeCheckedBox(): Container {
+  const s = CHECKBOX_SIZE / 22
   const c = new Container()
-  c.addChild(new Graphics().roundRect(0, 0, CHECKBOX_SIZE, CHECKBOX_SIZE, 3).fill(WHITE))
+  c.addChild(new Graphics().roundRect(0, 0, CHECKBOX_SIZE, CHECKBOX_SIZE, 3 * s).fill(WHITE))
   c.addChild(
     new Graphics()
-      .moveTo(5, 12)
-      .lineTo(9, 16)
-      .lineTo(17, 7)
-      .stroke({ color: PANEL_BG, width: 2.5 }),
+      .moveTo(5 * s, 12 * s)
+      .lineTo(9 * s, 16 * s)
+      .lineTo(17 * s, 7 * s)
+      .stroke({ color: PANEL_BG, width: 2.5 * s }),
   )
   return c
 }

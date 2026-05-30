@@ -1,4 +1,4 @@
-import type { GameSettingsPanel, SettingsRow } from '../../engine/settings-ui'
+import type { GameSettingsPanel, SettingsRow } from '../../engine/pause-overlay'
 import { makeCheckbox } from '../../engine/ui/checkbox'
 import type { UiTheme } from '../../engine/ui-theme'
 import { useRallyRunnerStore } from './store'
@@ -13,6 +13,7 @@ export function buildRallyRunnerSettingsPanel(_theme: UiTheme): GameSettingsPane
     getValue: () => useRallyRunnerStore.getState().fixedCourse,
     onChange: (v) => useRallyRunnerStore.getState().setFixedCourse(v),
     subscribe: (cb) => useRallyRunnerStore.subscribe(cb),
+    size: 26,
   })
   disposers.push(() => fixed.dispose())
 

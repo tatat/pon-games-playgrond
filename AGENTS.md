@@ -50,6 +50,8 @@ The same principle extends past file ops: whenever the agent's harness exposes a
 
 Only one dev server should own the port at a time. If the user already has it running, don't start a second one; if you start one, say so.
 
+**The dev server is served under a base path of `/pon-games-playgrond/`** (Vite `base`). The root is `http://localhost:5173/pon-games-playgrond/` and a game route is e.g. `http://localhost:5173/pon-games-playgrond/breakout-clone`. Navigating without the base (`http://localhost:5173/breakout-clone`) returns a 404 / blank page with no `<canvas>` — a common Playwright gotcha. The dev-server log prints the correct `Local:` URL; use it.
+
 **Use Playwright for static layout, ask the user for anything in motion.** Where Playwright fits depends on what you're checking:
 
 - **Static layout balance** (spacing, alignment, sizing, where things sit on screen at rest) — a Playwright screenshot is fine, and is the preferred way to eyeball it yourself.
@@ -77,7 +79,7 @@ Script placement: a one-off conversion can live in `./tmp/` and be discarded. If
 ## Daily commands
 
 ```bash
-npm run dev          # Vite dev server (playground SPA on http://localhost:5173)
+npm run dev          # Vite dev server (playground SPA on http://localhost:5173/pon-games-playgrond/)
 npm run build        # type-check + production build
 npm run preview      # serve the production build locally
 npm run lint         # Biome check (no write)

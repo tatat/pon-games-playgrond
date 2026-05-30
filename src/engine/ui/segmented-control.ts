@@ -21,6 +21,8 @@ export interface SegmentedControlOptions<T> {
   buttonW?: number
   buttonH?: number
   step?: number
+  /** Label font size. Defaults to 17. */
+  fontSize?: number
 }
 
 export interface SegmentedControl extends Disposable {
@@ -36,15 +38,16 @@ export function makeSegmentedControl<T>(opts: SegmentedControlOptions<T>): Segme
   const buttonW = opts.buttonW ?? 52
   const buttonH = opts.buttonH ?? 26
   const step = opts.step ?? buttonW + 8
+  const fontSize = opts.fontSize ?? 17
 
   const view = new Container()
   const buttons: FancyButton[] = []
   let x = 0
   for (const choice of choices) {
     const btn = new FancyButton({
-      defaultView: viewFor(choice.label, false, false, theme, buttonW, buttonH),
-      hoverView: viewFor(choice.label, false, true, theme, buttonW, buttonH),
-      pressedView: viewFor(choice.label, true, false, theme, buttonW, buttonH),
+      defaultView: viewFor(choice.label, false, false, theme, buttonW, buttonH, fontSize),
+      hoverView: viewFor(choice.label, false, true, theme, buttonW, buttonH, fontSize),
+      pressedView: viewFor(choice.label, true, false, theme, buttonW, buttonH, fontSize),
     })
     btn.onPress.connect(() => onChange(choice.value))
     btn.position.set(x, 0)
@@ -59,8 +62,8 @@ export function makeSegmentedControl<T>(opts: SegmentedControlOptions<T>): Segme
       const c = choices[i]
       if (!c) return
       const active = c.value === current
-      b.defaultView = viewFor(c.label, active, false, theme, buttonW, buttonH)
-      b.hoverView = viewFor(c.label, active, true, theme, buttonW, buttonH)
+      b.defaultView = viewFor(c.label, active, false, theme, buttonW, buttonH, fontSize)
+      b.hoverView = viewFor(c.label, active, true, theme, buttonW, buttonH, fontSize)
     })
   }
   refresh()
@@ -86,6 +89,7 @@ function viewFor(
   theme: UiTheme,
   w: number,
   h: number,
+  fontSize: number,
 ): Container {
   const c = new Container()
   const fill = active ? WHITE : hovered ? HOVER : INACTIVE
@@ -93,7 +97,7 @@ function viewFor(
   c.addChild(new Graphics().roundRect(0, 0, w, h, 3).fill(fill))
   const t = new Text({
     text: label,
-    style: { fill: textFill, fontSize: 17, fontFamily: theme.fontSans },
+    style: { fill: textFill, fontSize, fontFamily: theme.fontSans },
   })
   t.anchor.set(0.5)
   t.position.set(w / 2, h / 2)

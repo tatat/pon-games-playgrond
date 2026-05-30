@@ -17,6 +17,8 @@ export interface StepperOptions<T> {
   width?: number
   /** Button height. Defaults to 28. */
   height?: number
+  /** Readout font size. Defaults to 17. */
+  fontSize?: number
   /** Loop back to the first / last choice past the ends. Defaults to true. */
   wrap?: boolean
 }
@@ -34,6 +36,7 @@ export function makeStepper<T>(opts: StepperOptions<T>): Stepper {
   const { choices, getValue, onChange, subscribe, theme } = opts
   const totalW = opts.width ?? 200
   const h = opts.height ?? 28
+  const fontSize = opts.fontSize ?? 17
   const wrap = opts.wrap ?? true
   const btnW = h
 
@@ -76,7 +79,7 @@ export function makeStepper<T>(opts: StepperOptions<T>): Stepper {
 
   const readout = new Text({
     text: '',
-    style: { fill: 0xffffff, fontSize: 17, fontFamily: theme.fontSans },
+    style: { fill: 0xffffff, fontSize, fontFamily: theme.fontSans },
   })
   readout.anchor.set(0.5)
   readout.position.set(btnW + 4 + readoutW / 2, h / 2)
