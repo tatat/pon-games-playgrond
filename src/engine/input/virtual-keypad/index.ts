@@ -21,7 +21,7 @@ export interface ActionButtonSpec {
 export interface KeypadConfig {
   /** Xbox-style thumbstick on the left. Each direction is optional; if
    * none are set, the stick is hidden. The stick fires `press(action)` /
-   * `release(action)` as the knob crosses per-axis thresholds. */
+   * `release(action)` via 8-way angle sectors (diagonals fire two). */
   stick?: StickActions
   /** Second thumbstick on the right, for twin-stick controls (aim). When
    * set it occupies the bottom-right corner that the A / B cluster would
@@ -180,8 +180,8 @@ export function makeVirtualKeypad(
   const releaseAll = (): void => {
     if (aButton && config.actions?.a) input.release(config.actions.a.action)
     if (bButton && config.actions?.b) input.release(config.actions.b.action)
-    stick?.resetKnob()
-    rightStick?.resetKnob()
+    stick?.reset()
+    rightStick?.reset()
   }
 
   const apply = (): void => {
