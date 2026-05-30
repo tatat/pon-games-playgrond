@@ -2136,6 +2136,126 @@ const rpgBattle: PatternDemo = {
   },
 }
 
+const snake: PatternDemo = {
+  id: 'snake-style',
+  name: 'Snake-style',
+  caption: 'Grid snake: turn with ← → ↑ ↓ (no reverse), eat to grow, crash to reset.',
+  category: 'system',
+  params: [
+    { key: 'speed', label: 'Step interval', min: 60, max: 320, step: 10, default: 130, unit: 'ms' },
+  ],
+  mount(ctx) {
+    const { width, input, params, theme, rng } = ctx
+    const root = new Container()
+    ctx.stage.addChild(root)
+    hint(ctx, '← → ↑ ↓ : turn (no reverse) · eat to grow')
+
+    const top = 24
+    const fieldH = ctx.height - FLOOR_INSET - 6 - top
+    const cols = 15
+    const rows = 11
+    const cell = Math.floor(Math.min(width / cols, fieldH / rows))
+    const gx = Math.floor((width - cols * cell) / 2)
+    const gy = top + Math.floor((fieldH - rows * cell) / 2)
+    root.addChild(
+      new Graphics()
+        .rect(gx, gy, cols * cell, rows * cell)
+        .stroke({ color: COLORS.border, width: 1 }),
+    )
+    const g = new Graphics()
+    root.addChild(g)
+    const scoreText = text('LEN 3', {
+      fill: COLORS.accent,
+      fontSize: 15,
+      fontFamily: theme.fontMono,
+    })
+    scoreText.position.set(gx, 2)
+    root.addChild(scoreText)
+
+    interface Cell {
+      c: number
+      r: number
+    }
+    let body: Cell[] = []
+    let dir = { c: 1, r: 0 }
+    let pending = { c: 1, r: 0 }
+    let food: Cell = { c: 0, r: 0 }
+
+    const placeFood = (): void => {
+      for (let tries = 0; tries < 200; tries++) {
+        const c = rng.intRange(0, cols - 1)
+        const r = rng.intRange(0, rows - 1)
+        if (!body.some((s) => s.c === c && s.r === r)) {
+          food = { c, r }
+          return
+        }
+      }
+    }
+    const reset = (): void => {
+      const cr = Math.floor(rows / 2)
+      body = [
+        { c: 4, r: cr },
+        { c: 3, r: cr },
+        { c: 2, r: cr },
+      ]
+      dir = { c: 1, r: 0 }
+      pending = { c: 1, r: 0 }
+      placeFood()
+    }
+
+    const render = (): void => {
+      g.clear()
+      g.roundRect(gx + food.c * cell + 2, gy + food.r * cell + 2, cell - 4, cell - 4, 4).fill(
+        0xff6bd1,
+      )
+      body.forEach((s, i) => {
+        g.roundRect(gx + s.c * cell + 1, gy + s.r * cell + 1, cell - 2, cell - 2, 4).fill(
+          i === 0 ? COLORS.text : COLORS.accent,
+        )
+      })
+      scoreText.text = `LEN ${body.length}`
+    }
+    reset()
+    render()
+
+    let stepT = 0
+    return {
+      update: (dt) => {
+        // Queue a turn (ignore reversals).
+        const nx = axis(input, 'left', 'right')
+        const ny = axis(input, 'up', 'down')
+        if (input.wasJustPressed('left') || input.wasJustPressed('right')) {
+          if (nx !== 0 && nx !== -dir.c) pending = { c: nx, r: 0 }
+        }
+        if (input.wasJustPressed('up') || input.wasJustPressed('down')) {
+          if (ny !== 0 && ny !== -dir.r) pending = { c: 0, r: ny }
+        }
+
+        stepT += dt.dtMs
+        if (stepT < params.get('speed')) return
+        stepT = 0
+        dir = pending
+        const head = body[0]
+        if (!head) return
+        const nh = { c: head.c + dir.c, r: head.r + dir.r }
+        const grow = nh.c === food.c && nh.r === food.r
+        const hitWall = nh.c < 0 || nh.c >= cols || nh.r < 0 || nh.r >= rows
+        const checkAgainst = grow ? body : body.slice(0, -1)
+        const hitSelf = checkAgainst.some((s) => s.c === nh.c && s.r === nh.r)
+        if (hitWall || hitSelf) {
+          reset()
+          render()
+          return
+        }
+        body.unshift(nh)
+        if (grow) placeFood()
+        else body.pop()
+        render()
+      },
+    }
+  },
+}
+
 const verticalScroller: PatternDemo = {
   id: 'vertical-scroller-style',
   name: 'Vertical-scroller-style',
@@ -2234,6 +2354,7 @@ export const systemDemos: PatternDemo[] = [
   towerDefense,
   turnBased,
   rpgBattle,
+  snake,
   platformer,
   autoRunner,
   adv,
