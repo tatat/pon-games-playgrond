@@ -5,6 +5,7 @@ import type { SceneDelta } from '../../engine/scene'
 import type { UiTheme } from '../../engine/ui-theme'
 import { bandDemos } from './demos/bands'
 import { layoutDemos } from './demos/layout'
+import { motionDemos } from './demos/motion'
 import { phasesDemos } from './demos/phases'
 import { shapesDemos } from './demos/shapes'
 import { spritesDemos } from './demos/sprites'
@@ -12,12 +13,21 @@ import { systemDemos } from './demos/system'
 import { uiDemos } from './demos/ui'
 
 /** The catalog buckets. Each is a UPPERCASE section in the menu. */
-export type PatternCategory = 'layout' | 'phases' | 'ui' | 'system' | 'shapes' | 'sprites' | 'bands'
+export type PatternCategory =
+  | 'layout'
+  | 'phases'
+  | 'motion'
+  | 'ui'
+  | 'system'
+  | 'shapes'
+  | 'sprites'
+  | 'bands'
 
 /** Display order of the categories in the menu. */
 export const CATEGORY_ORDER: readonly PatternCategory[] = [
   'layout',
   'phases',
+  'motion',
   'ui',
   'system',
   'shapes',
@@ -96,6 +106,7 @@ export interface PatternDemo {
 export const DEMOS: readonly PatternDemo[] = [
   ...layoutDemos,
   ...phasesDemos,
+  ...motionDemos,
   ...uiDemos,
   ...systemDemos,
   ...shapesDemos,
