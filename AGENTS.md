@@ -15,6 +15,23 @@ Architecture and conventions live under `docs/`:
 
 Always consult these before adding patterns; do not invent parallel ones.
 
+## Pattern gallery — shared design vocabulary
+
+`src/games/pattern-gallery/` is a catalog "game" (route `/pattern-gallery`) that puts common game-design patterns on screen, each under a **stable English token** (`id`). It exists to make requirement-building easier: instead of describing a behaviour in prose, point at its token and both human and agent mean the same thing.
+
+Categories and example tokens (the live list is `DEMOS` in `src/games/pattern-gallery/demo.ts` — the single source of truth):
+
+- **system** — genre/control archetypes: `breakout-style`, `endless-dodge-style`, `vertical-scroller-style`, `shmup-style`, `aim-launch-style`, `twin-stick-style`, `single-stick-style`, `tank-style`, `inertia-style`, `grid-move-style`, `falling-block-style`, `tower-defense-style`, `turn-based-style`, `rpg-battle-style`, `snake-style`, `platformer-style`, `auto-runner-style`, `adv-style`
+- **layout** — `title-screen`, `hud-corners`, `hud-topbar`, `result-screen`, `letterbox-area` (virtual-pad placement)
+- **phases** — scene-FSM flows with Scene-boundary framing: `phase-arcade`, `phase-stage`, `phase-roguelike`, `phase-match`, `phase-vn`
+- **motion** — `easings` (named curves: `easeOutBack`, `easeOutElastic`, …), `tween-targets`, `particles`, `screen-shake`, `hit-flash`
+- **ui** — `segmented-control`, `checkbox`, `stepper`, `slider`, `button`, `modal-dialog`, `toast`
+- **shapes** — `shape-primitives`; **sprites** — `image-fit` (contain/cover/stretch); **bands** — `band-shapes`, `flow-technique` (`flow-color-phase` vs `flow-scroll`), `edge-rail`
+
+**Using it to build requirements:** reference a token (and, where shown, its numeric param) to specify behaviour quickly — e.g. "the boss is `breakout-style` with ball speed ~420", "use `flow-color-phase` for the rail at pulse 220ms", "transitions are a `phase-stage` flow", "juice = `hit-flash` + `screen-shake`", "ease the panel in with `easeOutBack`".
+
+**Adding patterns:** when a needed pattern is missing, add it — a new `PatternDemo` in the right `src/games/pattern-gallery/demos/*.ts` (each declares `id` / `name` / `caption` / `category`, optional numeric `params`, optional `pad`), exported through that file's array and aggregated in `demo.ts`. Keep demos keyboard/pointer via Pixi only, randomness via the seeded `Rng`, and redraw `Graphics`/`Text` on change (not per frame) — same conventions as the rest of the repo.
+
 ## File operations: prefer built-in tools
 
 When the host environment exposes structured tools, **use them in preference to shell commands**. This keeps diffs reviewable, avoids accidental destruction, and is friendlier to permission prompts.
