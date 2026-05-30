@@ -8,6 +8,7 @@ import type { KeypadGlyph } from './glyphs'
 import { OUTER_R as STICK_R, Stick, type StickActions } from './stick'
 
 export type { KeypadGlyph } from './glyphs'
+export type { StickActions } from './stick'
 
 export interface ActionButtonSpec {
   action: Action
@@ -20,7 +21,13 @@ export interface KeypadConfig {
    * none are set, the stick is hidden. The stick fires `press(action)` /
    * `release(action)` as the knob crosses per-axis thresholds. */
   stick?: StickActions
-  /** A / B hold-buttons on the right. Either or both optional. */
+  /** Second thumbstick on the right, for twin-stick controls (aim). When
+   * set it occupies the bottom-right corner that the A / B cluster would
+   * use, so it is mutually exclusive with `actions`; an `option` button
+   * still appears, tucked diagonally up-left of the aim stick. */
+  rightStick?: StickActions
+  /** A / B hold-buttons on the right. Either or both optional. Ignored
+   * when `rightStick` is set (the right corner is the aim stick then). */
   actions?: {
     a?: ActionButtonSpec
     b?: ActionButtonSpec
@@ -106,20 +113,28 @@ export function makeVirtualKeypad(
   view.zIndex = 250
   const disposables: Array<() => void> = []
 
-  // Stick — hidden unless at least one direction is bound.
+  const hasDir = (s?: StickActions): boolean => !!(s && (s.left || s.right || s.up || s.down))
+
+  // Left stick — hidden unless at least one direction is bound.
   let stick: Stick | undefined
-  if (
-    config.stick &&
-    (config.stick.left || config.stick.right || config.stick.up || config.stick.down)
-  ) {
-    stick = new Stick(input, config.stick, disposables)
+  if (hasDir(config.stick)) {
+    stick = new Stick(input, config.stick as StickActions, disposables)
     view.addChild(stick)
   }
 
+  // Right stick (aim) — occupies the bottom-right corner, so it takes the
+  // place of the A / B cluster when present.
+  let rightStick: Stick | undefined
+  if (hasDir(config.rightStick)) {
+    rightStick = new Stick(input, config.rightStick as StickActions, disposables)
+    view.addChild(rightStick)
+  }
+
   // Right-side buttons. Bind press/release directly; the layout step
-  // below positions them based on which slots are filled.
+  // below positions them based on which slots are filled. Suppressed when
+  // a right stick owns that corner.
   let aButton: PadButton | undefined
-  if (config.actions?.a) {
+  if (config.actions?.a && !rightStick) {
     const spec = config.actions.a
     aButton = new PadButton({
       label: spec.label,
@@ -133,7 +148,7 @@ export function makeVirtualKeypad(
   }
 
   let bButton: PadButton | undefined
-  if (config.actions?.b) {
+  if (config.actions?.b && !rightStick) {
     const spec = config.actions.b
     bButton = new PadButton({
       label: spec.label,
@@ -159,9 +174,10 @@ export function makeVirtualKeypad(
   }
 
   const releaseAll = (): void => {
-    if (config.actions?.a) input.release(config.actions.a.action)
-    if (config.actions?.b) input.release(config.actions.b.action)
+    if (aButton && config.actions?.a) input.release(config.actions.a.action)
+    if (bButton && config.actions?.b) input.release(config.actions.b.action)
     stick?.resetKnob()
+    rightStick?.resetKnob()
   }
 
   const apply = (): void => {
@@ -212,13 +228,23 @@ export function makeVirtualKeypad(
     // to the canvas like the right cluster's small Option / A would);
     // the viewport-anchored fallback still uses STICK_PAD, keeping the
     // landscape position (no bottom margin) unchanged.
+    const stickY = Math.min(canvasBottomY + STICK_LEAN_PAD + STICK_R, vpH - STICK_PAD - STICK_R)
     if (stick) {
-      const stickX = STICK_PAD + STICK_R
-      const stickY = Math.min(canvasBottomY + STICK_LEAN_PAD + STICK_R, vpH - STICK_PAD - STICK_R)
-      stick.position.set(stickX, stickY)
+      stick.position.set(STICK_PAD + STICK_R, stickY)
+    }
+    // Right stick mirrors the left one against the right edge.
+    if (rightStick) {
+      rightStick.position.set(vpW - STICK_PAD - STICK_R, stickY)
     }
 
-    if (rightCount === 1) {
+    if (rightStick) {
+      // The aim stick owns the bottom-right corner; the Option button sits
+      // diagonally up-left of it, the same tight-pair geometry as Pattern 2
+      // (Option vs. A) but anchored to the stick's larger radius.
+      if (optionButton) {
+        optionButton.position.set(rightStick.x - OPT_STICK_OFFSET, rightStick.y - OPT_STICK_OFFSET)
+      }
+    } else if (rightCount === 1) {
       placeOnlyAtCorner({ aButton, bButton, optionButton, rightCenterX, bottomY })
     } else if (rightCount === 2) {
       placeTwoDiagonal({ aButton, bButton, optionButton, rightCenterX, bottomY })
@@ -290,6 +316,10 @@ function placeOnlyAtCorner(ctx: PatternCtx): void {
  * distance along the diagonal is (R_a + R_opt + PATTERN_2_DIAGONAL_GAP),
  * and the per-axis component is that distance ÷ √2. */
 const PATTERN_2_OFFSET = (CELL / 2 + OPT_CELL / 2 + PATTERN_2_DIAGONAL_GAP) / Math.SQRT2
+
+/** Per-axis Option offset up-left of the right (aim) stick — Pattern 2
+ * geometry measured from the stick's radius instead of the A button's. */
+const OPT_STICK_OFFSET = (STICK_R + OPT_CELL / 2 + PATTERN_2_DIAGONAL_GAP) / Math.SQRT2
 
 function placeTwoDiagonal(ctx: PatternCtx): void {
   const { aButton, bButton, optionButton, rightCenterX, bottomY } = ctx
