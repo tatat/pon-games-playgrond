@@ -1618,6 +1618,243 @@ const towerDefense: PatternDemo = {
   },
 }
 
+const turnBased: PatternDemo = {
+  id: 'turn-based-style',
+  name: 'Turn-based-style',
+  caption: 'Tactics grid: move within range ← → ↑ ↓ + Space; enemies act on their turn.',
+  category: 'system',
+  params: [
+    { key: 'move', label: 'Move range', min: 1, max: 5, step: 1, default: 3, unit: 'cells' },
+  ],
+  mount(ctx) {
+    const { width, input, params, theme } = ctx
+    const root = new Container()
+    ctx.stage.addChild(root)
+    hint(ctx, '← → ↑ ↓ : aim move · Space : confirm (attack if adjacent)')
+
+    const cols = 9
+    const rows = 6
+    const top = 26
+    const fieldH = ctx.height - FLOOR_INSET - 6 - top
+    const cell = Math.floor(Math.min(width / cols, fieldH / rows))
+    const gx = Math.floor((width - cols * cell) / 2)
+    const gy = top + Math.floor((fieldH - rows * cell) / 2)
+    const ccx = (c: number): number => gx + c * cell + cell / 2
+    const ccy = (r: number): number => gy + r * cell + cell / 2
+    const man = (ac: number, ar: number, bc: number, br: number): number =>
+      Math.abs(ac - bc) + Math.abs(ar - br)
+
+    // Static grid.
+    const gridG = new Graphics()
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        gridG
+          .rect(gx + c * cell, gy + r * cell, cell, cell)
+          .fill({ color: 0xffffff, alpha: 0.02 })
+          .stroke({ color: COLORS.border, width: 1, alpha: 0.5 })
+      }
+    }
+    root.addChild(gridG)
+    const rangeG = new Graphics()
+    const cursorG = new Graphics()
+    root.addChild(rangeG, cursorG)
+
+    interface Unit {
+      c: number
+      r: number
+      hp: number
+      ally: boolean
+      alive: boolean
+      view: Container
+      fill: Graphics
+    }
+    const HP_MAX = 3
+    const makeUnit = (ally: boolean): Unit => {
+      const view = new Container()
+      const col = ally ? COLORS.accent : 0xff6bd1
+      view.addChild(
+        new Graphics().roundRect(-cell * 0.32, -cell * 0.32, cell * 0.64, cell * 0.64, 5).fill(col),
+      )
+      const bw = cell * 0.6
+      view.addChild(
+        new Graphics().rect(-bw / 2, -cell * 0.45, bw, 4).fill({ color: 0x000000, alpha: 0.5 }),
+      )
+      const fill = new Graphics().rect(-bw / 2, -cell * 0.45, bw, 4).fill(col)
+      fill.pivot.set(-bw / 2, 0)
+      fill.position.set(-bw / 2, 0)
+      view.addChild(fill)
+      root.addChild(view)
+      return { c: 0, r: 0, hp: HP_MAX, ally, alive: true, view, fill }
+    }
+    const player = makeUnit(true)
+    const enemies = [makeUnit(false), makeUnit(false)]
+    const allUnits = (): Unit[] => [player, ...enemies]
+    const place = (u: Unit, c: number, r: number): void => {
+      u.c = c
+      u.r = r
+      u.view.position.set(ccx(c), ccy(r))
+    }
+    const unitAt = (c: number, r: number): Unit | undefined =>
+      allUnits().find((u) => u.alive && u.c === c && u.r === r)
+    const refreshHp = (u: Unit): void => {
+      u.fill.scale.x = u.hp / HP_MAX
+      u.view.visible = u.alive
+    }
+
+    const resetBoard = (): void => {
+      place(player, 1, Math.floor(rows / 2))
+      player.hp = HP_MAX
+      player.alive = true
+      enemies.forEach((e, i) => {
+        e.hp = HP_MAX
+        e.alive = true
+        place(e, cols - 2, 1 + i * 2)
+      })
+      for (const u of allUnits()) refreshHp(u)
+    }
+    resetBoard()
+
+    let cc = player.c
+    let cr = player.r
+    let phase: 'player' | 'enemy' = 'player'
+    let enemyTimer = 0
+    let enemyQueue: Unit[] = []
+
+    const turnText = text('YOUR TURN', {
+      fill: COLORS.accent,
+      fontSize: 16,
+      fontFamily: theme.fontMono,
+    })
+    turnText.anchor.set(0.5, 0)
+    turnText.position.set(width / 2, 4)
+    root.addChild(turnText)
+
+    const inRange = (c: number, r: number): boolean =>
+      man(c, r, player.c, player.r) <= params.get('move')
+    const validTarget = (c: number, r: number): boolean =>
+      (c === player.c && r === player.r) || (inRange(c, r) && !unitAt(c, r))
+
+    const drawRange = (): void => {
+      rangeG.clear()
+      if (phase !== 'player') return
+      const range = params.get('move')
+      for (let dr = -range; dr <= range; dr++) {
+        for (let dc = -range; dc <= range; dc++) {
+          if (Math.abs(dc) + Math.abs(dr) > range) continue
+          const c = player.c + dc
+          const r = player.r + dr
+          if (c < 0 || c >= cols || r < 0 || r >= rows) continue
+          if (unitAt(c, r) && !(c === player.c && r === player.r)) continue
+          rangeG
+            .rect(gx + c * cell, gy + r * cell, cell, cell)
+            .fill({ color: COLORS.accent, alpha: 0.08 })
+        }
+      }
+    }
+    const drawCursor = (): void => {
+      cursorG.clear()
+      if (phase !== 'player') return
+      const col = validTarget(cc, cr) ? 0x6ee7b7 : COLORS.faint
+      cursorG
+        .rect(gx + cc * cell + 1, gy + cr * cell + 1, cell - 2, cell - 2)
+        .stroke({ color: col, width: 3 })
+    }
+    drawRange()
+    drawCursor()
+
+    const attackAround = (u: Unit, foeAlly: boolean): void => {
+      for (const t of allUnits()) {
+        if (!t.alive || t.ally !== foeAlly) continue
+        if (man(u.c, u.r, t.c, t.r) === 1) {
+          t.hp -= 1
+          if (t.hp <= 0) t.alive = false
+          refreshHp(t)
+          break
+        }
+      }
+    }
+
+    const startEnemyTurn = (): void => {
+      phase = 'enemy'
+      enemyQueue = enemies.filter((e) => e.alive)
+      enemyTimer = 0.45
+      turnText.text = 'ENEMY TURN'
+      turnText.tint = 0xff6bd1
+      drawRange()
+      drawCursor()
+    }
+    const startPlayerTurn = (): void => {
+      if (!enemies.some((e) => e.alive)) resetBoard()
+      if (!player.alive) resetBoard()
+      phase = 'player'
+      cc = player.c
+      cr = player.r
+      turnText.text = 'YOUR TURN'
+      turnText.tint = COLORS.accent
+      drawRange()
+      drawCursor()
+    }
+
+    return {
+      update: (dt) => {
+        if (phase === 'player') {
+          let dirty = false
+          if (input.wasJustPressed('left')) {
+            cc = clamp(cc - 1, 0, cols - 1)
+            dirty = true
+          }
+          if (input.wasJustPressed('right')) {
+            cc = clamp(cc + 1, 0, cols - 1)
+            dirty = true
+          }
+          if (input.wasJustPressed('up')) {
+            cr = clamp(cr - 1, 0, rows - 1)
+            dirty = true
+          }
+          if (input.wasJustPressed('down')) {
+            cr = clamp(cr + 1, 0, rows - 1)
+            dirty = true
+          }
+          if (input.wasJustPressed('action') && validTarget(cc, cr)) {
+            place(player, cc, cr)
+            attackAround(player, false) // hit an adjacent enemy
+            startEnemyTurn()
+          } else if (dirty) {
+            drawCursor()
+          }
+        } else {
+          enemyTimer -= dt.dtSec
+          if (enemyTimer > 0) return
+          enemyTimer = 0.45
+          const e = enemyQueue.shift()
+          if (e?.alive) {
+            // Step one cell toward the player (4-dir, to a free cell).
+            const opts: [number, number][] = [
+              [e.c + Math.sign(player.c - e.c), e.r],
+              [e.c, e.r + Math.sign(player.r - e.r)],
+            ]
+            for (const [nc, nr] of opts) {
+              if (
+                (nc !== e.c || nr !== e.r) &&
+                !unitAt(nc, nr) &&
+                nc >= 0 &&
+                nc < cols &&
+                nr >= 0 &&
+                nr < rows
+              ) {
+                place(e, nc, nr)
+                break
+              }
+            }
+            attackAround(e, true) // hit the player if now adjacent
+          }
+          if (enemyQueue.length === 0) startPlayerTurn()
+        }
+      },
+    }
+  },
+}
+
 const verticalScroller: PatternDemo = {
   id: 'vertical-scroller-style',
   name: 'Vertical-scroller-style',
@@ -1714,6 +1951,7 @@ export const systemDemos: PatternDemo[] = [
   gridMove,
   fallingBlock,
   towerDefense,
+  turnBased,
   platformer,
   autoRunner,
   adv,
