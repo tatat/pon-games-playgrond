@@ -175,7 +175,9 @@ class PauseOverlay extends Container implements Disposable {
     this.panel.addChild(this.tabs.game)
     this.buildSystemTab()
     this.buildGameTab()
-    this.setActiveTab('system')
+    // Default to the Game tab when a game registers settings (it's the more
+    // game-relevant view); fall back to System when there's no Game tab.
+    this.setActiveTab(this.gameSettings ? 'game' : 'system')
   }
 
   private close(): void {
@@ -208,8 +210,8 @@ class PauseOverlay extends Container implements Disposable {
       this.tabUnderlines[id] = underline
       return { width: t.width }
     }
-    const sys = make('system', 'System', CONTENT_X)
-    make('game', 'Game', CONTENT_X + sys.width + TAB_GAP)
+    const game = make('game', 'Game', CONTENT_X)
+    make('system', 'System', CONTENT_X + game.width + TAB_GAP)
   }
 
   private setActiveTab(id: TabId): void {
