@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
-import { COLORS } from '../constants'
-import type { PatternDemo } from '../demo'
-import { axis, clamp, FLOOR_INSET, hint } from './system-shared'
+import { COLORS } from '../../constants'
+import type { PatternDemo } from '../../demo'
+import { axis, clamp, FLOOR_INSET, hint } from './shared'
 
 const fallingBlock: PatternDemo = {
   id: 'falling-block-style',

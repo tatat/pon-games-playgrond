@@ -1,8 +1,8 @@
-import { COLORS } from '../constants'
-import type { DemoContext } from '../demo'
-import { text } from '../demo-util'
+import { COLORS } from '../../constants'
+import type { DemoContext } from '../../demo'
+import { text } from '../../demo-util'
 
-/** Shared helpers for the `system` archetype demos (split across system-*.ts). */
+/** Shared helpers for the `system` archetype demos (split across `system/*.ts`). */
 
 export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 

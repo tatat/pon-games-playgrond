@@ -1,9 +1,9 @@
 import { Container, Graphics } from 'pixi.js'
-import type { Rng } from '../../../engine/rng'
-import { COLORS } from '../constants'
-import type { PatternDemo } from '../demo'
-import { text } from '../demo-util'
-import { axis, clamp, FLOOR_INSET, hint } from './system-shared'
+import type { Rng } from '../../../../engine/rng'
+import { COLORS } from '../../constants'
+import type { PatternDemo } from '../../demo'
+import { text } from '../../demo-util'
+import { axis, clamp, FLOOR_INSET, hint } from './shared'
 
 const endlessDodge: PatternDemo = {
   id: 'endless-dodge-style',

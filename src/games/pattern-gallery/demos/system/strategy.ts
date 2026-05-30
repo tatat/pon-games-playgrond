@@ -1,8 +1,8 @@
 import { Container, Graphics } from 'pixi.js'
-import { COLORS } from '../constants'
-import type { PatternDemo } from '../demo'
-import { text } from '../demo-util'
-import { axis, clamp, FLOOR_INSET, hint } from './system-shared'
+import { COLORS } from '../../constants'
+import type { PatternDemo } from '../../demo'
+import { text } from '../../demo-util'
+import { axis, clamp, FLOOR_INSET, hint } from './shared'
 
 const towerDefense: PatternDemo = {
   id: 'tower-defense-style',

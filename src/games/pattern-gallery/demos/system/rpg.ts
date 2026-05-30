@@ -1,8 +1,8 @@
 import { Container, Graphics, type Text as PixiText, SplitText } from 'pixi.js'
-import { COLORS, RADIUS } from '../constants'
-import type { PatternDemo } from '../demo'
-import { text } from '../demo-util'
-import { FLOOR_INSET, HINT_GAP, hint } from './system-shared'
+import { COLORS, RADIUS } from '../../constants'
+import type { PatternDemo } from '../../demo'
+import { text } from '../../demo-util'
+import { FLOOR_INSET, HINT_GAP, hint } from './shared'
 
 const rpgBattle: PatternDemo = {
   id: 'rpg-battle-style',
