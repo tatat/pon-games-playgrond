@@ -1123,6 +1123,179 @@ const adv: PatternDemo = {
   },
 }
 
+const fallingBlock: PatternDemo = {
+  id: 'falling-block-style',
+  name: 'Falling-block-style',
+  caption: 'Tetromino grid: move ← →, rotate Space, soft-drop ↓; full rows clear (Tetris).',
+  category: 'system',
+  params: [
+    { key: 'drop', label: 'Drop interval', min: 80, max: 900, step: 20, default: 480, unit: 'ms' },
+  ],
+  mount(ctx) {
+    const { width, height, input, params } = ctx
+    const root = new Container()
+    ctx.stage.addChild(root)
+    hint(ctx, '← → move · ↓ soft-drop · Space rotate')
+
+    const cols = 9
+    const rows = 15
+    const avail = height - FLOOR_INSET - 12
+    const cell = Math.floor(Math.min((width - 20) / cols, avail / rows))
+    const bx = Math.floor((width - cols * cell) / 2)
+    const by = 8
+    root.addChild(
+      new Graphics()
+        .rect(bx, by, cols * cell, rows * cell)
+        .stroke({ color: COLORS.border, width: 1 }),
+    )
+    const g = new Graphics()
+    root.addChild(g)
+
+    const PAL = [0x6ad1ff, 0xff6bd1, 0x9b8cff, 0x6ee7b7, 0xffd166, 0xf4978e, 0x7aa2ff]
+    // Tetromino cell offsets (I, O, T, S, Z, J, L).
+    const SHAPES: [number, number][][] = [
+      [
+        [-1, 0],
+        [0, 0],
+        [1, 0],
+        [2, 0],
+      ],
+      [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [1, 1],
+      ],
+      [
+        [-1, 0],
+        [0, 0],
+        [1, 0],
+        [0, 1],
+      ],
+      [
+        [0, 0],
+        [1, 0],
+        [-1, 1],
+        [0, 1],
+      ],
+      [
+        [-1, 0],
+        [0, 0],
+        [0, 1],
+        [1, 1],
+      ],
+      [
+        [-1, 0],
+        [0, 0],
+        [1, 0],
+        [1, 1],
+      ],
+      [
+        [-1, 0],
+        [0, 0],
+        [1, 0],
+        [-1, 1],
+      ],
+    ]
+    const board: number[][] = Array.from({ length: rows }, () => new Array<number>(cols).fill(0))
+
+    let offs: [number, number][] = []
+    let ptype = 0
+    let ppx = 0
+    let ppy = 0
+
+    const canPlace = (os: [number, number][], px: number, py: number): boolean =>
+      os.every(([ox, oy]) => {
+        const x = px + ox
+        const y = py + oy
+        return x >= 0 && x < cols && y >= 0 && y < rows && board[y]?.[x] === 0
+      })
+
+    const spawn = (): void => {
+      ptype = ctx.rng.intRange(0, SHAPES.length - 1)
+      offs = (SHAPES[ptype] ?? []).map(([x, y]) => [x, y] as [number, number])
+      ppx = Math.floor(cols / 2)
+      ppy = 1
+      // Board full → reset (keeps the demo running forever).
+      if (!canPlace(offs, ppx, ppy)) for (const r of board) r.fill(0)
+    }
+
+    const lockAndNext = (): void => {
+      const color = PAL[ptype] ?? COLORS.accent
+      for (const [ox, oy] of offs) {
+        const row = board[ppy + oy]
+        if (row) row[ppx + ox] = color
+      }
+      for (let y = rows - 1; y >= 0; y--) {
+        if (board[y]?.every((c) => c !== 0)) {
+          board.splice(y, 1)
+          board.unshift(new Array<number>(cols).fill(0))
+          y++ // re-check the row that dropped into this slot
+        }
+      }
+      spawn()
+    }
+
+    const render = (): void => {
+      g.clear()
+      for (let y = 0; y < rows; y++) {
+        const row = board[y]
+        if (!row) continue
+        for (let x = 0; x < cols; x++) {
+          const c = row[x]
+          if (c) g.roundRect(bx + x * cell + 1, by + y * cell + 1, cell - 2, cell - 2, 3).fill(c)
+        }
+      }
+      const color = PAL[ptype] ?? COLORS.accent
+      for (const [ox, oy] of offs) {
+        g.roundRect(
+          bx + (ppx + ox) * cell + 1,
+          by + (ppy + oy) * cell + 1,
+          cell - 2,
+          cell - 2,
+          3,
+        ).fill(color)
+      }
+    }
+
+    spawn()
+    render()
+    let elapsed = 0
+
+    return {
+      update: (dt) => {
+        let changed = false
+        if (input.wasJustPressed('left') && canPlace(offs, ppx - 1, ppy)) {
+          ppx--
+          changed = true
+        }
+        if (input.wasJustPressed('right') && canPlace(offs, ppx + 1, ppy)) {
+          ppx++
+          changed = true
+        }
+        if (input.wasJustPressed('action') && ptype !== 1) {
+          const rot = offs.map(([x, y]) => [y, -x] as [number, number])
+          if (canPlace(rot, ppx, ppy)) {
+            offs = rot
+            changed = true
+          }
+        }
+        const interval = input.isDown('down')
+          ? Math.min(70, params.get('drop'))
+          : params.get('drop')
+        elapsed += dt.dtMs
+        if (elapsed >= interval) {
+          elapsed = 0
+          if (canPlace(offs, ppx, ppy + 1)) ppy++
+          else lockAndNext()
+          changed = true
+        }
+        if (changed) render()
+      },
+    }
+  },
+}
+
 const verticalScroller: PatternDemo = {
   id: 'vertical-scroller-style',
   name: 'Vertical-scroller-style',
@@ -1217,6 +1390,7 @@ export const systemDemos: PatternDemo[] = [
   tank,
   inertia,
   gridMove,
+  fallingBlock,
   platformer,
   autoRunner,
   adv,
