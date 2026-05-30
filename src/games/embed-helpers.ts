@@ -1,5 +1,8 @@
 import RAPIER from '@dimforge/rapier2d-compat'
 import { Application } from 'pixi.js'
+// Side-effect import: registers Pixi's renderable render pipes (see the file)
+// so production bundling can't tree-shake the `graphics` pipe out.
+import '../engine/pixi-pipes'
 import { setAssetBaseUrl } from '../engine/assets'
 import { initAudio } from '../engine/audio/index'
 import { defaultUiTheme } from '../engine/ui-theme'

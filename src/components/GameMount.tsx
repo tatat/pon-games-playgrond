@@ -1,5 +1,8 @@
 import { Application } from 'pixi.js'
 import { useEffect, useRef } from 'react'
+// Side-effect import: registers Pixi's renderable render pipes so production
+// bundling can't tree-shake the `graphics` pipe out from under the renderer.
+import '../engine/pixi-pipes'
 import { rapierReady } from '../engine/rapier'
 import { defaultUiTheme } from '../engine/ui-theme'
 import { type GameId, games } from '../games/registry'
