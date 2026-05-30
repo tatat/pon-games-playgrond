@@ -1296,6 +1296,250 @@ const fallingBlock: PatternDemo = {
   },
 }
 
+const towerDefense: PatternDemo = {
+  id: 'tower-defense-style',
+  name: 'Tower-defense-style',
+  caption: 'Pick a slot ← →, build with Space; towers auto-fire at enemies on the path.',
+  category: 'system',
+  params: [
+    { key: 'range', label: 'Tower range', min: 60, max: 240, step: 10, default: 130, unit: 'px' },
+    {
+      key: 'spawn',
+      label: 'Spawn interval',
+      min: 300,
+      max: 2000,
+      step: 100,
+      default: 900,
+      unit: 'ms',
+    },
+  ],
+  mount(ctx) {
+    const { width, input, params } = ctx
+    const h = ctx.height - FLOOR_INSET - 10
+    const root = new Container()
+    ctx.stage.addChild(root)
+    hint(ctx, '← → : select slot · Space : build tower')
+
+    // ── Path the enemies walk ──────────────────────────────────────────────
+    const pts = [
+      { x: 0, y: h * 0.25 },
+      { x: width * 0.28, y: h * 0.25 },
+      { x: width * 0.28, y: h * 0.75 },
+      { x: width * 0.62, y: h * 0.75 },
+      { x: width * 0.62, y: h * 0.3 },
+      { x: width, y: h * 0.3 },
+    ]
+    const segs: { ax: number; ay: number; bx: number; by: number; len: number; acc: number }[] = []
+    let total = 0
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]
+      const b = pts[i]
+      if (!a || !b) continue
+      const len = Math.hypot(b.x - a.x, b.y - a.y)
+      segs.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, len, acc: total })
+      total += len
+    }
+    const pointAt = (d: number): { x: number; y: number } => {
+      for (const s of segs) {
+        if (d <= s.acc + s.len) {
+          const t = s.len > 0 ? (d - s.acc) / s.len : 0
+          return { x: s.ax + (s.bx - s.ax) * t, y: s.ay + (s.by - s.ay) * t }
+        }
+      }
+      const last = pts[pts.length - 1] ?? { x: 0, y: 0 }
+      return { x: last.x, y: last.y }
+    }
+    const pathG = new Graphics()
+    pathG.moveTo(pts[0]?.x ?? 0, pts[0]?.y ?? 0)
+    for (let i = 1; i < pts.length; i++) pathG.lineTo(pts[i]?.x ?? 0, pts[i]?.y ?? 0)
+    pathG.stroke({ color: COLORS.border, width: 14 })
+    root.addChild(pathG)
+
+    // ── Build slots + cursor ────────────────────────────────────────────────
+    const slots = [
+      { x: width * 0.14, y: h * 0.5 },
+      { x: width * 0.45, y: h * 0.5 },
+      { x: width * 0.45, y: h * 0.08 },
+      { x: width * 0.8, y: h * 0.55 },
+      { x: width * 0.82, y: h * 0.86 },
+    ]
+    const occupied = new Array<boolean>(slots.length).fill(false)
+    let sel = 0
+
+    const towerG = new Graphics()
+    const cursorG = new Graphics()
+    root.addChild(towerG, cursorG)
+    interface Tower {
+      x: number
+      y: number
+      cool: number
+    }
+    const towers: Tower[] = []
+
+    const redrawTowers = (): void => {
+      towerG.clear()
+      const range = params.get('range')
+      for (const t of towers) {
+        towerG.circle(t.x, t.y, range).fill({ color: COLORS.accent, alpha: 0.06 })
+        towerG.circle(t.x, t.y, 13).fill(COLORS.accent)
+      }
+    }
+    const redrawCursor = (): void => {
+      cursorG.clear()
+      slots.forEach((sp, i) => {
+        if (occupied[i]) return
+        cursorG.circle(sp.x, sp.y, 12).stroke({ color: COLORS.faint, width: 2 })
+      })
+      const cur = slots[sel]
+      if (cur) cursorG.circle(cur.x, cur.y, 15).stroke({ color: COLORS.accent, width: 3 })
+    }
+
+    // ── Enemy + projectile pools ────────────────────────────────────────────
+    interface Enemy {
+      g: Graphics
+      alive: boolean
+      dist: number
+      hp: number
+    }
+    const enemies: Enemy[] = Array.from({ length: 12 }, () => {
+      const g = new Graphics().circle(0, 0, 10).fill(COLORS.rowActive)
+      g.visible = false
+      root.addChild(g)
+      return { g, alive: false, dist: 0, hp: 3 }
+    })
+    interface Shot {
+      g: Graphics
+      alive: boolean
+      x: number
+      y: number
+      target: Enemy | null
+    }
+    const shots: Shot[] = Array.from({ length: 24 }, () => {
+      const g = new Graphics().circle(0, 0, 4).fill(COLORS.text)
+      g.visible = false
+      root.addChild(g)
+      return { g, alive: false, x: 0, y: 0, target: null }
+    })
+
+    redrawTowers()
+    redrawCursor()
+
+    const ENEMY_SPEED = 70
+    const SHOT_SPEED = 340
+    const FIRE_CD = 0.5
+    let spawnT = 0
+
+    return {
+      update: (dt) => {
+        const s = dt.dtSec
+
+        // Slot selection + build.
+        if (input.wasJustPressed('left')) {
+          sel = (sel - 1 + slots.length) % slots.length
+          redrawCursor()
+        }
+        if (input.wasJustPressed('right')) {
+          sel = (sel + 1) % slots.length
+          redrawCursor()
+        }
+        if (input.wasJustPressed('action') && !occupied[sel]) {
+          const sp = slots[sel]
+          if (sp) {
+            towers.push({ x: sp.x, y: sp.y, cool: 0 })
+            occupied[sel] = true
+            redrawTowers()
+            redrawCursor()
+          }
+        }
+
+        // Spawn enemies.
+        spawnT += dt.dtMs
+        if (spawnT >= params.get('spawn')) {
+          spawnT = 0
+          const e = enemies.find((en) => !en.alive)
+          if (e) {
+            e.alive = true
+            e.dist = 0
+            e.hp = 3
+            e.g.visible = true
+          }
+        }
+
+        // Move enemies along the path.
+        for (const e of enemies) {
+          if (!e.alive) continue
+          e.dist += ENEMY_SPEED * s
+          if (e.dist >= total) {
+            e.alive = false
+            e.g.visible = false
+            continue
+          }
+          const p = pointAt(e.dist)
+          e.g.position.set(p.x, p.y)
+        }
+
+        // Towers fire at the nearest in-range enemy.
+        const range = params.get('range')
+        for (const t of towers) {
+          t.cool -= s
+          if (t.cool > 0) continue
+          let best: Enemy | null = null
+          let bestD = range
+          for (const e of enemies) {
+            if (!e.alive) continue
+            const p = pointAt(e.dist)
+            const d = Math.hypot(p.x - t.x, p.y - t.y)
+            if (d < bestD) {
+              bestD = d
+              best = e
+            }
+          }
+          if (best) {
+            const sh = shots.find((x) => !x.alive)
+            if (sh) {
+              sh.alive = true
+              sh.x = t.x
+              sh.y = t.y
+              sh.target = best
+              sh.g.visible = true
+              t.cool = FIRE_CD
+            }
+          }
+        }
+
+        // Move projectiles toward their target; damage on contact.
+        for (const sh of shots) {
+          if (!sh.alive) continue
+          const tgt = sh.target
+          if (!tgt?.alive) {
+            sh.alive = false
+            sh.g.visible = false
+            continue
+          }
+          const p = pointAt(tgt.dist)
+          const dx = p.x - sh.x
+          const dy = p.y - sh.y
+          const d = Math.hypot(dx, dy) || 1
+          const step = SHOT_SPEED * s
+          if (d <= step + 8) {
+            tgt.hp -= 1
+            if (tgt.hp <= 0) {
+              tgt.alive = false
+              tgt.g.visible = false
+            }
+            sh.alive = false
+            sh.g.visible = false
+          } else {
+            sh.x += (dx / d) * step
+            sh.y += (dy / d) * step
+            sh.g.position.set(sh.x, sh.y)
+          }
+        }
+      },
+    }
+  },
+}
+
 const verticalScroller: PatternDemo = {
   id: 'vertical-scroller-style',
   name: 'Vertical-scroller-style',
@@ -1391,6 +1635,7 @@ export const systemDemos: PatternDemo[] = [
   inertia,
   gridMove,
   fallingBlock,
+  towerDefense,
   platformer,
   autoRunner,
   adv,
