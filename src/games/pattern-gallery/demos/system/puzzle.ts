@@ -7,7 +7,7 @@ const fallingBlock: PatternDemo = {
   id: 'falling-block-style',
   controls: {
     stick: { left: 'left', right: 'right', down: 'down' },
-    a: { action: 'action', label: 'ROTATE' },
+    a: { action: 'action', label: 'ROTATE', labelSize: 16 },
   },
   name: 'Falling-block-style',
   caption: 'Tetromino grid: move ← →, rotate Space, soft-drop ↓; full rows clear (Tetris).',

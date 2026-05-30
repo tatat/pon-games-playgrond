@@ -168,7 +168,14 @@ export class GalleryScene extends Scene {
         stick: c.stick,
         rightStick: c.rightStick,
         actions: { a: c.a, b: c.b },
-        option: { tap: () => useRuntimeStore.getState().setGamePaused(true) },
+        // Toggle the pause overlay — a second Option tap closes it (the pad
+        // sits above the overlay in the viewport uiLayer, so it stays tappable).
+        option: {
+          tap: () => {
+            const s = useRuntimeStore.getState()
+            s.setGamePaused(!s.gamePaused)
+          },
+        },
       })
       this.layout.uiLayer.addChild(this.keypad.view)
     }

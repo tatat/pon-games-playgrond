@@ -155,7 +155,10 @@ const breakout: PatternDemo = {
 
 const aimLaunch: PatternDemo = {
   id: 'aim-launch-style',
-  controls: { stick: { left: 'left', right: 'right' }, a: { action: 'action', label: 'LAUNCH' } },
+  controls: {
+    stick: { left: 'left', right: 'right' },
+    a: { action: 'action', label: 'LAUNCH', labelSize: 16 },
+  },
   name: 'Aim-launch-style',
   caption: 'Aim with ← →, launch with Space; the ball bounces then resets.',
   category: 'system',
