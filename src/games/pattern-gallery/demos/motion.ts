@@ -81,8 +81,9 @@ const easings: PatternDemo = {
     const labelH = 18
     const boxW = cellW - padX * 2
     const boxH = cellH - labelH - 18
-    // Map an eased value (which may overshoot [0,1]) into the box with margins.
-    const yOf = (oy: number, v: number): number => oy + boxH - (v * 0.78 + 0.11) * boxH
+    // Map an eased value to a box fraction. Compressed enough that big
+    // overshoots (easeOutElastic peaks ~1.35) still fit inside the box.
+    const yOf = (oy: number, v: number): number => oy + boxH - (v * 0.62 + 0.1) * boxH
 
     const dots: { fn: Ease; ox: number; oy: number; dot: Graphics }[] = []
     EASINGS.forEach((e, i) => {
