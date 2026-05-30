@@ -123,12 +123,12 @@ export class MainScene extends Scene {
         ...BRICK_NAMES.flatMap((name) =>
           SCROLL_BRICK_SIZES.map((size) => ({
             alias: `scroll-brick-${name}-${size}`,
-            src: `games/breakout-clone/stickers/${name}-${size}@2x.png`,
+            src: `games/rally-runner/stickers/${name}-${size}@2x.png`,
           })),
         ),
         {
           alias: 'scroll-player',
-          src: `games/sticker-drift/stickers/${PADDLE_STICKER}-${PADDLE_STICKER_SIZE}@2x.png`,
+          src: `games/rally-runner/stickers/${PADDLE_STICKER}-${PADDLE_STICKER_SIZE}@2x.png`,
         },
       ],
       signal,
