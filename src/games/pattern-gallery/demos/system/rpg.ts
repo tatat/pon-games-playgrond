@@ -2,7 +2,7 @@ import { Container, Graphics, type Text as PixiText, SplitText } from 'pixi.js'
 import { COLORS, RADIUS } from '../../constants'
 import type { PatternDemo } from '../../demo'
 import { text } from '../../demo-util'
-import { FLOOR_INSET, HINT_GAP, hint } from './shared'
+import { HINT_GAP, hint } from './shared'
 
 const rpgBattle: PatternDemo = {
   id: 'rpg-battle-style',
@@ -50,14 +50,23 @@ const rpgBattle: PatternDemo = {
     eHpFill.position.set(ehbX, 0)
     root.addChild(eHpFill)
 
-    // ── Bottom panels ────────────────────────────────────────────────────
-    const bottomY = ctx.height - FLOOR_INSET - 6
+    // ── Bottom panel ─────────────────────────────────────────────────────
+    // Sit just above the hint, matching the hint's own bottom gap (like adv).
+    const bottomY = ctx.height - 2 * HINT_GAP - 16
     const panelH = 92
     const panelY = bottomY - panelH
+    const dividerX = width * 0.7 // commands occupy the right ~30%
+    const cmdX = dividerX + 26
+    const rowLeft = dividerX + 8
+    const rowRight = width - 20
+    // One box for hero stats + commands, split by a vertical divider.
     root.addChild(
       new Graphics()
-        .roundRect(12, panelY, width * 0.44, panelH, RADIUS.panel)
+        .roundRect(12, panelY, width - 24, panelH, RADIUS.chip)
         .fill(COLORS.panel)
+        .stroke({ color: COLORS.border, width: 1 })
+        .moveTo(dividerX, panelY + 12)
+        .lineTo(dividerX, panelY + panelH - 12)
         .stroke({ color: COLORS.border, width: 1 }),
     )
     const heroName = text('HERO', { fill: COLORS.text, fontSize: 15, fontFamily: theme.fontSans })
@@ -70,23 +79,23 @@ const rpgBattle: PatternDemo = {
     mpText.position.set(26, panelY + 60)
     root.addChild(mpText)
 
-    const cmX = width * 0.58
-    root.addChild(
-      new Graphics()
-        .roundRect(cmX, panelY, width * 0.42 - 12, panelH, RADIUS.panel)
-        .fill(COLORS.panel)
-        .stroke({ color: COLORS.border, width: 1 }),
-    )
+    // Selection highlight bar, drawn behind the command labels.
+    const selG = new Graphics()
+    root.addChild(selG)
     const COMMANDS = ['Attack', 'Magic (5 MP)', 'Guard']
     const cmdTexts = COMMANDS.map((c, i) => {
-      const t = text(c, { fill: COLORS.text, fontSize: 16, fontFamily: theme.fontSans })
-      t.position.set(cmX + 34, panelY + 12 + i * 24)
+      const t = text(c, { fill: COLORS.muted, fontSize: 16, fontFamily: theme.fontSans })
+      t.position.set(cmdX, panelY + 12 + i * 24)
       root.addChild(t)
       return t
     })
     const cursor = text('▶', { fill: COLORS.accent, fontSize: 14, fontFamily: theme.fontSans })
     cursor.anchor.set(0.5)
     root.addChild(cursor)
+    // White flash over the chosen row when a command is confirmed.
+    const confirmG = new Graphics()
+    confirmG.alpha = 0
+    root.addChild(confirmG)
     const msgText = text('Your move.', {
       fill: COLORS.muted,
       fontSize: 14,
@@ -127,6 +136,7 @@ const rpgBattle: PatternDemo = {
 
     let sel = 0
     let eFlashT = 0
+    let confirmT = 0
     let phase: 'input' | 'resolve' = 'input'
     let stepT = 0
     const steps: (() => void)[] = []
@@ -144,7 +154,13 @@ const rpgBattle: PatternDemo = {
     }
     const moveCursor = (): void => {
       const t = cmdTexts[sel]
-      if (t) cursor.position.set(cmX + 22, t.y + 9)
+      if (!t) return
+      selG
+        .clear()
+        .roundRect(rowLeft, t.y - 3, rowRight - rowLeft, 23, 4)
+        .fill({ color: COLORS.rowActive, alpha: 0.9 })
+      cursor.position.set(rowLeft + 9, t.y + 9)
+      for (const [i, c] of cmdTexts.entries()) c.style.fill = i === sel ? COLORS.text : COLORS.muted
     }
     syncStats()
     syncEnemy()
@@ -218,6 +234,10 @@ const rpgBattle: PatternDemo = {
           eFlashT -= dt.dtSec
           eFlash.alpha = Math.max(0, eFlashT) / 0.3
         }
+        if (confirmT > 0) {
+          confirmT -= dt.dtSec
+          confirmG.alpha = Math.max(0, confirmT) / 0.2
+        }
         for (const f of floaters) {
           if (!f.alive) continue
           f.life -= dt.dtSec
@@ -243,7 +263,18 @@ const rpgBattle: PatternDemo = {
           }
           if (input.wasJustPressed('action')) {
             if (sel === 1 && hero.mp < 5) setMsg('Not enough MP!')
-            else heroTurn(sel)
+            else {
+              // Flash the chosen row to confirm the command.
+              const t = cmdTexts[sel]
+              if (t) {
+                confirmG
+                  .clear()
+                  .roundRect(rowLeft, t.y - 3, rowRight - rowLeft, 23, 4)
+                  .fill(0xffffff)
+                confirmT = 0.2
+              }
+              heroTurn(sel)
+            }
           }
         } else {
           stepT -= dt.dtSec
@@ -333,7 +364,7 @@ const adv: PatternDemo = {
 
     root.addChild(
       new Graphics()
-        .roundRect(boxX, boxY, boxW, boxH, RADIUS.panel)
+        .roundRect(boxX, boxY, boxW, boxH, RADIUS.chip)
         .fill({ color: COLORS.panel, alpha: 0.96 })
         .stroke({ color: COLORS.border, width: 1 }),
     )
