@@ -39,6 +39,14 @@ export default function Home() {
         </li>
         <li>
           <Link
+            to="/hime-run"
+            style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
+          >
+            Hime Run
+          </Link>
+        </li>
+        <li>
+          <Link
             to="/pattern-gallery"
             style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
           >
