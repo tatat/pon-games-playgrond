@@ -5,6 +5,24 @@ export const GAME_ID = 'hime-run'
 /** Background of the play area (a dusk sky). */
 export const BACKGROUND_COLOR = 0x1b2440
 
+// ── Parallax background (post-apocalyptic ruined skyline) ────────────────────
+// A smog-dusk over a dead city: three skyline layers of broken buildings recede
+// into a hazy horizon, each scrolling at a fraction of the world speed so the
+// run reads as forward motion. Atmospheric perspective — far layers sit close to
+// the sky colour, the nearest is the darkest. See background.ts.
+/** Sky gradient stops, top → horizon. */
+export const SKY_TOP_COLOR = 0x141a2e
+export const SKY_HORIZON_COLOR = 0x70503f
+/** Dim, haze-swallowed sun low on the horizon. */
+export const SUN_COLOR = 0xc88a5d
+// Building silhouette colours, far → near. Atmospheric perspective: a single
+// monotonic value ramp (far lightest → near darkest), with the far layer tinted
+// warm so it melts into the smoggy horizon and the near layer kept cool. Near is
+// the darkest but holds a blue-violet so it never crushes to flat black.
+export const SKYLINE_FAR_COLOR = 0x4c4249
+export const SKYLINE_MID_COLOR = 0x322e3a
+export const SKYLINE_NEAR_COLOR = 0x211d2a
+
 // ── Ground ─────────────────────────────────────────────────────────────────
 /** World y of the floor surface — the runner's feet rest here, and floor terrain
  * blocks have their top at this y. (The floor is terrain blocks, not a band.) */

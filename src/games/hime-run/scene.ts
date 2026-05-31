@@ -2,8 +2,8 @@ import { Assets, Container, Graphics, Rectangle, Sprite, type Texture } from 'pi
 import { makeVirtualKeypad } from '../../engine/input/virtual-keypad'
 import { Scene, type SceneDelta } from '../../engine/scene'
 import { useRuntimeStore } from '../../store/runtime'
+import { Background } from './background'
 import {
-  BACKGROUND_COLOR,
   COIN_COLOR,
   COIN_RADIUS,
   DESIGN_H,
@@ -72,6 +72,7 @@ export interface MainSceneOptions {
 }
 
 export class MainScene extends Scene {
+  private background!: Background
   private worldLayer!: Container
   private shadow = new Graphics()
   private blockGfx = new Graphics()
@@ -120,9 +121,11 @@ export class MainScene extends Scene {
   }
 
   async onEnter(signal: AbortSignal): Promise<void> {
-    const bg = new Graphics().rect(0, 0, DESIGN_W, DESIGN_H).fill(BACKGROUND_COLOR)
-    bg.zIndex = -100
-    this.addChild(bg)
+    // Parallax ruined-city backdrop: scrolls with the run's distance to sell
+    // forward motion (set each frame from `distance`).
+    this.background = new Background()
+    this.background.zIndex = -100
+    this.addChild(this.background)
 
     await this.preload(
       FRAME_ALIASES.map((alias) => ({ alias, src: `games/hime-run/${alias}.png` })),
@@ -223,6 +226,7 @@ export class MainScene extends Scene {
       this.stepPlaying(dtSec)
     }
 
+    this.background.update(this.distance)
     this.advanceAnimation(dtSec)
     this.syncPlayer()
     this.input.endFrame()

@@ -329,6 +329,14 @@ Done so far:
   death and coin overlap all resolve through `circleRectMTV` (no feet-point or
   half-width special cases). Recovery is grounded-only, delay-gated on landing,
   and eased in/out.
+- Parallax background (`background.ts`): a post-apocalyptic ruined-city backdrop —
+  a smog-dusk gradient sky, a static star field, a looming oversized sun/moon, and
+  three skyline layers of broken buildings that scroll at fractions of the world
+  speed (driven by `distance`) to sell forward motion. Fully deterministic (fixed
+  per-layer `Rng` seeds), no per-frame redraw (each layer is a two-tile Graphics
+  shifted by `container.x` and wrapped by modulo). Buildings have quantised,
+  unevenly-split crumbled rooflines; atmospheric perspective sets a monotonic
+  far→near value ramp (far lightest/warm, near darkest/cool).
 
 Remaining:
 
@@ -338,9 +346,7 @@ Remaining:
 2. **Coins:** a dev-time script that derives reachable coin cells from terrain +
    the jump envelope and enumerates them into committed `coin` blocks (量産);
    collection + `setCoinCount` HUD + `startGame` reset.
-3. **Parallax background:** the sense of forward motion (the dashed ground marks
-   were removed — they only sat on the base ground line).
-4. **Map builder:** `/tools/hime-run-builder` (see below).
+3. **Map builder:** `/tools/hime-run-builder` (see below).
 
 ## Map builder
 
@@ -385,7 +391,7 @@ Scope & wiring:
   schema. Branch markers in the builder follow once branches exist in-game; coins
   are auto-placed, not painted.
 
-Status: the authored-course walker (intro + loop), constant-speed scene,
+Status: the authored-course walker (intro + loop), distance-ramped scene,
 grid-derived physics, a wave-shaped sample loop, the unified one-`Block` model,
-and climb-and-squeeze contact on a single body circle are all in. Up next:
-branches, coins, a parallax background, then the map builder.
+climb-and-squeeze contact on a single body circle, and the parallax ruined-city
+background are all in. Up next: branches, coins, then the map builder.
