@@ -130,4 +130,11 @@ describe('SAMPLE_COURSE', () => {
       expect(p.length).toBeGreaterThanOrEqual(farthest)
     }
   })
+
+  it('re-emits coins every loop, so they respawn (memorization track)', () => {
+    // The loop carries coins, and over several cycles they recur (the walker
+    // emits fresh coin blocks each time the pattern comes round again).
+    const coins = run(SAMPLE_COURSE, 16000, 7, SAMPLE_LOOP_START).filter((b) => b.type === 'coin')
+    expect(coins.length).toBeGreaterThan(10)
+  })
 })

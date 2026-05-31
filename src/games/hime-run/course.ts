@@ -130,6 +130,18 @@ function pitBlock(xCells: number, wCells: number): Block {
     height: DESIGN_H,
   }
 }
+/**
+ * A collectible coin occupying grid cell (`xCells`, `rowCells`) — a full
+ * grid-aligned 1×1 cell like every other block. `rowCells` is the 1-based cell
+ * row above the ground: row 1 is the cell resting on the floor (its centre, where
+ * the disc draws and where pickup is judged, is half a cell up — also the grounded
+ * runner's body-circle centre, so a row-1 trail is collected by just running
+ * through it). Drawn as a disc centred in the cell; non-colliding, picked up when
+ * the body circle overlaps the cell.
+ */
+function coin(xCells: number, rowCells: number): Block {
+  return { type: 'coin', x: c(xCells), y: GROUND_Y - c(rowCells), width: CELL, height: CELL }
+}
 
 /**
  * Build a pattern: lay a continuous `terrain` floor across `lengthCells` minus
@@ -172,20 +184,30 @@ const REST_MED = 5
 const REST_SHORT = 4 // brisk, used at the peak
 
 /** One-time opening: flat ground the player starts standing on (fills the screen
- * on the first step). Played once — not part of the loop. */
-const INTRO: Course = [pat('intro-flat', 14)]
+ * on the first step). Played once — not part of the loop. A ground-level coin
+ * trail teaches collection (just run through them). */
+const INTRO: Course = [
+  pat('intro-flat', 14, { blocks: [coin(6, 1), coin(7, 1), coin(8, 1), coin(9, 1)] }),
+]
 
 /** The endlessly repeating section (a wave: calm → ramp → peak → calm). The
  * walker wraps from the last pattern back to the first of THIS list. */
 const LOOP: Course = [
   // ── Wave 1: intro / calm. ─────────────────────────────────────────────────
-  pat('hop-low', 1 + REST_LONG, { blocks: [terrain(0, 1, 1)] }),
+  // Coins arc over the hop — juice on a jump the player makes anyway.
+  pat('hop-low', 1 + REST_LONG, {
+    blocks: [terrain(0, 1, 1), coin(0, 2), coin(1, 3), coin(2, 2)],
+  }),
   pat('pit-small', 2 + REST_LONG, { pits: [[0, 2]] }),
   pat('hop-max-single', 1 + REST_LONG, { blocks: [terrain(0, 1, 2)] }),
 
   // ── Wave 2: ramp — double jump + ledge. ───────────────────────────────────
   pat('wall-double', 1 + REST_LONG + 1, { blocks: [terrain(0, 1, 3)] }),
-  pat('pit-ledge', 4 + REST_MED, { pits: [[0, 4]], blocks: [ledge(1, 2, 1)] }),
+  // A coin trail over the ledge telegraphs the route across the pit.
+  pat('pit-ledge', 4 + REST_MED, {
+    pits: [[0, 4]],
+    blocks: [ledge(1, 2, 1), coin(1, 2), coin(2, 2), coin(3, 2)],
+  }),
   // Wide pit crossed on fine 1-cell stepping stones: three 2-cell hops, each
   // landing on a single-cell ledge. The gap is jumpable; the precision is the
   // narrow target.
@@ -202,20 +224,29 @@ const LOOP: Course = [
   }),
   // Stepping stones climbing 1→2→3 across the pit: each hop lands a cell higher,
   // so you ascend as you cross.
+  // Risk/reward: a coin rides above each rising stone, so the payout only comes
+  // if you commit to the precise ascending line.
   pat('pit-steps-climb', 11 + REST_LONG, {
     pits: [[0, 11]],
-    blocks: [ledge(2, 1, 1), ledge(5, 1, 2), ledge(8, 1, 3)],
+    blocks: [ledge(2, 1, 1), ledge(5, 1, 2), ledge(8, 1, 3), coin(2, 2), coin(5, 3), coin(8, 4)],
   }),
   pat('rhythm-stair', 8 + 1 + REST_SHORT, {
     blocks: [terrain(0, 1, 1), terrain(4, 1, 2), terrain(8, 1, 2)],
   }),
   // The tallest wall: a full 4-cell block, the double jump's ceiling. A long rest
   // after it gives room to recover from the committed double.
-  pat('wall-max-double', 1 + REST_LONG + 1, { blocks: [terrain(0, 1, 4)] }),
+  // High risk/reward: a coin crest only reachable near the double-jump apex over
+  // the tallest wall.
+  pat('wall-max-double', 1 + REST_LONG + 1, {
+    blocks: [terrain(0, 1, 4), coin(0, 5), coin(1, 5)],
+  }),
   pat('wall-then-pit', 1 + 4 + 2 + REST_MED, { pits: [[5, 7]], blocks: [terrain(0, 1, 3)] }),
 
   // ── Wave 4: calm — wind down before the loop seam. ────────────────────────
-  pat('ledge-easy', 4 + REST_LONG, { pits: [[0, 4]], blocks: [ledge(1, 2, 1)] }),
+  pat('ledge-easy', 4 + REST_LONG, {
+    pits: [[0, 4]],
+    blocks: [ledge(1, 2, 1), coin(1, 2), coin(2, 2)],
+  }),
   pat('hop-final', 1 + REST_LONG + 1, { blocks: [terrain(0, 1, 1)] }),
 ]
 

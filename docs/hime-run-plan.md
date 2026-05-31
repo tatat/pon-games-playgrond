@@ -8,8 +8,8 @@ clearability-solver design, which is **abandoned** (see "What we're dropping").
 Stop procedurally generating the course. Instead, ship a **hand-authored set of
 obstacle patterns played in a fixed order, looping endlessly**, with **fully
 deterministic placement** (same obstacles, same positions, every run). This is a
-memorization game ("覚えゲー"): the player learns the course and improves by
-mastering it, not by reacting to fresh randomness each time.
+memorization game: the player learns the course and improves by mastering it,
+not by reacting to fresh randomness each time.
 
 Why the change:
 
@@ -205,8 +205,8 @@ hand-placing every coin, a dev-time script derives, for each obstacle pattern,
 the grid cells a coin could sit in: cells the player can actually reach given the
 terrain and the jump envelope (on the natural arc over a block, along a landing,
 on a risky high line). It then enumerates combinations of those candidate cells
-into many coin sets and writes them as committed course data. The win is
-量産 — N terrain patterns × auto-derived coin sets = lots of fixed courses
+into many coin sets and writes them as committed course data. The win is bulk
+generation — N terrain patterns × auto-derived coin sets = lots of fixed courses
 cheaply, without authoring coins by hand.
 
 This is offline + committed (like generated sprite assets, `scripts/asset-*.mjs`
@@ -337,15 +337,24 @@ Done so far:
   shifted by `container.x` and wrapped by modulo). Buildings have quantised,
   unevenly-split crumbled rooflines; atmospheric perspective sets a monotonic
   far→near value ramp (far lightest/warm, near darkest/cool).
+- Coins (collection + HUD + sample): a `coin` is a grid-aligned 1×1-cell `Block`
+  (`coin(xCells, rowCells)` in `course.ts`) drawn as a disc centred in its cell.
+  The body circle picks one up on overlap (`coinAt`) — removed from the live
+  blocks, counter++ — and since the walker re-emits each pattern's coins every
+  loop, they respawn each cycle. The count is run-local (reset in `startGame`,
+  shown by `HUD.setCoinCount`), never persisted in `HimeSession`. A hand-authored
+  sample places coins for the three intents (arc juice, routing trail, risk/reward
+  high lines) across the intro and several loop patterns.
 
 Remaining:
 
 1. **Branches:** input-selected routes with a named commit trigger and explicit
    merge markers; difficulty/payout asymmetry. Layout stays deterministic given
    inputs.
-2. **Coins:** a dev-time script that derives reachable coin cells from terrain +
-   the jump envelope and enumerates them into committed `coin` blocks (量産);
-   collection + `setCoinCount` HUD + `startGame` reset.
+2. **Coin auto-placement (bulk generation):** a dev-time script that derives
+   reachable coin cells from terrain + the jump envelope and enumerates them into
+   committed `coin` blocks — replacing the hand-authored sample with generated
+   layers. The in-game collection/HUD/respawn path above is already in.
 3. **Map builder:** `/tools/hime-run-builder` (see below).
 
 ## Map builder
@@ -393,5 +402,7 @@ Scope & wiring:
 
 Status: the authored-course walker (intro + loop), distance-ramped scene,
 grid-derived physics, a wave-shaped sample loop, the unified one-`Block` model,
-climb-and-squeeze contact on a single body circle, and the parallax ruined-city
-background are all in. Up next: branches, coins, then the map builder.
+climb-and-squeeze contact on a single body circle, the parallax ruined-city
+background, and coins (collection + HUD + a hand-authored sample, respawning each
+loop) are all in. Up next: branches, coin auto-placement (bulk generation), then
+the map builder.

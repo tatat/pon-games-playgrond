@@ -1,5 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
+import { COIN_COLOR } from './constants'
 
 const WHITE = 0xf5f3ff
 const ACCENT = 0xff9ec4
@@ -12,6 +13,7 @@ const START_TEXT = 'Press SPACE / TAP to start\n\nHold to jump higher · tap aga
  * pushed in via `setScore`; the scene toggles the three screen states. */
 export class HUD extends Container {
   private readonly scoreValue: Text
+  private readonly coinValue: Text
   private readonly overlay: Graphics
   private readonly titleText: Text
   private readonly startText: Text
@@ -27,6 +29,16 @@ export class HUD extends Container {
     })
     this.scoreValue.position.set(40, 32)
     this.addChild(this.scoreValue)
+
+    // Coin tally below the score: a small disc icon + count, in the coin colour.
+    const coinIcon = new Graphics().circle(54, 108, 13).fill(COIN_COLOR)
+    this.addChild(coinIcon)
+    this.coinValue = new Text({
+      text: '0',
+      style: { fill: COIN_COLOR, fontSize: 34, fontWeight: '700', fontFamily: FONT },
+    })
+    this.coinValue.position.set(78, 90)
+    this.addChild(this.coinValue)
 
     this.overlay = new Graphics()
       .rect(0, 0, DESIGN_W, DESIGN_H)
@@ -65,6 +77,10 @@ export class HUD extends Container {
 
   setScore(score: number): void {
     this.scoreValue.text = `${score} m`
+  }
+
+  setCoinCount(coins: number): void {
+    this.coinValue.text = `${coins}`
   }
 
   showTitle(best: number): void {

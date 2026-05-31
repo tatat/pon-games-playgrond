@@ -37,7 +37,7 @@ import {
 } from './constants'
 import { type Block, CourseWalker, SAMPLE_COURSE, SAMPLE_LOOP_START } from './course'
 import { HUD } from './hud'
-import { circleRectMTV, touchesLethal } from './obstacles'
+import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
@@ -100,6 +100,9 @@ export class MainScene extends Scene {
   private animTime = 0
   private score = 0
   private lastReportedScore = 0
+  /** Coins collected this run. Run-local (reset each `startGame`); coins respawn
+   * every loop, so this is NOT persisted in `HimeSession`. */
+  private coins = 0
   /** Distance travelled this run (px). Drives the speed ramp, so speed is a pure
    * function of distance and every run stays deterministic. */
   private distance = 0
@@ -243,6 +246,7 @@ export class MainScene extends Scene {
     this.phase = 'playing'
     this.score = 0
     this.lastReportedScore = 0
+    this.coins = 0
     this.distance = 0
     this.feetY = GROUND_Y
     this.vy = 0
@@ -256,6 +260,7 @@ export class MainScene extends Scene {
     this.blocks = this.walker.step(0)
     this.hud.showPlaying()
     this.hud.setScore(0)
+    this.hud.setCoinCount(0)
   }
 
   private jump(): void {
@@ -391,8 +396,26 @@ export class MainScene extends Scene {
       return
     }
 
+    this.collectCoins()
     this.redrawBlocks()
     this.redrawShadow()
+  }
+
+  /** Pick up every coin the body circle overlaps this frame (removing the live
+   * block and bumping the counter). Coins are re-emitted by the walker each loop,
+   * so removing the on-screen block doesn't stop them respawning next cycle. */
+  private collectCoins(): void {
+    const R = PLAYER_HIT_RADIUS
+    const cy = this.feetY - R
+    let collected = false
+    let idx = coinAt(this.blocks, this.playerX, cy, R)
+    while (idx >= 0) {
+      this.blocks.splice(idx, 1)
+      this.coins += 1
+      collected = true
+      idx = coinAt(this.blocks, this.playerX, cy, R)
+    }
+    if (collected) this.hud.setCoinCount(this.coins)
   }
 
   private reportScore(): void {

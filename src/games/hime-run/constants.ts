@@ -122,7 +122,7 @@ export const HAZARD_COLOR = 0xff6b9d
 /** coin — collectible. */
 export const COIN_COLOR = 0xffd34d
 /** Coin draw radius (it's authored as a 1-cell block but drawn as a disc). */
-export const COIN_RADIUS = 22
+export const COIN_RADIUS = 28
 
 // ── Collision / death ────────────────────────────────────────────────────────
 /** A safety net: if the runner somehow falls well below the screen end the run
