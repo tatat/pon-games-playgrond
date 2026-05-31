@@ -200,34 +200,25 @@ A coin is a `Block` of `type: 'coin'` — non-colliding, collected on overlap
 (coin removed, counter++), never fatal. It lives in the same `blocks` list as the
 terrain, so coins ride the same walker/cull path and need no separate track.
 
-**Placement is computed from terrain + reach, to multiply variety.** Rather than
-hand-placing every coin, a dev-time script derives, for each obstacle pattern,
-the grid cells a coin could sit in: cells the player can actually reach given the
-terrain and the jump envelope (on the natural arc over a block, along a landing,
-on a risky high line). It then enumerates combinations of those candidate cells
-into many coin sets and writes them as committed course data. The win is bulk
-generation — N terrain patterns × auto-derived coin sets = lots of fixed courses
-cheaply, without authoring coins by hand.
+**Coins are hand-authored into patterns.** Each coin is placed directly in a
+pattern's `blocks` list via the `coin(xCells, rowCells)` helper — a grid-aligned
+1×1 cell like every other block, drawn as a disc centred in its cell — alongside
+the terrain. Placement is part of authoring the pattern, the same as a step or
+ledge.
 
-This is offline + committed (like generated sprite assets, `scripts/asset-*.mjs`
-→ committed PNGs): the script writes `coin` blocks into the course data, which is
-then ordinary reviewable source — no runtime generator, no RNG, fully
-deterministic. Re-run only when terrain or the reach model changes. (The reach
-calculation is the same jump-envelope math used elsewhere; combination count is
-filtered for quality — drop empty/near-identical/unreachable sets.)
-
-What the placement aims for:
+What the placement aims for (an authoring checklist):
 
 - **On the natural arc** — coins along a jump the player makes anyway (juice).
 - **Risk/reward** — coins only reachable by the harder line (higher hop, a
   branch's hard route, grazing a hazard): safety vs. payout = axis 6 made real.
 - **Routing signal** — a coin trail telegraphs the intended path.
 
-Collection uses a circle overlap test; on overlap the coin block is removed and a
-coin counter increments (HUD needs a `setCoinCount` API + a reset in
-`startGame`). Coins respawn each loop (memorization game). Coin run-local state
-(which on-screen coins are collected) resets on restart and must NOT live in
-`HimeSession` (that is cross-restart, `best` only).
+Collection uses a circle overlap test (`coinAt`); on overlap the coin block is
+removed from the live blocks and a counter increments (`HUD.setCoinCount`, reset
+in `startGame`). Coins respawn each loop (the walker re-emits the pattern's coins
+every cycle — a memorization game). Coin run-local state (count, which on-screen
+coins are collected) resets on restart and does NOT live in `HimeSession` (that is
+cross-restart, `best` only).
 
 ## Branches
 
@@ -241,8 +232,8 @@ Branch = { commit: CommitTrigger, routes: { name, steps: CourseStep[] }[], merge
 ```
 
 Routes hold `CourseStep[]`, the same type as the main course — not bare
-patterns — so coin-layer selection works identically on the main line and inside
-any route.
+patterns — so they sequence patterns identically on the main line and inside any
+route.
 
 - **Input-selected** (preferred): the route is chosen by the player's action at
   the branch point (jump vs. not, which platform they land on). No menu — the
@@ -252,8 +243,8 @@ any route.
   high route, else low route." The route is selected at that instant and the
   route-specific patterns spawn from there; there is no re-deciding mid-route.
 - **Merge semantics.** Routes need not be equal length, and each route is a
-  `CourseStep[]` (so route patterns pick coin layers like any other step). Each
-  route ends at an explicit merge marker; the walker resumes the main course
+  `CourseStep[]`. Each route ends at an explicit merge marker; the walker resumes
+  the main course
   cursor at the merge point regardless of which route was taken (a shorter route
   simply reaches the merge sooner). The overall cycle stays fixed because all
   routes converge.
@@ -264,8 +255,8 @@ any route.
 - Determinism holds: given the player's inputs, the layout encountered is fully
   fixed. Branches add *player-chosen* variety without adding RNG.
 
-Both coins and branches are deferred behind the linear fixed course in the build
-order — get the deterministic loop working first, then layer these on.
+Branches are deferred behind the linear fixed course in the build order — get the
+deterministic loop (and coins) working first, then layer them on.
 
 ## The 9 axes become the authoring checklist
 
@@ -299,18 +290,15 @@ These guide authoring; none of them run at play time.
   function of distance, so the same distance always plays at the same speed and a
   given run is fully reproducible. (The layout repeats via the loop; the speed at
   a given distance does not depend on which loop you're in, only on distance.)
-- **Coin variety is generated offline, committed as source** (see Collectibles),
-  not rolled at runtime — keeps the no-runtime-RNG / fully-deterministic rule.
+- **Coins are hand-authored into patterns** (see Collectibles) as ordinary
+  committed `coin` blocks, so the no-runtime-RNG / fully-deterministic rule holds
+  by construction.
 
 ## Open questions (to settle before/while authoring)
 
 - **Pattern count & loop length** for a satisfying first cycle before it repeats.
 - **Authoring format** — inline TS array of pattern literals (simplest, typed,
-  reviewable) vs. a small data file. Lean inline TS unless it gets unwieldy. The
-  generated coin layers live in the same committed data file.
-- **Coin layer expansion policy** — full enumeration vs. a curated/filtered
-  subset (drop all-off, near-identical, or unreachable layers); how many layers
-  per pattern is worth keeping.
+  reviewable) vs. a small data file. Lean inline TS unless it gets unwieldy.
 
 ## Build order (incremental, each step leaves the game working)
 
@@ -351,11 +339,7 @@ Remaining:
 1. **Branches:** input-selected routes with a named commit trigger and explicit
    merge markers; difficulty/payout asymmetry. Layout stays deterministic given
    inputs.
-2. **Coin auto-placement (bulk generation):** a dev-time script that derives
-   reachable coin cells from terrain + the jump envelope and enumerates them into
-   committed `coin` blocks — replacing the hand-authored sample with generated
-   layers. The in-game collection/HUD/respawn path above is already in.
-3. **Map builder:** `/tools/hime-run-builder` (see below).
+2. **Map builder:** `/tools/hime-run-builder` (see below).
 
 ## Map builder
 
@@ -379,9 +363,9 @@ free-form:
   obstacle reads as a single-jump, a 3–4-cell one as a double-jump, right off the
   grid — which is what prevents unfair spacing (cf. the rhythm-three bug) at
   authoring time.
-- **Palette:** pick the block `type` to paint (terrain / ledge / hazard / pit;
-  coins come from auto-placement, not painting). Click/drag to add, click again to
-  erase.
+- **Palette:** pick the block `type` to paint (terrain / ledge / hazard / pit /
+  coin) — coins are placed by hand on the grid like any other block. Click/drag to
+  add, click again to erase.
 - **Export:** emit the painted cells as `ObstaclePattern` literals — matching
   `course.ts`, which writes block dimensions in cells via the `c(n) = n * CELL`
   helper — to paste/commit into `course.ts`.
@@ -398,11 +382,10 @@ Scope & wiring:
   is a tool, not gameplay).
 - The unified `Block` model has landed, so its export target is the final `Block`
   schema. Branch markers in the builder follow once branches exist in-game; coins
-  are auto-placed, not painted.
+  are painted on the grid like any other block.
 
 Status: the authored-course walker (intro + loop), distance-ramped scene,
 grid-derived physics, a wave-shaped sample loop, the unified one-`Block` model,
 climb-and-squeeze contact on a single body circle, the parallax ruined-city
-background, and coins (collection + HUD + a hand-authored sample, respawning each
-loop) are all in. Up next: branches, coin auto-placement (bulk generation), then
-the map builder.
+background, and coins (collection + HUD + hand-authored placement, respawning each
+loop) are all in. Up next: branches, then the map builder.
