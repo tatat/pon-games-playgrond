@@ -1,49 +1,24 @@
 # hime-run — hand-authored course (plan)
 
-Status: design draft. This supersedes the earlier procedural-generation +
-clearability-solver design, which is **abandoned** (see "What we're dropping").
+Status: design for the hand-authored, fixed-order endless course.
 
 ## Decision
 
-Stop procedurally generating the course. Instead, ship a **hand-authored set of
-obstacle patterns played in a fixed order, looping endlessly**, with **fully
-deterministic placement** (same obstacles, same positions, every run). This is a
-memorization game: the player learns the course and improves by mastering it,
-not by reacting to fresh randomness each time.
+The course is a **hand-authored set of obstacle patterns played in a fixed order,
+looping endlessly**, with **fully deterministic placement** (same obstacles, same
+positions, every run). This is a memorization game: the player learns the course
+and improves by mastering it, not by reacting to fresh randomness each time.
 
-Why the change:
+**Non-goals:** no procedural course generation, no runtime clearability/fairness
+solver, no distance→difficulty scalar. Difficulty and rhythm are placed by the
+author, not derived by a generator. Rationale:
 
-- Procedural generation spent nearly all its effort *proving fairness* (the
-  physics solver) and almost none on *making the course fun*. The result was
-  either monotonous or randomly spiky, and every fix fought the generator.
-- A human designer can place crescendos, rest beats, operation switches, and
-  rhythm directly — the exact qualities the 9-axis analysis identified as what
-  makes a course good. Authoring expresses them far more cheaply than coercing a
-  generator to emit them.
+- A human designer places crescendos, rest beats, operation switches, and rhythm
+  directly — the qualities the 9-axis analysis identifies as what makes a course
+  good — far more cheaply than coercing a generator to emit them.
 - Determinism makes the game *learnable*: a known course rewards practice, and
   removes the entire class of "is this fair?" problems by construction (the
-  designer simply doesn't author an unfair pattern).
-
-## What we're dropping
-
-These stop being load-bearing and will be removed once the new path is in:
-
-- `solver.ts` — the clearability prover/search. No longer needed: fairness is a
-  design-time decision, verified by playing, not proven at runtime.
-- `obstacles.ts` random feature makers (`makeFeature`, `groundBlock`, `pit`,
-  `platformPit`, `highWall`, `consecutiveBlocks`) and the weighted/`minD` mix.
-- `difficulty.ts` — distance→difficulty ramp and the `harderUp`/`harderDown`
-  samplers that biased random ranges. Difficulty now lives in the authored
-  ordering, not a scalar.
-- The time-based spacing system in `constants.ts`/`scene.ts`
-  (`REST_LEAD_SEC`, `REST_TEMPO_*`, fairness-floor/tempo `max()`): spacing
-  becomes part of each authored pattern.
-- All of the above tests (`solver.test.ts`, `difficulty.test.ts`,
-  `obstacles.test.ts`) — replaced by tests on the new authored-course model.
-
-Obstacle generation is replaced; the obstacle *model* is also unified — see "One
-block, five types" below. The old per-kind types (`gap`/`platform`/`wall`) are
-gone.
+  author simply doesn't author an unfair pattern).
 
 ## One block, five types
 
@@ -58,7 +33,7 @@ type:
   'terrain' — solid: stand on top; blocked by (pushed left by) its sides.
               Floor, steps, walls. Drawn as terrain.
   'ledge'   — one-way: pass up through from below, land/stand on from above.
-              The floating ledge (old platform). Drawn as a thin slab.
+              The floating ledge. Drawn as a thin slab.
   'hazard'  — lethal on touch, VISIBLE (warning colour). Spikes etc. — a death
               you want the player to see and avoid.
   'pit'     — lethal on touch, INVISIBLE. Placed at the bottom of a hole; the
@@ -113,9 +88,9 @@ death and coin pickup all read this one circle:
   (so it doesn't jolt), caps at `PLAYER_RECOVER_SPEED`, and slows as she nears
   home (`PLAYER_RECOVER_RATE`).
 
-Consequence for design: jump height/width no longer has to be exact. Failing to
-clear a `terrain` block isn't instant death — you get pushed and can still climb
-up — so authoring is about *flow and pressure* (don't let the player get walled
+Consequence for design: jump height/width need not be exact. Failing to clear a
+`terrain` block isn't instant death — you get pushed and can still climb up — so
+authoring is about *flow and pressure* (don't let the player get walled
 in), not about hitting precise reach numbers. Only lethal blocks are pass/fail.
 
 ## The grid is the basis (physics derives from it)
@@ -258,11 +233,11 @@ route.
 Branches are deferred behind the linear fixed course in the build order — get the
 deterministic loop (and coins) working first, then layer them on.
 
-## The 9 axes become the authoring checklist
+## The 9 axes are the authoring checklist
 
-The difficulty axes from the abandoned design are still the right vocabulary —
-but now they're a **design-time checklist for the human author**, not runtime
-generation constraints. When authoring and ordering patterns, deliberately vary:
+The nine difficulty axes are a **design-time checklist for the human author**
+(not runtime generation constraints). When authoring and ordering patterns,
+deliberately vary:
 
 1. Operation type — which input the pattern demands (tap / hold / double / land /
    rhythm).
@@ -304,8 +279,7 @@ These guide authoring; none of them run at play time.
 
 Done so far:
 - Authored-course model + pure `CourseWalker`; `scene.ts` walks `SAMPLE_COURSE`
-  with a distance-driven speed ramp; the old generator/solver/difficulty modules
-  are deleted.
+  with a distance-driven speed ramp.
 - 96px grid with physics derived from it (margin-tuned single/double jumps).
 - A wave-shaped loop authored on the grid: a one-time intro + a repeating section
   (`CourseWalker` wraps to `SAMPLE_LOOP_START`, not pattern 0).
