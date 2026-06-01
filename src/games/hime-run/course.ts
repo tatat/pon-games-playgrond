@@ -138,6 +138,12 @@ function pitBlock(xCells: number, wCells: number): Block {
     height: CELL,
   }
 }
+/** A visible lethal block (spike) `wCells` wide, occupying the 1-cell grid cell at
+ * row `rowCells` above the ground (row 1 rests on the floor, like a coin). Lethal
+ * on touch — meant to be seen and jumped/avoided, unlike the invisible pit. */
+function hazard(xCells: number, wCells: number, rowCells = 1): Block {
+  return { type: 'hazard', x: c(xCells), y: GROUND_Y - c(rowCells), width: c(wCells), height: CELL }
+}
 
 /** Extend every solid-terrain block down to one shared bottom — a full screen
  * below the course's deepest walkable surface — so all block bottoms are flush
@@ -253,6 +259,12 @@ const LOOP: Course = [
     ],
   }),
   pat('cam-flat-settle', 10),
+
+  // A visible ground spike to hop — exercises the `hazard` type. A coin arc rides
+  // over the jump you make to clear it.
+  pat('hazard-hop', 1 + REST_LONG, {
+    blocks: [hazard(0, 1), coin(0, 2), coin(1, 3), coin(2, 2)],
+  }),
 
   // ── Vertical-route samples first, so they're quick to reach while testing. ──
   // UP route (long): the ground runs straight through (the easy low lane), while
