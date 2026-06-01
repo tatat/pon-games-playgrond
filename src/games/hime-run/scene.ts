@@ -21,6 +21,7 @@ import {
   GRAVITY,
   GROUND_Y,
   HAZARD_COLOR,
+  HAZARD_DARK_COLOR,
   JUMP_CUT,
   JUMP_VELOCITY,
   LEDGE_COLOR,
@@ -646,11 +647,27 @@ export class MainScene extends Scene {
       if (b.type === 'ledge') g.roundRect(b.wx, b.y, b.width, b.height, 6)
     }
     g.fill(LEDGE_COLOR)
-    // hazard — visible lethal.
+    // hazard — visible lethal: a row of upward spikes over a dark base strip, so
+    // it clearly reads "don't touch" rather than a soft block.
+    const SPIKE_W = 22
     for (const b of this.blocks) {
-      if (b.type === 'hazard') g.roundRect(b.wx, b.y, b.width, b.height, 6)
+      if (b.type !== 'hazard') continue
+      const count = Math.max(1, Math.round(b.width / SPIKE_W))
+      const w = b.width / count
+      const baseY = b.y + b.height
+      for (let i = 0; i < count; i++) {
+        const x0 = b.wx + i * w
+        g.moveTo(x0, baseY)
+          .lineTo(x0 + w / 2, b.y)
+          .lineTo(x0 + w, baseY)
+          .closePath()
+      }
     }
     g.fill(HAZARD_COLOR)
+    for (const b of this.blocks) {
+      if (b.type === 'hazard') g.rect(b.wx, b.y + b.height - 6, b.width, 6)
+    }
+    g.fill(HAZARD_DARK_COLOR)
     // coin — disc centred in its cell.
     for (const b of this.blocks) {
       if (b.type === 'coin') g.circle(b.wx + b.width / 2, b.y + b.height / 2, COIN_RADIUS)

@@ -117,8 +117,10 @@ export const TERRAIN_COLOR = 0x2a3358
 export const TERRAIN_LIP_COLOR = 0x4a5a92
 /** ledge — one-way landable slab. */
 export const LEDGE_COLOR = 0x6be8c8
-/** hazard — visible lethal block (spikes etc.). */
-export const HAZARD_COLOR = 0xff6b9d
+/** hazard — visible lethal spikes (vivid red so it reads as "don't touch"). */
+export const HAZARD_COLOR = 0xff3b4e
+/** hazard base strip under the spikes, darker for grounding/menace. */
+export const HAZARD_DARK_COLOR = 0x7a1326
 /** coin — collectible. */
 export const COIN_COLOR = 0xffd34d
 /** Coin draw radius (it's authored as a 1-cell block but drawn as a disc). */
