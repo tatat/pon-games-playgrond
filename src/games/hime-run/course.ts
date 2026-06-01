@@ -114,13 +114,13 @@ function terrain(xCells: number, wCells: number, rowCells: number): Block {
     height: TOP_ONLY,
   }
 }
-/** A one-way ledge floating with its top `elevCells` above the ground, one cell
- * tall (grid-aligned, not a thin slab). */
-function ledge(xCells: number, wCells: number, elevCells: number): Block {
+/** A one-way ledge floating one cell tall, its top `rowCells` cells above the
+ * ground line (same row convention as `terrain` / `coin` / `hazard`). */
+function ledge(xCells: number, wCells: number, rowCells: number): Block {
   return {
     type: 'ledge',
     x: c(xCells),
-    y: GROUND_Y - c(elevCells),
+    y: GROUND_Y - c(rowCells),
     width: c(wCells),
     height: CELL,
   }
