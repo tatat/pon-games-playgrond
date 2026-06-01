@@ -6,6 +6,7 @@ export const games = {
   'sticker-drift': () => import('./sticker-drift').then((m) => m.stickerDriftGame),
   'breakout-clone': () => import('./breakout-clone').then((m) => m.breakoutCloneGame),
   'rally-runner': () => import('./rally-runner').then((m) => m.rallyRunnerGame),
+  'hime-run': () => import('./hime-run').then((m) => m.himeRunGame),
   'pattern-gallery': () => import('./pattern-gallery').then((m) => m.patternGalleryGame),
 } satisfies Record<string, () => Promise<GameModule>>
 
