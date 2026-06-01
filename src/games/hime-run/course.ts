@@ -1,4 +1,4 @@
-import { DESIGN_H, DESIGN_W } from '../../engine/constants'
+import { DESIGN_W } from '../../engine/constants'
 import { CELL, GROUND_Y } from './constants'
 import type { Block } from './obstacles'
 
@@ -120,15 +120,16 @@ function ledge(xCells: number, wCells: number, elevCells: number): Block {
     height: CELL,
   }
 }
-/** The invisible lethal block at the bottom of a pit `wCells` wide. Its top sits
- * one cell below the surface (grid-aligned). */
+/** The invisible lethal block one cell below the surface of a pit `wCells` wide.
+ * One cell tall: at current fall speeds the runner can't tunnel through it in a
+ * frame, and the recovery fall-death catches any deeper miss. */
 function pitBlock(xCells: number, wCells: number): Block {
   return {
     type: 'pit',
     x: c(xCells),
     y: GROUND_Y + CELL,
     width: c(wCells),
-    height: DESIGN_H,
+    height: CELL,
   }
 }
 /** A solid platform `depthCells` thick whose TOP sits `topRowCells` cells above
