@@ -410,6 +410,26 @@ export class MainScene extends Scene {
       this.onGround = false
     }
 
+    // Head-bonk pass: while rising, hitting the underside of a solid terrain block
+    // stops the ascent and pushes her back below it (not lethal). Only floating
+    // terrain — a ceiling / tunnel roof — has an on-screen underside; flushed
+    // ground terrain reaches off-screen below, so this never fires on it.
+    if (this.vy < 0) {
+      const cy = this.feetY - R
+      let bonkFeetY = Number.NEGATIVE_INFINITY
+      for (const b of this.blocks) {
+        if (b.type !== 'terrain') continue
+        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.width, b.height)
+        if (!mtv) continue
+        if (mtv.y <= 0 || Math.abs(mtv.y) < Math.abs(mtv.x)) continue // not a downward head hit
+        bonkFeetY = Math.max(bonkFeetY, this.feetY + mtv.y)
+      }
+      if (bonkFeetY !== Number.NEGATIVE_INFINITY) {
+        this.feetY = bonkFeetY
+        this.vy = 0
+      }
+    }
+
     // Death: the body circle touches a lethal block (a pit one cell down, or a
     // hazard). The circle's bottom is the feet (`feetY`), same circle as landing
     // — so a 1-cell pit kills one cell down.
