@@ -219,6 +219,41 @@ const INTRO: Course = [
 /** The endlessly repeating section (a wave: calm → ramp → peak → calm). The
  * walker wraps from the last pattern back to the first of THIS list. */
 const LOOP: Course = [
+  // ── Camera-tuning samples: flat → hill → flat → valley → flat. ─────────────
+  pat('cam-flat-lead', 6),
+  // 山: 6-step staircase up → 6-cell plateau → cliff back to ground.
+  pat('cam-hill', 2 + 6 + 6 + REST_LONG, {
+    blocks: [
+      terrain(2, 1, 1),
+      terrain(3, 1, 2),
+      terrain(4, 1, 3),
+      terrain(5, 1, 4),
+      terrain(6, 1, 5),
+      terrain(7, 1, 6),
+      terrain(8, 6, 6),
+      coin(9, 7),
+      coin(11, 7),
+      coin(13, 7),
+    ],
+  }),
+  pat('cam-flat-mid', 6),
+  // 谷: cliff → 6-cell valley floor → staircase back up (dug below ground).
+  pat('cam-valley', 2 + 6 + 6 + REST_LONG, {
+    gaps: [[2, 13]],
+    blocks: [
+      terrain(2, 6, -6),
+      terrain(8, 1, -5),
+      terrain(9, 1, -4),
+      terrain(10, 1, -3),
+      terrain(11, 1, -2),
+      terrain(12, 1, -1),
+      coin(3, -5),
+      coin(5, -5),
+      coin(7, -5),
+    ],
+  }),
+  pat('cam-flat-settle', 10),
+
   // ── Vertical-route samples first, so they're quick to reach while testing. ──
   // UP route (long): the ground runs straight through (the easy low lane), while
   // a ledge staircase climbs to a long high lane at elev 5 lined with coins.
