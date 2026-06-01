@@ -572,7 +572,11 @@ export class MainScene extends Scene {
     for (const b of this.blocks) {
       if (b.type !== 'terrain' && b.type !== 'ledge') continue
       if (x < b.x || x > b.x + b.width) continue
-      if (b.y < feetY) continue // surface above her feet — not ground below
+      // Skip surfaces above her feet. The 1px tolerance keeps the surface she is
+      // standing on (feetY ≈ its top, ± float from the landing resolve) counted as
+      // "below her", so the shadow doesn't flicker to a lower surface for a frame
+      // (e.g. dropping onto the ground beneath a hilltop she's actually on).
+      if (b.y < feetY - 1) continue
       if (top === null || b.y < top) top = b.y
     }
     return top
