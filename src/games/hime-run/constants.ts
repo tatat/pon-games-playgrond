@@ -140,9 +140,14 @@ export const CAMERA_WINDOW_TOP = CAMERA_HOME_Y - 4 * CELL
 export const CAMERA_UP_EASE = 12
 
 // ── Collision / death ────────────────────────────────────────────────────────
-/** A safety net: if the runner somehow falls well below the screen end the run
- * rather than fall forever. */
-export const FALL_DEATH_Y = DESIGN_H + 200
+/** Apex a full double jump reaches above its launch point (single apex fired,
+ * then the second impulse at that apex): JUMP_VELOCITY²/2g + DOUBLE_JUMP_VELOCITY²/2g.
+ * Used as the fall-death margin — once the runner is more than this far below
+ * the deepest walkable surface on screen, no double jump can recover her, so the
+ * run ends. This adapts to the terrain depth (a deep valley pushes the line down)
+ * instead of a fixed screen-relative cutoff. */
+export const DOUBLE_JUMP_REACH =
+  (JUMP_VELOCITY * JUMP_VELOCITY + DOUBLE_JUMP_VELOCITY * DOUBLE_JUMP_VELOCITY) / (2 * GRAVITY)
 
 /** Score per world pixel advanced — 1 m every 10px. */
 export const DISTANCE_SCORE_FACTOR = 0.1

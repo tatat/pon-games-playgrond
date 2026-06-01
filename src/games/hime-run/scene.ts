@@ -12,6 +12,7 @@ import {
   DESIGN_H,
   DESIGN_W,
   DISTANCE_SCORE_FACTOR,
+  DOUBLE_JUMP_REACH,
   DOUBLE_JUMP_VELOCITY,
   GRAVITY,
   GROUND_Y,
@@ -348,10 +349,25 @@ export class MainScene extends Scene {
     }
 
     // Death: the body circle touches a lethal block (a pit one cell down, or a
-    // hazard), or a safety-net fall well below the screen. The circle's bottom is
-    // the feet (`feetY`), same circle as landing — so a 1-cell pit kills one cell
-    // down.
+    // hazard). The circle's bottom is the feet (`feetY`), same circle as landing
+    // — so a 1-cell pit kills one cell down.
     if (touchesLethal(this.blocks, this.playerX, this.feetY - R, R)) {
+      this.die()
+      return
+    }
+    // Fall death: she can no longer reach any surface she could recover onto.
+    // A recovery target is solid terrain that hasn't already scrolled past her
+    // (its right edge is still at/ahead of her) — ledges are excluded (one-way,
+    // you can't land on them from below). The deepest such surface is the easiest
+    // to regain; if even that is more than a double jump's reach above her feet,
+    // no jump brings her back, so end the run.
+    let recoverY = Number.NEGATIVE_INFINITY
+    for (const b of this.blocks) {
+      if (b.type !== 'terrain') continue
+      if (b.x + b.width < this.playerX) continue // already passed — can't return to it
+      recoverY = Math.max(recoverY, b.y)
+    }
+    if (Number.isFinite(recoverY) && this.feetY > recoverY + DOUBLE_JUMP_REACH) {
       this.die()
       return
     }
