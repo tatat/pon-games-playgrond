@@ -44,6 +44,12 @@ import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
+/** A live block plus its stable world x (`wx`). `x` is screen-space and used for
+ * all simulation; `wx = x + distance` is fixed once emitted, so the terrain is
+ * drawn once at world coords and scrolled by moving `blockGfx.x` — not redrawn
+ * every frame. */
+type LiveBlock = Block & { wx: number }
+
 /** The hime run-cycle frames, in order. Loaded in `onEnter` via `preload`. */
 const FRAME_ALIASES = [
   'hime-run-1',
@@ -114,7 +120,10 @@ export class MainScene extends Scene {
   private cameraY = 0
 
   /** Live blocks on screen (terrain/ledge/hazard/pit/coin), screen-space x. */
-  private blocks: Block[] = []
+  private blocks: LiveBlock[] = []
+  /** Set when the block set changes (emit/cull/coin pickup); the terrain geometry
+   * is only rebuilt on those frames, otherwise it just scrolls via transform. */
+  private terrainDirty = true
   /** Walks the authored course, emitting blocks as the world scrolls. Rebuilt on
    * each run start so the fixed course always plays from the top. */
   private walker = new CourseWalker(SAMPLE_COURSE, SAMPLE_LOOP_START)
@@ -198,8 +207,9 @@ export class MainScene extends Scene {
     })
 
     // Fill the screen with the opening patterns so the player starts on ground.
-    this.blocks = this.walker.step(0)
+    this.blocks = this.liftBlocks(this.walker.step(0))
     this.redrawBlocks()
+    this.blockGfx.x = -this.distance
     this.syncPlayer()
     this.redrawShadow()
     this.hud.showTitle(this.options.session.best)
@@ -265,7 +275,9 @@ export class MainScene extends Scene {
     // Fresh walker so the fixed course restarts from pattern 0 every run; step(0)
     // fills the screen with the opening patterns under the player.
     this.walker = new CourseWalker(SAMPLE_COURSE, SAMPLE_LOOP_START)
-    this.blocks = this.walker.step(0)
+    this.blocks = this.liftBlocks(this.walker.step(0))
+    this.terrainDirty = true
+    this.blockGfx.x = 0
     this.hud.showPlaying()
     this.hud.setScore(0)
     this.hud.setCoinCount(0)
@@ -309,9 +321,16 @@ export class MainScene extends Scene {
     this.reportScore()
 
     // Emit the authored course's next blocks as the world scrolls; move and cull.
-    this.blocks.push(...this.walker.step(dx))
+    // `x` (screen) drives simulation; `wx` (world) is fixed for rendering.
+    const emitted = this.walker.step(dx)
+    if (emitted.length > 0) {
+      this.blocks.push(...this.liftBlocks(emitted))
+      this.terrainDirty = true
+    }
     for (const b of this.blocks) b.x -= dx
-    this.blocks = this.blocks.filter((b) => b.x + b.width > -60)
+    const kept = this.blocks.filter((b) => b.x + b.width > -60)
+    if (kept.length !== this.blocks.length) this.terrainDirty = true
+    this.blocks = kept
 
     // Collision: the runner is ONE body circle, and every block is resolved with
     // the same circle-vs-rect push-out (circleRectMTV). The push's dominant axis
@@ -420,7 +439,13 @@ export class MainScene extends Scene {
     }
 
     this.collectCoins()
-    this.redrawBlocks()
+    // Rebuild terrain geometry only when the block set changed; otherwise just
+    // scroll it by moving the layer (the world-x geometry stays put).
+    if (this.terrainDirty) {
+      this.redrawBlocks()
+      this.terrainDirty = false
+    }
+    this.blockGfx.x = -this.distance
     this.redrawShadow()
   }
 
@@ -438,7 +463,10 @@ export class MainScene extends Scene {
       collected = true
       idx = coinAt(this.blocks, this.playerX, cy, R)
     }
-    if (collected) this.hud.setCoinCount(this.coins)
+    if (collected) {
+      this.terrainDirty = true // a coin block was removed → rebuild
+      this.hud.setCoinCount(this.coins)
+    }
   }
 
   private reportScore(): void {
@@ -497,33 +525,41 @@ export class MainScene extends Scene {
     this.worldLayer.y = -this.cameraY
   }
 
-  /** Draw every block by type. `pit` blocks are invisible (the hole reads as a
-   * hole because no terrain is drawn there). */
+  /** Tag raw walker blocks with their stable world x (`wx = x + distance`), so
+   * the terrain geometry can be drawn once in world space and scrolled by moving
+   * `blockGfx.x` rather than redrawn each frame. */
+  private liftBlocks(raw: Block[]): LiveBlock[] {
+    return raw.map((b) => ({ ...b, wx: b.x + this.distance }))
+  }
+
+  /** Draw every block by type at its world x. Called only when the block set
+   * changes; the layer is scrolled by transform in between. `pit` blocks are
+   * invisible (the hole reads as a hole because no terrain is drawn there). */
   private redrawBlocks(): void {
     const g = this.blockGfx
     g.clear()
     // terrain — solid fill + a brighter top lip on the standable surface.
     for (const b of this.blocks) {
-      if (b.type === 'terrain') g.rect(b.x, b.y, b.width, b.height)
+      if (b.type === 'terrain') g.rect(b.wx, b.y, b.width, b.height)
     }
     g.fill(TERRAIN_COLOR)
     for (const b of this.blocks) {
-      if (b.type === 'terrain') g.rect(b.x, b.y, b.width, 5)
+      if (b.type === 'terrain') g.rect(b.wx, b.y, b.width, 5)
     }
     g.fill(TERRAIN_LIP_COLOR)
     // ledge — one-way slab.
     for (const b of this.blocks) {
-      if (b.type === 'ledge') g.roundRect(b.x, b.y, b.width, b.height, 6)
+      if (b.type === 'ledge') g.roundRect(b.wx, b.y, b.width, b.height, 6)
     }
     g.fill(LEDGE_COLOR)
     // hazard — visible lethal.
     for (const b of this.blocks) {
-      if (b.type === 'hazard') g.roundRect(b.x, b.y, b.width, b.height, 6)
+      if (b.type === 'hazard') g.roundRect(b.wx, b.y, b.width, b.height, 6)
     }
     g.fill(HAZARD_COLOR)
     // coin — disc centred in its cell.
     for (const b of this.blocks) {
-      if (b.type === 'coin') g.circle(b.x + b.width / 2, b.y + b.height / 2, COIN_RADIUS)
+      if (b.type === 'coin') g.circle(b.wx + b.width / 2, b.y + b.height / 2, COIN_RADIUS)
     }
     g.fill(COIN_COLOR)
   }

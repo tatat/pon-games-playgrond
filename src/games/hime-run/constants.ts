@@ -149,8 +149,9 @@ export const CAMERA_UP_EASE = 12
 export const DOUBLE_JUMP_REACH =
   (JUMP_VELOCITY * JUMP_VELOCITY + DOUBLE_JUMP_VELOCITY * DOUBLE_JUMP_VELOCITY) / (2 * GRAVITY)
 
-/** Score per world pixel advanced — 1 m every 10px. */
-export const DISTANCE_SCORE_FACTOR = 0.1
+/** Score per world pixel advanced. One cell = one metre (Minecraft-style), so a
+ * cell's width of travel scores 1 m. */
+export const DISTANCE_SCORE_FACTOR = 1 / CELL
 
 /** Re-export for layout maths inside the scene. */
 export { DESIGN_H, DESIGN_W }
