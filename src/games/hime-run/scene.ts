@@ -49,12 +49,6 @@ import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
-/** A live block plus its stable world x (`wx`). `x` is screen-space and used for
- * all simulation; `wx = x + distance` is fixed once emitted, so the terrain is
- * drawn once at world coords and scrolled by moving `blockGfx.x` — not redrawn
- * every frame. */
-type LiveBlock = Block & { wx: number }
-
 /** A short-lived coin-pickup visual. `view` lives in the scrolling fx layer; the
  * scene ages it and runs `step(view, t, dt)` (t = age/life in [0,1]) each frame,
  * then destroys it when done. Animation is via the view's transform (no redraw). */
@@ -137,8 +131,10 @@ export class MainScene extends Scene {
    * as `worldLayer.y = -cameraY`; driven by the dead-zone window each frame. */
   private cameraY = 0
 
-  /** Live blocks on screen (terrain/ledge/hazard/pit/coin), screen-space x. */
-  private blocks: LiveBlock[] = []
+  /** Live blocks on/near screen (terrain/ledge/hazard/pit/coin). `x` is WORLD x,
+   * fixed when emitted; screen x is `x - distance`. Simulation runs in world space
+   * (player world x = `playerWorldX`); rendering scrolls via `blockGfx.x`. */
+  private blocks: Block[] = []
   /** Set when the block set changes (emit/cull/coin pickup); the terrain geometry
    * is only rebuilt on those frames, otherwise it just scrolls via transform. */
   private terrainDirty = true
@@ -228,7 +224,7 @@ export class MainScene extends Scene {
     })
 
     // Fill the screen with the opening patterns so the player starts on ground.
-    this.blocks = this.liftBlocks(this.walker.step(0))
+    this.blocks = this.toWorld(this.walker.step(0))
     this.redrawBlocks()
     this.blockGfx.x = -this.distance
     this.syncPlayer()
@@ -304,7 +300,7 @@ export class MainScene extends Scene {
     // Fresh walker so the fixed course restarts from pattern 0 every run; step(0)
     // fills the screen with the opening patterns under the player.
     this.walker = new CourseWalker(SAMPLE_COURSE, SAMPLE_LOOP_START)
-    this.blocks = this.liftBlocks(this.walker.step(0))
+    this.blocks = this.toWorld(this.walker.step(0))
     this.terrainDirty = true
     this.blockGfx.x = 0
     this.hud.showPlaying()
@@ -364,15 +360,16 @@ export class MainScene extends Scene {
     this.score += dx * DISTANCE_SCORE_FACTOR
     this.reportScore()
 
-    // Emit the authored course's next blocks as the world scrolls; move and cull.
-    // `x` (screen) drives simulation; `wx` (world) is fixed for rendering.
+    // Emit the authored course's next blocks as the world scrolls, then cull any
+    // that have scrolled off the left. Block x is world-space and never mutated;
+    // the scroll is the growing `distance` (screen x = x - distance).
     const emitted = this.walker.step(dx)
     if (emitted.length > 0) {
-      this.blocks.push(...this.liftBlocks(emitted))
+      this.blocks.push(...this.toWorld(emitted))
       this.terrainDirty = true
     }
-    for (const b of this.blocks) b.x -= dx
-    const kept = this.blocks.filter((b) => b.x + b.width > -60)
+    const leftEdge = this.distance - 60 // world x of just past the screen's left
+    const kept = this.blocks.filter((b) => b.x + b.width > leftEdge)
     if (kept.length !== this.blocks.length) this.terrainDirty = true
     this.blocks = kept
 
@@ -381,8 +378,10 @@ export class MainScene extends Scene {
     // says what the contact is: a mostly-vertical push up = landing on top; a
     // mostly-horizontal push = the climb-and-squeeze side shove. No feet-point or
     // half-width special cases — landing, squeeze, death and coins all read the
-    // same circle.
+    // same circle. Everything is in world space: the circle sits at the runner's
+    // world x (`px`), each block at its world x.
     const R = PLAYER_HIT_RADIUS
+    const px = this.playerWorldX
 
     // Vertical pass: land on the highest block the circle is resting on. terrain
     // supports from any side; ledge only when descending onto it from above.
@@ -391,7 +390,7 @@ export class MainScene extends Scene {
       const cy = this.feetY - R
       for (const b of this.blocks) {
         if (b.type !== 'terrain' && b.type !== 'ledge') continue
-        const mtv = circleRectMTV(this.playerX, cy, R, b.x, b.y, b.width, b.height)
+        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.width, b.height)
         if (!mtv) continue
         if (mtv.y >= 0 || Math.abs(mtv.y) < Math.abs(mtv.x)) continue // not an upward landing
         if (b.type === 'ledge' && prevFeetY > b.y) continue // one-way: only from above
@@ -414,7 +413,7 @@ export class MainScene extends Scene {
     // Death: the body circle touches a lethal block (a pit one cell down, or a
     // hazard). The circle's bottom is the feet (`feetY`), same circle as landing
     // — so a 1-cell pit kills one cell down.
-    if (touchesLethal(this.blocks, this.playerX, this.feetY - R, R)) {
+    if (touchesLethal(this.blocks, px, this.feetY - R, R)) {
       this.die()
       return
     }
@@ -427,7 +426,7 @@ export class MainScene extends Scene {
     let recoverY = Number.NEGATIVE_INFINITY
     for (const b of this.blocks) {
       if (b.type !== 'terrain') continue
-      if (b.x + b.width < this.playerX) continue // already passed — can't return to it
+      if (b.x + b.width < px) continue // already passed — can't return to it
       recoverY = Math.max(recoverY, b.y)
     }
     if (Number.isFinite(recoverY) && this.feetY > recoverY + DOUBLE_JUMP_REACH) {
@@ -443,7 +442,7 @@ export class MainScene extends Scene {
       const cy = this.feetY - R
       for (const b of this.blocks) {
         if (b.type !== 'terrain') continue
-        const mtv = circleRectMTV(this.playerX, cy, R, b.x, b.y, b.width, b.height)
+        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.width, b.height)
         if (!mtv) continue
         if (mtv.x >= 0 || Math.abs(mtv.x) < Math.abs(mtv.y)) continue // not a leftward side hit
         push = Math.max(push, -mtv.x)
@@ -499,15 +498,16 @@ export class MainScene extends Scene {
   private collectCoins(): void {
     const R = PLAYER_HIT_RADIUS
     const cy = this.feetY - R
+    const px = this.playerWorldX
     let collected = false
-    let idx = coinAt(this.blocks, this.playerX, cy, R)
+    let idx = coinAt(this.blocks, px, cy, R)
     while (idx >= 0) {
       const coin = this.blocks[idx]
-      if (coin) this.spawnCoinFx(coin.wx + coin.width / 2, coin.y + coin.height / 2)
+      if (coin) this.spawnCoinFx(coin.x + coin.width / 2, coin.y + coin.height / 2)
       this.blocks.splice(idx, 1)
       this.coins += 1
       collected = true
-      idx = coinAt(this.blocks, this.playerX, cy, R)
+      idx = coinAt(this.blocks, px, cy, R)
     }
     if (collected) {
       this.terrainDirty = true // a coin block was removed → rebuild
@@ -620,11 +620,19 @@ export class MainScene extends Scene {
     this.worldLayer.y = -this.cameraY
   }
 
-  /** Tag raw walker blocks with their stable world x (`wx = x + distance`), so
-   * the terrain geometry can be drawn once in world space and scrolled by moving
-   * `blockGfx.x` rather than redrawn each frame. */
-  private liftBlocks(raw: Block[]): LiveBlock[] {
-    return raw.map((b) => ({ ...b, wx: b.x + this.distance }))
+  /** The walker emits blocks at screen x; convert to a fixed WORLD x (screen +
+   * distance) so they're immutable and the terrain can be drawn once and scrolled
+   * by transform. Mutates the fresh walker blocks in place. */
+  private toWorld(raw: Block[]): Block[] {
+    for (const b of raw) b.x += this.distance
+    return raw
+  }
+
+  /** The runner's position in world space (her fixed-ish screen x plus how far the
+   * world has scrolled). All collision/coin/shadow tests run against this so they
+   * compare like-for-like with each block's world x — no per-frame block mutation. */
+  private get playerWorldX(): number {
+    return this.playerX + this.distance
   }
 
   /** Draw every block by type at its world x. Called only when the block set
@@ -635,16 +643,16 @@ export class MainScene extends Scene {
     g.clear()
     // terrain — solid fill + a brighter top lip on the standable surface.
     for (const b of this.blocks) {
-      if (b.type === 'terrain') g.rect(b.wx, b.y, b.width, b.height)
+      if (b.type === 'terrain') g.rect(b.x, b.y, b.width, b.height)
     }
     g.fill(TERRAIN_COLOR)
     for (const b of this.blocks) {
-      if (b.type === 'terrain') g.rect(b.wx, b.y, b.width, 5)
+      if (b.type === 'terrain') g.rect(b.x, b.y, b.width, 5)
     }
     g.fill(TERRAIN_LIP_COLOR)
     // ledge — one-way slab.
     for (const b of this.blocks) {
-      if (b.type === 'ledge') g.roundRect(b.wx, b.y, b.width, b.height, 6)
+      if (b.type === 'ledge') g.roundRect(b.x, b.y, b.width, b.height, 6)
     }
     g.fill(LEDGE_COLOR)
     // hazard — visible lethal: a row of upward spikes over a dark base strip, so
@@ -656,7 +664,7 @@ export class MainScene extends Scene {
       const w = b.width / count
       const baseY = b.y + b.height
       for (let i = 0; i < count; i++) {
-        const x0 = b.wx + i * w
+        const x0 = b.x + i * w
         g.moveTo(x0, baseY)
           .lineTo(x0 + w / 2, b.y)
           .lineTo(x0 + w, baseY)
@@ -665,17 +673,17 @@ export class MainScene extends Scene {
     }
     g.fill(HAZARD_COLOR)
     for (const b of this.blocks) {
-      if (b.type === 'hazard') g.rect(b.wx, b.y + b.height - 6, b.width, 6)
+      if (b.type === 'hazard') g.rect(b.x, b.y + b.height - 6, b.width, 6)
     }
     g.fill(HAZARD_DARK_COLOR)
     // coin — disc centred in its cell.
     for (const b of this.blocks) {
-      if (b.type === 'coin') g.circle(b.wx + b.width / 2, b.y + b.height / 2, COIN_RADIUS)
+      if (b.type === 'coin') g.circle(b.x + b.width / 2, b.y + b.height / 2, COIN_RADIUS)
     }
     g.fill(COIN_COLOR)
   }
 
-  /** Top y of the terrain/ledge surface directly beneath the runner at screen
+  /** Top y of the terrain/ledge surface directly beneath the runner at world
    * `x` (the highest one at/below her feet), or null over a hole. The shadow is
    * cast onto this, so it sits on whatever she is actually above. */
   private shadowSurface(x: number, feetY: number): number | null {
@@ -696,7 +704,7 @@ export class MainScene extends Scene {
   private redrawShadow(): void {
     this.shadow.clear()
     // Cast on the surface beneath her; over a hole there is none, so no shadow.
-    const surface = this.shadowSurface(this.playerX, this.feetY)
+    const surface = this.shadowSurface(this.playerWorldX, this.feetY)
     if (surface === null) return
     // Shrink and fade with height above that surface.
     const airborne = Math.min(1, (surface - this.feetY) / 280)
