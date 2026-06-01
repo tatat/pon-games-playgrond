@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { DESIGN_H, DESIGN_W } from '../../engine/constants'
-import { type Course, CourseWalker, SAMPLE_COURSE, SAMPLE_LOOP_START } from './course'
+import { DESIGN_W } from '../../engine/constants'
+import { CELL, GROUND_Y } from './constants'
+import { type Course, CourseWalker } from './course'
 import type { Block } from './obstacles'
+import { SAMPLE_COURSE, SAMPLE_LOOP_START } from './sample-course'
 
-// A tiny deterministic course for precise assertions. Each pattern is a single
-// block at offset 0; pattern starts sit `length` apart.
-const blk = (type: Block['type']): Block => ({ type, x: 0, y: 0, width: 50, height: 50 })
+// A tiny deterministic course (grid cells) for precise assertions. Each section is
+// a single 1×1 block at offset 0; widths are in cells. The walker emits px blocks,
+// so an offset-0 block lands at the section's start cursor (px).
+const blk = (type: Block['type']): Block => ({ type, x: 0, y: 0, w: 1, h: 1 })
 const A: Course = [
-  { name: 'a', blocks: [blk('terrain')], length: 300 },
-  { name: 'b', blocks: [blk('hazard')], length: 400 },
+  { name: 'a', width: 3, blocks: [blk('terrain')] }, // 3 cells = 288px
+  { name: 'b', width: 4, blocks: [blk('hazard')] }, // 4 cells = 384px
 ]
 
 /** Run the walker for `totalPx` of scroll in `dx`-sized steps (after the initial
- * fill), collecting all emitted blocks. */
+ * fill), collecting all emitted blocks (px x). */
 function run(course: Course, totalPx: number, dx: number, loopStart = 0) {
   const w = new CourseWalker(course, loopStart)
   const all: { type: string; x: number }[] = []
@@ -25,48 +28,53 @@ function run(course: Course, totalPx: number, dx: number, loopStart = 0) {
 
 describe('CourseWalker', () => {
   it('fills the screen from x=0 on the first step', () => {
-    // step(0) lays patterns from x=0 rightward until past the screen edge:
-    // A@0, B@300, A@700, B@1100 (cursor 1500 > 1280 stops). Player starts on A.
+    // step(0) lays sections from x=0 rightward until past the screen edge:
+    // a@0, b@288, a@672, b@960 (cursor 1344 > 1280 stops).
     const out = new CourseWalker(A).step(0)
     expect(out.map((b) => b.type)).toEqual(['terrain', 'hazard', 'terrain', 'hazard'])
     expect(out[0]?.x).toBe(0)
-    // The fill reaches at least the right edge.
     const lastStart = out[out.length - 1]?.x ?? 0
     expect(lastStart).toBeGreaterThanOrEqual(0)
     expect(lastStart).toBeLessThanOrEqual(DESIGN_W)
   })
 
-  it("places a pattern's blocks at the cursor plus each block offset", () => {
+  it("places a section's blocks at the cursor plus each block offset (in px)", () => {
     const course: Course = [
       {
         name: 'pair',
-        blocks: [
-          { type: 'terrain', x: 0, y: 0, width: 50, height: 50 },
-          { type: 'terrain', x: 120, y: 0, width: 50, height: 50 },
-        ],
-        length: 600,
+        width: 6,
+        blocks: [blk('terrain'), { type: 'terrain', x: 2, y: 0, w: 1, h: 1 }],
       },
     ]
     const out = new CourseWalker(course).step(0)
-    // First copy starts at x=0: blocks at 0 and 120.
     expect(out[0]?.x).toBe(0)
-    expect(out[1]?.x).toBe(120)
+    expect(out[1]?.x).toBe(2 * CELL) // offset of 2 cells → 192px
   })
 
-  it('spaces consecutive pattern starts by the previous pattern length', () => {
-    // Fill emits A@0,B@300,A@700,B@1000; cursor ends at 1400, next is A.
+  it('builds grid cells to px (y ground-relative & up-positive; w/h scaled)', () => {
+    const course: Course = [
+      { name: 's', width: 6, blocks: [{ type: 'coin', x: 3, y: 2, w: 1, h: 1 }] },
+    ]
+    const out = new CourseWalker(course).step(0)
+    expect(out[0]).toMatchObject({
+      x: 3 * CELL,
+      y: GROUND_Y - 2 * CELL, // top, 2 cells above the ground line
+      w: 1 * CELL,
+      h: 1 * CELL,
+    })
+  })
+
+  it('spaces consecutive section starts by the previous section width', () => {
+    // Fill emits a@0,b@288,a@672,b@960; cursor ends at 1344, next is a.
     const w = new CourseWalker(A)
     w.step(0)
-    // Reach the edge (1400 → 1280 = 120px) to emit the next A.
-    expect(w.step(119)).toHaveLength(0)
-    expect(w.step(1).map((b) => b.type)).toEqual(['terrain']) // A; cursor 1280+300
-    // Next is B, one A-length (300px) later.
-    expect(w.step(299)).toHaveLength(0)
+    expect(w.step(63)).toHaveLength(0) // cursor 1281 > 1280
+    expect(w.step(1).map((b) => b.type)).toEqual(['terrain']) // a; cursor 1280 + 288
+    expect(w.step(287)).toHaveLength(0)
     expect(w.step(1).map((b) => b.type)).toEqual(['hazard'])
   })
 
-  it('loops back to the first pattern endlessly', () => {
-    // Over a long run the types cycle terrain,hazard,terrain,hazard,...
+  it('loops back to the first section endlessly', () => {
     const types = run(A, 3000, 1).map((b) => b.type)
     expect(types.length).toBeGreaterThan(6)
     for (let i = 0; i < types.length; i++) {
@@ -74,13 +82,11 @@ describe('CourseWalker', () => {
     }
   })
 
-  it('wraps to loopStart, so intro patterns play once and never recur', () => {
-    // [intro=ledge, a=terrain, b=hazard] with loopStart=1: 'ledge' is the opening
-    // only; the loop then cycles terrain,hazard,terrain,hazard,...
+  it('wraps to loopStart, so intro sections play once and never recur', () => {
     const withIntro: Course = [
-      { name: 'intro', blocks: [blk('ledge')], length: 300 },
-      { name: 'a', blocks: [blk('terrain')], length: 300 },
-      { name: 'b', blocks: [blk('hazard')], length: 400 },
+      { name: 'intro', width: 3, blocks: [blk('ledge')] },
+      { name: 'a', width: 3, blocks: [blk('terrain')] },
+      { name: 'b', width: 4, blocks: [blk('hazard')] },
     ]
     const w = new CourseWalker(withIntro, 1)
     const types: string[] = []
@@ -97,18 +103,15 @@ describe('CourseWalker', () => {
     )
   })
 
-  it('emits multiple patterns when a single step crosses several starts', () => {
-    // After the fill the next start sits just past the right edge; a large step
-    // pulls several starts onto the edge at once, so more than one emits.
+  it('emits multiple sections when a single step crosses several starts', () => {
     const w = new CourseWalker(A)
     w.step(0)
-    const out = w.step(800)
-    expect(out.length).toBeGreaterThanOrEqual(2)
+    expect(w.step(800).length).toBeGreaterThanOrEqual(2)
   })
 
-  it('rejects an empty course or a non-positive pattern length', () => {
+  it('rejects an empty course or a non-positive section width', () => {
     expect(() => new CourseWalker([])).toThrow()
-    expect(() => new CourseWalker([{ name: 'x', blocks: [], length: 0 }])).toThrow()
+    expect(() => new CourseWalker([{ name: 'x', width: 0, blocks: [] }])).toThrow()
   })
 
   it('rejects a loopStart outside the course', () => {
@@ -124,40 +127,14 @@ describe('SAMPLE_COURSE', () => {
     expect(SAMPLE_COURSE[0]?.name).toBe('intro-flat')
   })
 
-  it('every block fits within its pattern length', () => {
-    for (const p of SAMPLE_COURSE) {
-      const farthest = Math.max(0, ...p.blocks.map((b) => b.x + b.width))
-      expect(p.length).toBeGreaterThanOrEqual(farthest)
+  it('every block fits within its section width', () => {
+    for (const s of SAMPLE_COURSE) {
+      const farthest = Math.max(0, ...s.blocks.map((b) => b.x + b.w))
+      expect(s.width).toBeGreaterThanOrEqual(farthest)
     }
   })
 
-  it('flushes ground terrain to a common bottom, ≥1 screen below the deepest surface', () => {
-    // Floating terrain (ceilings) keep their own height and are excluded.
-    const ground = SAMPLE_COURSE.flatMap((p) => p.blocks).filter(
-      (b) => b.type === 'terrain' && !b.floating,
-    )
-    expect(ground.length).toBeGreaterThan(0)
-    const bottoms = new Set(ground.map((b) => b.y + b.height))
-    expect(bottoms.size).toBe(1) // all flush on one line
-    const [bottom] = [...bottoms]
-    const deepestSurface = Math.max(...ground.map((b) => b.y))
-    // The shared bottom sits at least a full screen below the lowest surface, so
-    // the camera never reveals a gap beneath the floor however far it scrolls down.
-    expect((bottom ?? 0) - deepestSurface).toBeGreaterThanOrEqual(DESIGN_H)
-  })
-
-  it('keeps a floating ceiling at its authored height (not flushed)', () => {
-    const ceilings = SAMPLE_COURSE.flatMap((p) => p.blocks).filter(
-      (b) => b.type === 'terrain' && b.floating,
-    )
-    expect(ceilings.length).toBeGreaterThan(0)
-    // A flushed block would be a full screen tall; a ceiling stays a few cells.
-    for (const c of ceilings) expect(c.height).toBeLessThan(DESIGN_H)
-  })
-
   it('re-emits coins every loop, so they respawn (memorization track)', () => {
-    // The loop carries coins, and over several cycles they recur (the walker
-    // emits fresh coin blocks each time the pattern comes round again).
     const coins = run(SAMPLE_COURSE, 16000, 7, SAMPLE_LOOP_START).filter((b) => b.type === 'coin')
     expect(coins.length).toBeGreaterThan(10)
   })

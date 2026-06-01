@@ -45,10 +45,10 @@ describe('touchesLethal / coinAt (circle-based)', () => {
     type: 'pit',
     x,
     y,
-    width: 100,
-    height: 100,
+    w: 100,
+    h: 100,
   })
-  const coin = (x: number, y: number): Block => ({ type: 'coin', x, y, width: 40, height: 40 })
+  const coin = (x: number, y: number): Block => ({ type: 'coin', x, y, w: 40, h: 40 })
 
   it('detects a lethal block the circle overlaps and ignores a clear one', () => {
     const blocks = [lethal(40, 40)]
@@ -57,7 +57,7 @@ describe('touchesLethal / coinAt (circle-based)', () => {
   })
 
   it('does not flag a non-lethal terrain block', () => {
-    const terrain: Block = { type: 'terrain', x: 40, y: 40, width: 100, height: 100 }
+    const terrain: Block = { type: 'terrain', x: 40, y: 40, w: 100, h: 100 }
     expect(touchesLethal([terrain], 50, 50, 20)).toBe(false)
   })
 

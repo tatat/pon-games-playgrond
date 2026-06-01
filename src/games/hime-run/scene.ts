@@ -43,9 +43,10 @@ import {
   TERRAIN_COLOR,
   TERRAIN_LIP_COLOR,
 } from './constants'
-import { type Block, CourseWalker, SAMPLE_COURSE, SAMPLE_LOOP_START } from './course'
+import { type Block, CourseWalker } from './course'
 import { HUD } from './hud'
 import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
+import { SAMPLE_COURSE, SAMPLE_LOOP_START } from './sample-course'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
@@ -369,7 +370,7 @@ export class MainScene extends Scene {
       this.terrainDirty = true
     }
     const leftEdge = this.distance - 60 // world x of just past the screen's left
-    const kept = this.blocks.filter((b) => b.x + b.width > leftEdge)
+    const kept = this.blocks.filter((b) => b.x + b.w > leftEdge)
     if (kept.length !== this.blocks.length) this.terrainDirty = true
     this.blocks = kept
 
@@ -390,7 +391,7 @@ export class MainScene extends Scene {
       const cy = this.feetY - R
       for (const b of this.blocks) {
         if (b.type !== 'terrain' && b.type !== 'ledge') continue
-        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.width, b.height)
+        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.w, b.h)
         if (!mtv) continue
         if (mtv.y >= 0 || Math.abs(mtv.y) < Math.abs(mtv.x)) continue // not an upward landing
         if (b.type === 'ledge' && prevFeetY > b.y) continue // one-way: only from above
@@ -411,15 +412,15 @@ export class MainScene extends Scene {
     }
 
     // Head-bonk pass: while rising, hitting the underside of a solid terrain block
-    // stops the ascent and pushes her back below it (not lethal). Only floating
-    // terrain — a ceiling / tunnel roof — has an on-screen underside; flushed
-    // ground terrain reaches off-screen below, so this never fires on it.
+    // stops the ascent and pushes her back below it (not lethal). Only a floating
+    // roof (a ceiling / tunnel) has an on-screen underside; ground terrain reaches
+    // far below the screen, so this never fires on it.
     if (this.vy < 0) {
       const cy = this.feetY - R
       let bonkFeetY = Number.NEGATIVE_INFINITY
       for (const b of this.blocks) {
         if (b.type !== 'terrain') continue
-        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.width, b.height)
+        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.w, b.h)
         if (!mtv) continue
         if (mtv.y <= 0 || Math.abs(mtv.y) < Math.abs(mtv.x)) continue // not a downward head hit
         bonkFeetY = Math.max(bonkFeetY, this.feetY + mtv.y)
@@ -446,7 +447,7 @@ export class MainScene extends Scene {
     let recoverY = Number.NEGATIVE_INFINITY
     for (const b of this.blocks) {
       if (b.type !== 'terrain') continue
-      if (b.x + b.width < px) continue // already passed — can't return to it
+      if (b.x + b.w < px) continue // already passed — can't return to it
       recoverY = Math.max(recoverY, b.y)
     }
     if (Number.isFinite(recoverY) && this.feetY > recoverY + DOUBLE_JUMP_REACH) {
@@ -462,7 +463,7 @@ export class MainScene extends Scene {
       const cy = this.feetY - R
       for (const b of this.blocks) {
         if (b.type !== 'terrain') continue
-        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.width, b.height)
+        const mtv = circleRectMTV(px, cy, R, b.x, b.y, b.w, b.h)
         if (!mtv) continue
         if (mtv.x >= 0 || Math.abs(mtv.x) < Math.abs(mtv.y)) continue // not a leftward side hit
         push = Math.max(push, -mtv.x)
@@ -523,7 +524,7 @@ export class MainScene extends Scene {
     let idx = coinAt(this.blocks, px, cy, R)
     while (idx >= 0) {
       const coin = this.blocks[idx]
-      if (coin) this.spawnCoinFx(coin.x + coin.width / 2, coin.y + coin.height / 2)
+      if (coin) this.spawnCoinFx(coin.x + coin.w / 2, coin.y + coin.h / 2)
       this.blocks.splice(idx, 1)
       this.coins += 1
       collected = true
@@ -663,16 +664,16 @@ export class MainScene extends Scene {
     g.clear()
     // terrain — solid fill + a brighter top lip on the standable surface.
     for (const b of this.blocks) {
-      if (b.type === 'terrain') g.rect(b.x, b.y, b.width, b.height)
+      if (b.type === 'terrain') g.rect(b.x, b.y, b.w, b.h)
     }
     g.fill(TERRAIN_COLOR)
     for (const b of this.blocks) {
-      if (b.type === 'terrain') g.rect(b.x, b.y, b.width, 5)
+      if (b.type === 'terrain') g.rect(b.x, b.y, b.w, 5)
     }
     g.fill(TERRAIN_LIP_COLOR)
     // ledge — one-way slab.
     for (const b of this.blocks) {
-      if (b.type === 'ledge') g.roundRect(b.x, b.y, b.width, b.height, 6)
+      if (b.type === 'ledge') g.roundRect(b.x, b.y, b.w, b.h, 6)
     }
     g.fill(LEDGE_COLOR)
     // hazard — visible lethal: a row of upward spikes over a dark base strip, so
@@ -680,9 +681,9 @@ export class MainScene extends Scene {
     const SPIKE_W = 22
     for (const b of this.blocks) {
       if (b.type !== 'hazard') continue
-      const count = Math.max(1, Math.round(b.width / SPIKE_W))
-      const w = b.width / count
-      const baseY = b.y + b.height
+      const count = Math.max(1, Math.round(b.w / SPIKE_W))
+      const w = b.w / count
+      const baseY = b.y + b.h
       for (let i = 0; i < count; i++) {
         const x0 = b.x + i * w
         g.moveTo(x0, baseY)
@@ -693,12 +694,12 @@ export class MainScene extends Scene {
     }
     g.fill(HAZARD_COLOR)
     for (const b of this.blocks) {
-      if (b.type === 'hazard') g.rect(b.x, b.y + b.height - 6, b.width, 6)
+      if (b.type === 'hazard') g.rect(b.x, b.y + b.h - 6, b.w, 6)
     }
     g.fill(HAZARD_DARK_COLOR)
     // coin — disc centred in its cell.
     for (const b of this.blocks) {
-      if (b.type === 'coin') g.circle(b.x + b.width / 2, b.y + b.height / 2, COIN_RADIUS)
+      if (b.type === 'coin') g.circle(b.x + b.w / 2, b.y + b.h / 2, COIN_RADIUS)
     }
     g.fill(COIN_COLOR)
   }
@@ -710,7 +711,7 @@ export class MainScene extends Scene {
     let top: number | null = null
     for (const b of this.blocks) {
       if (b.type !== 'terrain' && b.type !== 'ledge') continue
-      if (x < b.x || x > b.x + b.width) continue
+      if (x < b.x || x > b.x + b.w) continue
       // Skip surfaces above her feet. The 1px tolerance keeps the surface she is
       // standing on (feetY ≈ its top, ± float from the landing resolve) counted as
       // "below her", so the shadow doesn't flicker to a lower surface for a frame
