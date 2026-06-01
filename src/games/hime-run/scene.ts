@@ -53,6 +53,16 @@ type Phase = 'title' | 'playing' | 'gameover'
  * every frame. */
 type LiveBlock = Block & { wx: number }
 
+/** A short-lived coin-pickup visual. `view` lives in the scrolling fx layer; the
+ * scene ages it and runs `step(view, t, dt)` (t = age/life in [0,1]) each frame,
+ * then destroys it when done. Animation is via the view's transform (no redraw). */
+interface CoinFx {
+  view: Container
+  age: number
+  life: number
+  step: (view: Container, t: number, dt: number) => void
+}
+
 /** The hime run-cycle frames, in order. Loaded in `onEnter` via `preload`. */
 const FRAME_ALIASES = [
   'hime-run-1',
@@ -88,6 +98,9 @@ export class MainScene extends Scene {
   private worldLayer!: Container
   private shadow = new Graphics()
   private blockGfx = new Graphics()
+  /** Scrolls with the terrain (x = -distance); holds transient coin-pickup fx. */
+  private fxLayer = new Container()
+  private coinFx: CoinFx[] = []
   private player!: Sprite
   private frames: Texture[] = []
   private hud!: HUD
@@ -174,6 +187,9 @@ export class MainScene extends Scene {
     this.player.x = this.playerX
     this.worldLayer.addChild(this.player)
 
+    // Coin-pickup fx sit above the runner and scroll with the terrain.
+    this.worldLayer.addChild(this.fxLayer)
+
     this.hud = new HUD()
     this.addChild(this.hud)
 
@@ -253,6 +269,9 @@ export class MainScene extends Scene {
     // Freeze the camera on game over so the death tumble plays against a still
     // world (her flying feetY would otherwise yank the dead-zone camera around).
     if (this.phase !== 'gameover') this.updateCamera(dtSec)
+    this.fxLayer.x = -this.distance // scroll the pickup fx with the terrain
+    this.updateCoinFx(dtSec)
+    this.hud.update(dtSec)
     this.background.update(this.distance, this.worldLayer.y)
     this.advanceAnimation(dtSec)
     this.syncPlayer()
@@ -479,6 +498,8 @@ export class MainScene extends Scene {
     let collected = false
     let idx = coinAt(this.blocks, this.playerX, cy, R)
     while (idx >= 0) {
+      const coin = this.blocks[idx]
+      if (coin) this.spawnCoinFx(coin.wx + coin.width / 2, coin.y + coin.height / 2)
       this.blocks.splice(idx, 1)
       this.coins += 1
       collected = true
@@ -488,6 +509,52 @@ export class MainScene extends Scene {
       this.terrainDirty = true // a coin block was removed → rebuild
       this.hud.setCoinCount(this.coins)
     }
+  }
+
+  /** Coin-pickup juice at world point (cx, cy): a small coin pops up and flips as
+   * it sails backward over her shoulder, falling under gravity. No fade — it just
+   * tumbles off behind her and is culled once off-screen. Transform-only. */
+  private spawnCoinFx(cx: number, cy: number): void {
+    const r = COIN_RADIUS * 0.6
+    const coin = new Graphics().circle(0, 0, r).fill(COIN_COLOR)
+    coin.position.set(cx, cy)
+    this.fxLayer.addChild(coin)
+    const vx = -150 // backward (left), on top of the world scroll
+    let vy = -300 // initial pop up; gravity pulls it down into an arc
+    this.coinFx.push({
+      view: coin,
+      age: 0,
+      life: 2, // safety cap; normally culled off-screen first (see updateCoinFx)
+      step: (view, t, dt) => {
+        vy += 1400 * dt
+        view.x += vx * dt
+        view.y += vy * dt
+        view.scale.x = Math.cos(t * Math.PI * 12) // keep flipping as it flies
+      },
+    })
+  }
+
+  /** Age every coin-pickup effect, run its per-frame step, then destroy any that
+   * have flown off-screen (or hit the safety life cap) — no fade-out. Cull by
+   * SCREEN position: the fx layer is offset by -distance (x) and lives under
+   * worldLayer's -cameraY (y), so on-screen = (view.x - distance, view.y - cameraY).
+   * Using world y here would wrongly cull coins collected deep in a valley. */
+  private updateCoinFx(dtSec: number): void {
+    if (this.coinFx.length === 0) return
+    for (const fx of this.coinFx) {
+      fx.age += dtSec
+      fx.step(fx.view, Math.min(1, fx.age / fx.life), dtSec)
+    }
+    this.coinFx = this.coinFx.filter((fx) => {
+      const screenX = fx.view.x - this.distance
+      const screenY = fx.view.y - this.cameraY
+      const offScreen = screenX < -80 || screenY > DESIGN_H + 80
+      if (offScreen || fx.age >= fx.life) {
+        fx.view.destroy()
+        return false
+      }
+      return true
+    })
   }
 
   private reportScore(): void {

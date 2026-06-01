@@ -14,6 +14,8 @@ const START_TEXT = 'Press SPACE / TAP to start\n\nHold to jump higher · tap aga
 export class HUD extends Container {
   private readonly scoreValue: Text
   private readonly coinValue: Text
+  /** Coin readout scale; punched to >1 on pickup, eased back in update(). */
+  private coinScale = 1
   private readonly overlay: Graphics
   private readonly titleText: Text
   private readonly startText: Text
@@ -37,7 +39,10 @@ export class HUD extends Container {
       text: '0',
       style: { fill: COIN_COLOR, fontSize: 34, fontWeight: '700', fontFamily: FONT },
     })
-    this.coinValue.position.set(78, 90)
+    // Anchored at left-centre (aligned with the icon) so the pickup punch scales
+    // around its centre rather than skewing from the top-left.
+    this.coinValue.anchor.set(0, 0.5)
+    this.coinValue.position.set(78, 108)
     this.addChild(this.coinValue)
 
     this.overlay = new Graphics()
@@ -81,6 +86,16 @@ export class HUD extends Container {
 
   setCoinCount(coins: number): void {
     this.coinValue.text = `${coins}`
+    this.coinScale = 1.4 // punch; eased back to 1 in update()
+  }
+
+  /** Ease the coin readout's pickup punch back to its rest size. */
+  update(dtSec: number): void {
+    if (this.coinScale !== 1) {
+      this.coinScale += (1 - this.coinScale) * Math.min(1, 16 * dtSec)
+      if (Math.abs(this.coinScale - 1) < 0.01) this.coinScale = 1
+      this.coinValue.scale.set(this.coinScale)
+    }
   }
 
   showTitle(best: number): void {
