@@ -123,7 +123,7 @@ a `c(n)=n*CELL` helper).
 
 ```
 Course = CourseStep[]                  // fixed, ordered list, authored by hand
-CourseStep = { pattern: ObstaclePatternRef }   // (branches add a variant later)
+CourseStep = { pattern: ObstaclePatternRef }
 
 ObstaclePattern = {
   name,
@@ -184,8 +184,8 @@ ledge.
 What the placement aims for (an authoring checklist):
 
 - **On the natural arc** — coins along a jump the player makes anyway (juice).
-- **Risk/reward** — coins only reachable by the harder line (higher hop, a
-  branch's hard route, grazing a hazard): safety vs. payout = axis 6 made real.
+- **Risk/reward** — coins only reachable by the harder line (higher hop, the high
+  lane, grazing a hazard): safety vs. payout = axis 6 made real.
 - **Routing signal** — a coin trail telegraphs the intended path.
 
 Collection uses a circle overlap test (`coinAt`); on overlap the coin block is
@@ -195,43 +195,34 @@ every cycle — a memorization game). Coin run-local state (count, which on-scre
 coins are collected) resets on restart and does NOT live in `HimeSession` (that is
 cross-restart, `best` only).
 
-## Branches
+## Routes are vertical: the map is taller
 
-The course list can contain **branch nodes**, not just linear patterns. A branch
-offers two (or more) routes the player selects *by how they play* the branch
-point — e.g. jump to take the high route, stay grounded for the low route.
+There is no branch/commit/merge machinery — alternate routes are just **the map
+being taller**. A pattern can extend upward into higher lanes (ledges/terrain
+stacked well above the ground), and the runner is free to take any height the
+geometry affords: stay on the ground (the easy low lane) or climb a ledge
+staircase to a high lane. The choice is diegetic and reversible at will; what's
+reachable is purely a matter of map design, not a coded route table.
 
-```
-Course = (CourseStep | Branch)[]
-Branch = { commit: CommitTrigger, routes: { name, steps: CourseStep[] }[], merge }
-```
-
-Routes hold `CourseStep[]`, the same type as the main course — not bare
-patterns — so they sequence patterns identically on the main line and inside any
-route.
-
-- **Input-selected** (preferred): the route is chosen by the player's action at
-  the branch point (jump vs. not, which platform they land on). No menu — the
-  choice is diegetic, and committing to it is itself a skill/decision moment.
-- **Commit trigger.** Each branch point names a single, explicit condition
-  evaluated once at a defined x: e.g. "airborne when crossing the branch line →
-  high route, else low route." The route is selected at that instant and the
-  route-specific patterns spawn from there; there is no re-deciding mid-route.
-- **Merge semantics.** Routes need not be equal length, and each route is a
-  `CourseStep[]`. Each route ends at an explicit merge marker; the walker resumes
-  the main course
-  cursor at the merge point regardless of which route was taken (a shorter route
-  simply reaches the merge sooner). The overall cycle stays fixed because all
-  routes converge.
-- Routes differ in difficulty and payout: a riskier route holds more coins or a
-  shortcut; the safe route is longer/leaner. Branches are the structural home of
-  axis 6 (choice load) and axis 7 (lookahead — you must commit before you can
-  see the whole route).
-- Determinism holds: given the player's inputs, the layout encountered is fully
-  fixed. Branches add *player-chosen* variety without adding RNG.
-
-Branches are deferred behind the linear fixed course in the build order — get the
-deterministic loop (and coins) working first, then layer them on.
+- **One continuous map.** Both lanes are ordinary `Block`s in the same pattern —
+  the ground floor plus higher ledges/terrain. No second data structure: a tall
+  pattern is authored exactly like a flat one, just using more vertical cells.
+- **Free vertical movement.** The runner moves between lanes by jumping; the
+  system never locks her to a lane. Difficulty/payout asymmetry is authored into
+  the geometry (the high lane is harder to reach and stay on, and is where the
+  coins / shortcuts live — the structural home of axis 6 choice load and axis 7
+  lookahead).
+- **Vertical follow camera.** A standard 2D-platformer dead-zone window: the
+  runner moves freely between `CAMERA_WINDOW_TOP` and `CAMERA_WINDOW_BOTTOM` on
+  screen (so ordinary jumps don't scroll the view), and the camera follows only
+  when she leaves the window — up onto a high lane, or down into a lower route.
+  It is clamped to the lowest map block so void never shows below the floor (that
+  floor limit rises instantly when a lower block appears and eases up when one
+  culls off-screen, so it doesn't snap). The background skylines take a small
+  vertical parallax; sky/stars/orb stay fixed. See `CAMERA_WINDOW_*` /
+  `CAMERA_FLOOR_EASE` in `constants.ts` and `updateCamera` in `scene.ts`.
+- Determinism holds: the layout is fixed; only which height the player travels is
+  player-chosen, and that adds no RNG.
 
 ## The 9 axes are the authoring checklist
 
@@ -307,13 +298,20 @@ Done so far:
   shown by `HUD.setCoinCount`), never persisted in `HimeSession`. A hand-authored
   sample places coins for the three intents (arc juice, routing trail, risk/reward
   high lines) across the intro and several loop patterns.
+- Vertical maps + follow camera: patterns can extend both UP into higher lanes and
+  DOWN into lower routes (just taller/below-ground terrain/ledge geometry — no
+  branch/commit/merge), authored via `slab()` (a platform at any depth) and `gaps`
+  (a non-lethal floor opening to drop through). The camera is a standard dead-zone
+  window (`CAMERA_WINDOW_*`): jumps within it don't scroll, leaving it follows up
+  or down; clamped to the lowest map block (`updateCamera` in `scene.ts`). Skylines
+  take a small vertical parallax and overdraw below the screen so a down route
+  doesn't reveal a cut-off edge. Sample patterns `up-route-long` (ledge staircase
+  to a long coin-lined high lane) and `down-route-long` (a gap to a long lower
+  platform) lead the loop.
 
 Remaining:
 
-1. **Branches:** input-selected routes with a named commit trigger and explicit
-   merge markers; difficulty/payout asymmetry. Layout stays deterministic given
-   inputs.
-2. **Map builder:** `/tools/hime-run-builder` (see below).
+1. **Map builder:** `/tools/hime-run-builder` (see below).
 
 ## Map builder
 
@@ -355,11 +353,12 @@ Scope & wiring:
   project's "React for the shell, Pixi for game content" principle — the builder
   is a tool, not gameplay).
 - The unified `Block` model has landed, so its export target is the final `Block`
-  schema. Branch markers in the builder follow once branches exist in-game; coins
-  are painted on the grid like any other block.
+  schema. The grid extends upward for tall, multi-lane maps; coins are painted on
+  the grid like any other block.
 
 Status: the authored-course walker (intro + loop), distance-ramped scene,
 grid-derived physics, a wave-shaped sample loop, the unified one-`Block` model,
 climb-and-squeeze contact on a single body circle, the parallax ruined-city
-background, and coins (collection + HUD + hand-authored placement, respawning each
-loop) are all in. Up next: branches, then the map builder.
+background, coins (collection + HUD + hand-authored placement, respawning each
+loop), and vertical maps with a follow camera are all in. Up next: the map
+builder.

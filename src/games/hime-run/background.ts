@@ -17,6 +17,9 @@ interface LayerSpec {
   /** Fraction of world scroll this layer moves at (0 = static, 1 = with the
    * world). Smaller = farther away. */
   factor: number
+  /** Fraction of the camera's vertical shift this layer moves at — the city
+   * sinks a little as the view climbs, for depth. Smaller = farther away. */
+  vFactor: number
   /** Silhouette colour (atmospheric perspective: far ≈ sky, near = darkest). */
   color: number
   /** Screen y the building bases sit on (taller-but-farther read by base too). */
@@ -49,6 +52,7 @@ interface LayerSpec {
 const LAYERS: LayerSpec[] = [
   {
     factor: 0.12,
+    vFactor: 0.05,
     color: SKYLINE_FAR_COLOR,
     baseY: 560,
     minH: 50,
@@ -66,6 +70,7 @@ const LAYERS: LayerSpec[] = [
   },
   {
     factor: 0.26,
+    vFactor: 0.1,
     color: SKYLINE_MID_COLOR,
     baseY: 596,
     minH: 120,
@@ -81,6 +86,7 @@ const LAYERS: LayerSpec[] = [
   },
   {
     factor: 0.46,
+    vFactor: 0.18,
     color: SKYLINE_NEAR_COLOR,
     baseY: 632,
     minH: 170,
@@ -98,6 +104,11 @@ const LAYERS: LayerSpec[] = [
 
 /** One screen of skyline; the tile repeats seamlessly via two drawn copies. */
 const TILE_W = DESIGN_W
+/** Building bodies are drawn down to here — well below the screen — so that when
+ * the camera descends into a down route (and the skylines take their vertical
+ * parallax shift upward) there is still building filling the lower screen rather
+ * than a cut-off edge. */
+const SKYLINE_BASE_Y = DESIGN_H + 600
 
 function mod(a: number, n: number): number {
   return ((a % n) + n) % n
@@ -127,8 +138,8 @@ function drawSkylineTile(g: Graphics, spec: LayerSpec, dx: number): void {
     // number of `step`s), so the silhouette reads as deliberate broken floors,
     // not sub-pixel noise. Most buildings are simple (1–2 steps); only a few are
     // heavily chewed, and the steps are split at random widths — uniform equal
-    // steps on every building read as a mechanical comb. The body runs to the
-    // screen bottom (DESIGN_H); `baseY` only sets the roofline, and the nearer
+    // steps on every building read as a mechanical comb. The body runs well below
+    // the screen (SKYLINE_BASE_Y); `baseY` only sets the roofline, and the nearer
     // (darker) layers fill the lower screen, leaving no flat sky band.
     const levels = Math.max(1, Math.floor(spec.crumble / spec.step))
     const eat = (): number => top + rng.intRange(0, levels) * spec.step
@@ -138,12 +149,12 @@ function drawSkylineTile(g: Graphics, spec: LayerSpec, dx: number): void {
     for (let i = 1; i < segments; i++) cuts.push(rng.next())
     cuts.sort((a, b) => a - b)
     const edges = [0, ...cuts, 1]
-    const pts: number[] = [dx + x, DESIGN_H]
+    const pts: number[] = [dx + x, SKYLINE_BASE_Y]
     for (let s = 0; s < segments; s++) {
       const segTop = eat()
       pts.push(dx + x + w * (edges[s] ?? 0), segTop, dx + x + w * (edges[s + 1] ?? 1), segTop)
     }
-    pts.push(dx + x + w, DESIGN_H)
+    pts.push(dx + x + w, SKYLINE_BASE_Y)
     g.poly(pts)
 
     // Some towers keep a thin antenna/spire jutting from a ruined crown.
@@ -165,7 +176,7 @@ function drawSkylineTile(g: Graphics, spec: LayerSpec, dx: number): void {
  * decorative — it reads `distance` each frame and never feeds the simulation.
  */
 export class Background extends Container {
-  private readonly layers: { view: Container; factor: number }[] = []
+  private readonly layers: { view: Container; factor: number; vFactor: number }[] = []
 
   constructor() {
     super()
@@ -226,16 +237,21 @@ export class Background extends Container {
       drawSkylineTile(g, spec, TILE_W)
       view.addChild(g)
       this.addChild(view)
-      this.layers.push({ view, factor: spec.factor })
+      this.layers.push({ view, factor: spec.factor, vFactor: spec.vFactor })
     }
   }
 
-  /** Scroll each layer to match the run's travelled `distance` (px). Pure
-   * function of distance, so it stays in lockstep with the deterministic course
-   * and every run looks identical at the same distance. */
-  update(distance: number): void {
-    for (const { view, factor } of this.layers) {
+  /**
+   * Scroll the skylines. Horizontal is a pure function of the run's travelled
+   * `distance` (px), so it stays in lockstep with the deterministic course.
+   * `vShift` is the foreground's vertical camera offset (`worldLayer.y`, ≥0 as
+   * the view climbs); the city sinks a fraction of it for depth. Sky, stars and
+   * the orb stay vertically fixed (they read as infinitely far).
+   */
+  update(distance: number, vShift = 0): void {
+    for (const { view, factor, vFactor } of this.layers) {
       view.x = -mod(distance * factor, TILE_W)
+      view.y = vShift * vFactor
     }
   }
 }

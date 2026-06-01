@@ -91,8 +91,9 @@ export class CourseWalker {
 
 /** Cells → px. */
 const c = (n: number): number => n * CELL
-/** Floor terrain reaches from the ground surface to the bottom of the screen. */
-const FLOOR_DEPTH = DESIGN_H - GROUND_Y
+/** Floor terrain thickness below the ground surface — a whole number of cells
+ * (grid-aligned), deep enough to reach past the bottom of the screen. */
+const FLOOR_DEPTH = 2 * CELL
 
 /** A solid floor span sitting at ground level, `wCells` wide from `xCells`. */
 function floor(xCells: number, wCells: number): Block {
@@ -130,6 +131,18 @@ function pitBlock(xCells: number, wCells: number): Block {
     height: DESIGN_H,
   }
 }
+/** A solid platform `depthCells` thick whose TOP sits `topRowCells` cells above
+ * the ground line; a negative `topRowCells` places it below the ground for a
+ * lower (down-route) lane. */
+function slab(xCells: number, wCells: number, topRowCells: number, depthCells: number): Block {
+  return {
+    type: 'terrain',
+    x: c(xCells),
+    y: GROUND_Y - c(topRowCells),
+    width: c(wCells),
+    height: c(depthCells),
+  }
+}
 /**
  * A collectible coin occupying grid cell (`xCells`, `rowCells`) — a full
  * grid-aligned 1×1 cell like every other block. `rowCells` is the 1-based cell
@@ -151,19 +164,21 @@ function coin(xCells: number, rowCells: number): Block {
 function pat(
   name: string,
   lengthCells: number,
-  opts: { pits?: [number, number][]; blocks?: Block[] } = {},
+  opts: { pits?: [number, number][]; gaps?: [number, number][]; blocks?: Block[] } = {},
 ): ObstaclePattern {
-  const pits = (opts.pits ?? []).slice().sort((a, b) => a[0] - b[0])
+  const pits = opts.pits ?? []
+  const gaps = opts.gaps ?? []
+  // Floor = [0, length) minus every hole. A pit also drops a lethal block; a gap
+  // is just an opening (a non-lethal drop-through to a lower route).
+  const holes = [...pits, ...gaps].sort((a, b) => a[0] - b[0])
   const blocks: Block[] = []
-
-  // Floor = [0, length) minus pit ranges, as contiguous terrain spans.
   let cursor = 0
-  for (const [from, to] of pits) {
+  for (const [from, to] of holes) {
     if (from > cursor) blocks.push(floor(cursor, from - cursor))
-    blocks.push(pitBlock(from, to - from))
     cursor = Math.max(cursor, to)
   }
   if (cursor < lengthCells) blocks.push(floor(cursor, lengthCells - cursor))
+  for (const [from, to] of pits) blocks.push(pitBlock(from, to - from))
 
   if (opts.blocks) blocks.push(...opts.blocks)
   return { name, blocks, length: c(lengthCells) }
@@ -193,6 +208,49 @@ const INTRO: Course = [
 /** The endlessly repeating section (a wave: calm → ramp → peak → calm). The
  * walker wraps from the last pattern back to the first of THIS list. */
 const LOOP: Course = [
+  // ── Vertical-route samples first, so they're quick to reach while testing. ──
+  // UP route (long): the ground runs straight through (the easy low lane), while
+  // a ledge staircase climbs to a long high lane at elev 5 lined with coins.
+  pat('up-route-long', 26 + REST_LONG, {
+    blocks: [
+      ledge(1, 1, 2),
+      ledge(3, 1, 3),
+      ledge(5, 1, 4),
+      ledge(7, 12, 5),
+      coin(7, 6),
+      coin(8, 6),
+      coin(9, 6),
+      coin(10, 6),
+      coin(11, 6),
+      coin(12, 6),
+      coin(13, 6),
+      coin(14, 6),
+      coin(15, 6),
+      coin(16, 6),
+      coin(17, 6),
+      coin(18, 6),
+    ],
+  }),
+  // DOWN route (long): a gap drops to a long lower platform two cells below the
+  // ground, lined with coins, that steps back up to the floor.
+  pat('down-route-long', 28 + REST_LONG, {
+    gaps: [[3, 24]],
+    blocks: [
+      slab(3, 19, -2, 2), // lower lane, cells 3-21, two cells down
+      slab(22, 1, -1, 2), // step up
+      slab(23, 1, 0, 2), // back to ground level
+      coin(4, -1),
+      coin(6, -1),
+      coin(8, -1),
+      coin(10, -1),
+      coin(12, -1),
+      coin(14, -1),
+      coin(16, -1),
+      coin(18, -1),
+      coin(20, -1),
+    ],
+  }),
+
   // ── Wave 1: intro / calm. ─────────────────────────────────────────────────
   // Coins arc over the hop — juice on a jump the player makes anyway.
   pat('hop-low', 1 + REST_LONG, {

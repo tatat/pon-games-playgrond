@@ -4,6 +4,9 @@ import { Scene, type SceneDelta } from '../../engine/scene'
 import { useRuntimeStore } from '../../store/runtime'
 import { Background } from './background'
 import {
+  CAMERA_FLOOR_EASE,
+  CAMERA_WINDOW_BOTTOM,
+  CAMERA_WINDOW_TOP,
   COIN_COLOR,
   COIN_RADIUS,
   DESIGN_H,
@@ -106,6 +109,12 @@ export class MainScene extends Scene {
   /** Distance travelled this run (px). Drives the speed ramp, so speed is a pure
    * function of distance and every run stays deterministic. */
   private distance = 0
+  /** Vertical camera offset: the world y shown at the top of the screen. Applied
+   * as `worldLayer.y = -cameraY`; eased toward a dead-zone target each frame. */
+  private cameraY = 0
+  /** Smoothed camera floor (lowest map-block bottom − screen height): the camera
+   * won't scroll below it. Rises instantly, recedes eased (see updateCamera). */
+  private camFloor = 0
 
   /** Live blocks on screen (terrain/ledge/hazard/pit/coin), screen-space x. */
   private blocks: Block[] = []
@@ -229,7 +238,8 @@ export class MainScene extends Scene {
       this.stepPlaying(dtSec)
     }
 
-    this.background.update(this.distance)
+    this.updateCamera(dtSec)
+    this.background.update(this.distance, this.worldLayer.y)
     this.advanceAnimation(dtSec)
     this.syncPlayer()
     this.input.endFrame()
@@ -248,6 +258,8 @@ export class MainScene extends Scene {
     this.lastReportedScore = 0
     this.coins = 0
     this.distance = 0
+    this.cameraY = 0
+    this.camFloor = 0
     this.feetY = GROUND_Y
     this.vy = 0
     this.onGround = true
@@ -448,6 +460,36 @@ export class MainScene extends Scene {
     // Sprite is anchored at the body circle's centre, so place it there: at
     // playerX, one radius above feetY (the circle's bottom = the feet).
     this.player.y = this.feetY - PLAYER_HIT_RADIUS
+  }
+
+  /** Standard 2D platformer camera: a fixed on-screen dead-zone window. The runner
+   * moves freely within `[CAMERA_WINDOW_TOP, CAMERA_WINDOW_BOTTOM]` (so jumps don't
+   * scroll the view); the camera moves only when she leaves it, and just enough to
+   * hold her at the edge. Clamped to the map floor. Applied via
+   * `worldLayer.y = -cameraY`. */
+  private updateCamera(dtSec: number): void {
+    const centreY = this.feetY - PLAYER_HIT_RADIUS
+    const screenY = centreY - this.cameraY
+    let cam = this.cameraY
+    if (screenY < CAMERA_WINDOW_TOP) cam = centreY - CAMERA_WINDOW_TOP
+    else if (screenY > CAMERA_WINDOW_BOTTOM) cam = centreY - CAMERA_WINDOW_BOTTOM
+
+    // Floor limit = lowest solid block's bottom − screen height. Rising limits
+    // apply immediately; lower limits ease so block culling cannot judder.
+    let maxBottom = Number.NEGATIVE_INFINITY
+    for (const b of this.blocks) {
+      if (b.type === 'pit' || b.type === 'coin') continue
+      maxBottom = Math.max(maxBottom, b.y + b.height)
+    }
+    if (Number.isFinite(maxBottom)) {
+      const floorLimit = maxBottom - DESIGN_H
+      if (floorLimit >= this.camFloor) this.camFloor = floorLimit
+      else this.camFloor += (floorLimit - this.camFloor) * Math.min(1, CAMERA_FLOOR_EASE * dtSec)
+      cam = Math.min(cam, this.camFloor)
+    }
+
+    this.cameraY = cam
+    this.worldLayer.y = -this.cameraY
   }
 
   /** Draw every block by type. `pit` blocks are invisible (the hole reads as a
