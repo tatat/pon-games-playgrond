@@ -13,13 +13,18 @@ export type BlockType = 'terrain' | 'ledge' | 'hazard' | 'pit' | 'coin'
 
 export interface Block {
   type: BlockType
-  /** Screen-space left edge (live blocks) or pattern-relative offset (authored
-   * patterns — see course.ts). */
+  /** World x for live blocks, or pattern-relative offset for authored patterns
+   * (see course.ts). */
   x: number
   /** Top edge in world y (smaller = higher). */
   y: number
   width: number
   height: number
+  /** A `terrain` block that is a FLOATING solid (a ceiling / tunnel roof): it
+   * keeps its authored height instead of being extended down to the shared world
+   * bottom, so a real gap stays beneath it. Build-time only — read by
+   * `flushTerrainBottoms`; runtime collision/rendering use the geometry directly. */
+  floating?: boolean
 }
 
 /** Lethal on contact. */

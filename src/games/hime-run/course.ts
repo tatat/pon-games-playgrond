@@ -92,12 +92,13 @@ export class CourseWalker {
 /** Cells → px. */
 const c = (n: number): number => n * CELL
 
-// Solid-terrain blocks (`floor`, `terrain`) are authored by their TOP only; their
-// height is filled in later by `flushTerrainBottoms`, which extends every solid
-// block down to one shared bottom line (one screen below the course's deepest
-// surface). So the camera can never reveal a gap under the lowest floor, and
-// authors never think about block depth — only where the walkable top sits.
-const TOP_ONLY = 0 // placeholder height; set by flushTerrainBottoms
+// Ground-mass terrain (`floor`, `terrain`) is authored by its TOP only; its
+// height is computed later by `flushTerrainBottoms`, which extends it down to one
+// shared bottom (one screen below the course's deepest surface). So the camera
+// can never reveal a gap under the lowest floor, and authors never think about
+// block depth — only where the walkable top sits. (A `ceiling` is the exception:
+// it sets `floating` and keeps a real height.)
+const TOP_ONLY = 0 // pending height for ground terrain; replaced by flushTerrainBottoms
 
 /** A solid floor span sitting at ground level, `wCells` wide from `xCells`. */
 function floor(xCells: number, wCells: number): Block {
@@ -144,19 +145,42 @@ function pitBlock(xCells: number, wCells: number): Block {
 function hazard(xCells: number, wCells: number, rowCells = 1): Block {
   return { type: 'hazard', x: c(xCells), y: GROUND_Y - c(rowCells), width: c(wCells), height: CELL }
 }
+/** A solid roof floating over the ground — the top of a tunnel. Its UNDERSIDE
+ * sits `clearRows` cells above the ground (the headroom to run under), `hCells`
+ * thick. Solid like `terrain` (land on top, blocked from the side, head-bonk from
+ * below), but it keeps an explicit height so `flushTerrainBottoms` leaves the gap
+ * beneath it intact. Clearance must be ≥1 cell for the runner (~1 cell tall) to
+ * pass under. */
+function ceiling(xCells: number, wCells: number, clearRows: number, hCells = 1): Block {
+  const underside = GROUND_Y - c(clearRows)
+  return {
+    type: 'terrain',
+    x: c(xCells),
+    y: underside - c(hCells),
+    width: c(wCells),
+    height: c(hCells),
+    floating: true,
+  }
+}
 
-/** Extend every solid-terrain block down to one shared bottom — a full screen
- * below the course's deepest walkable surface — so all block bottoms are flush
- * and the camera never reveals a void beneath the floor, however deep a route
- * goes. Derived from the actual course, so adding a deeper valley just works. */
+/** Extend ground-mass terrain down to one shared bottom — a full screen below the
+ * course's deepest walkable surface — so all those bottoms are flush and the
+ * camera never reveals a void beneath the floor, however deep a route goes.
+ * Derived from the actual course, so adding a deeper valley just works.
+ *
+ * Ground-mass terrain (`floor` / `terrain`) is flushed; a `floating` terrain
+ * block (a `ceiling`) keeps its authored height, so the gap under a tunnel is
+ * preserved. The decision reads the block's own `floating` flag — not how a helper
+ * happened to set its height. */
 function flushTerrainBottoms(course: Course): Course {
+  const flushable = (b: Block): boolean => b.type === 'terrain' && !b.floating
   let deepest = GROUND_Y
   for (const p of course) {
-    for (const b of p.blocks) if (b.type === 'terrain') deepest = Math.max(deepest, b.y)
+    for (const b of p.blocks) if (flushable(b)) deepest = Math.max(deepest, b.y)
   }
   const bottom = deepest + DESIGN_H
   for (const p of course) {
-    for (const b of p.blocks) if (b.type === 'terrain') b.height = bottom - b.y
+    for (const b of p.blocks) if (flushable(b)) b.height = bottom - b.y
   }
   return course
 }
@@ -225,6 +249,31 @@ const INTRO: Course = [
 /** The endlessly repeating section (a wave: calm → ramp → peak → calm). The
  * walker wraps from the last pattern back to the first of THIS list. */
 const LOOP: Course = [
+  // Double tunnel (first, so it's easy to find): two stacked roofs → three lanes,
+  // each higher one paying one coin more (axis-6 risk/reward).
+  //   • ground, under roof A (just keep running, don't jump)
+  //   • on roof A (double-jump up before the mouth), running under roof B
+  //   • on roof B (climb again from roof A)
+  // A short flat lead-in gives room to jump onto roof A.
+  pat('tunnel', 2 + 8 + REST_LONG, {
+    blocks: [
+      ceiling(2, 8, 2), // roof A: underside 2 cells up, top at row 3
+      ceiling(4, 4, 5), // roof B: above A, underside 5 cells up, top at row 6
+      // ground lane (2)
+      coin(3, 1),
+      coin(8, 1),
+      // roof-A lane (3) — sits on row-3 top
+      coin(3, 4),
+      coin(5, 4),
+      coin(7, 4),
+      // roof-B lane (4) — sits on row-6 top
+      coin(4, 7),
+      coin(5, 7),
+      coin(6, 7),
+      coin(7, 7),
+    ],
+  }),
+
   // ── Camera-tuning samples: flat → hill → flat → valley → flat. ─────────────
   pat('cam-flat-lead', 6),
   // 山: 6-step staircase up → 6-cell plateau → cliff back to ground.

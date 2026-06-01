@@ -131,16 +131,28 @@ describe('SAMPLE_COURSE', () => {
     }
   })
 
-  it('aligns every solid-terrain block to a common bottom, ≥1 screen below the deepest surface', () => {
-    const terrain = SAMPLE_COURSE.flatMap((p) => p.blocks).filter((b) => b.type === 'terrain')
-    expect(terrain.length).toBeGreaterThan(0)
-    const bottoms = new Set(terrain.map((b) => b.y + b.height))
+  it('flushes ground terrain to a common bottom, ≥1 screen below the deepest surface', () => {
+    // Floating terrain (ceilings) keep their own height and are excluded.
+    const ground = SAMPLE_COURSE.flatMap((p) => p.blocks).filter(
+      (b) => b.type === 'terrain' && !b.floating,
+    )
+    expect(ground.length).toBeGreaterThan(0)
+    const bottoms = new Set(ground.map((b) => b.y + b.height))
     expect(bottoms.size).toBe(1) // all flush on one line
     const [bottom] = [...bottoms]
-    const deepestSurface = Math.max(...terrain.map((b) => b.y))
+    const deepestSurface = Math.max(...ground.map((b) => b.y))
     // The shared bottom sits at least a full screen below the lowest surface, so
     // the camera never reveals a gap beneath the floor however far it scrolls down.
     expect((bottom ?? 0) - deepestSurface).toBeGreaterThanOrEqual(DESIGN_H)
+  })
+
+  it('keeps a floating ceiling at its authored height (not flushed)', () => {
+    const ceilings = SAMPLE_COURSE.flatMap((p) => p.blocks).filter(
+      (b) => b.type === 'terrain' && b.floating,
+    )
+    expect(ceilings.length).toBeGreaterThan(0)
+    // A flushed block would be a full screen tall; a ceiling stays a few cells.
+    for (const c of ceilings) expect(c.height).toBeLessThan(DESIGN_H)
   })
 
   it('re-emits coins every loop, so they respawn (memorization track)', () => {

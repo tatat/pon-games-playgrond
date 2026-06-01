@@ -71,6 +71,11 @@ death and coin pickup all read this one circle:
 - **Side contact pushes you.** A mostly-horizontal *leftward* push from a
   `terrain` block she isn't on top of shoves her left of her home `PLAYER_X`.
   Recovery back home is its own behaviour — see below.
+- **Head-bonk from below.** A mostly-vertical *downward* push while rising means
+  she hit a block's underside — her ascent stops and she drops back (not lethal).
+  This makes solid overhead `terrain` (a floating `ceiling` that opts out of the
+  shared-bottom flush) work; ground terrain reaches off-screen below, so it never
+  head-bonks.
 - **Death** has three causes: **squeezed off the left edge** (pushed past the
   left edge, walled in); **the circle touching a lethal block** (`hazard`, or
   falling onto a `pit`); or **falling beyond recovery** — dropping more than a
