@@ -13,18 +13,14 @@ export type BlockType = 'terrain' | 'ledge' | 'hazard' | 'pit' | 'coin'
 
 export interface Block {
   type: BlockType
-  /** World x for live blocks, or pattern-relative offset for authored patterns
-   * (see course.ts). */
+  /** Left edge. Grid cells in authored/source data; px after `build` (runtime). */
   x: number
-  /** Top edge in world y (smaller = higher). */
+  /** Top edge. Grid cells (ground-relative, up = +) in source; px after `build`. */
   y: number
-  width: number
-  height: number
-  /** A `terrain` block that is a FLOATING solid (a ceiling / tunnel roof): it
-   * keeps its authored height instead of being extended down to the shared world
-   * bottom, so a real gap stays beneath it. Build-time only — read by
-   * `flushTerrainBottoms`; runtime collision/rendering use the geometry directly. */
-  floating?: boolean
+  /** Width. Cells in source; px after `build`. */
+  w: number
+  /** Height. Cells in source; px after `build`. */
+  h: number
 }
 
 /** Lethal on contact. */
@@ -103,7 +99,7 @@ export function touchesLethal(
 ): boolean {
   for (const b of blocks) {
     if (!isLethal(b.type)) continue
-    if (circleHitsRect(cx, cy, radius, b.x, b.y, b.width, b.height)) return true
+    if (circleHitsRect(cx, cy, radius, b.x, b.y, b.w, b.h)) return true
   }
   return false
 }
@@ -113,7 +109,7 @@ export function coinAt(blocks: readonly Block[], cx: number, cy: number, radius:
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i]
     if (!b || b.type !== 'coin') continue
-    if (circleHitsRect(cx, cy, radius, b.x, b.y, b.width, b.height)) return i
+    if (circleHitsRect(cx, cy, radius, b.x, b.y, b.w, b.h)) return i
   }
   return -1
 }
