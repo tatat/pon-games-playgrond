@@ -71,10 +71,15 @@ death and coin pickup all read this one circle:
 - **Side contact pushes you.** A mostly-horizontal *leftward* push from a
   `terrain` block she isn't on top of shoves her left of her home `PLAYER_X`.
   Recovery back home is its own behaviour — see below.
-- **Death = squeezed off the left edge** (pushed past the left edge, walled in)
-  **or the circle touching a lethal block** (`hazard`, or falling onto a `pit`).
-  Because the circle's bottom is the feet, a 1-cell-deep pit kills after exactly
-  one cell of fall — landing and death agree by construction.
+- **Death** has three causes: **squeezed off the left edge** (pushed past the
+  left edge, walled in); **the circle touching a lethal block** (`hazard`, or
+  falling onto a `pit`); or **falling beyond recovery** — dropping more than a
+  double jump's reach (`DOUBLE_JUMP_REACH`) below the deepest solid terrain she
+  could still land on (ahead of her; ledges excluded, being one-way). The pit
+  block sits a few cells below the surface, so falling into a hole drops her in
+  before it kills (reads better than dying at the lip); the recovery check is the
+  catch-all for a plunge into open void where no pit block exists (e.g. a deep
+  vertical route).
 
 **Recovery (drift back home).** Once she is free of the block, she eases back to
 `PLAYER_X` rather than snapping:
@@ -212,15 +217,18 @@ reachable is purely a matter of map design, not a coded route table.
   the geometry (the high lane is harder to reach and stay on, and is where the
   coins / shortcuts live — the structural home of axis 6 choice load and axis 7
   lookahead).
-- **Vertical follow camera.** A standard 2D-platformer dead-zone window: the
-  runner moves freely between `CAMERA_WINDOW_TOP` and `CAMERA_WINDOW_BOTTOM` on
-  screen (so ordinary jumps don't scroll the view), and the camera follows only
-  when she leaves the window — up onto a high lane, or down into a lower route.
-  It is clamped to the lowest map block so void never shows below the floor (that
-  floor limit rises instantly when a lower block appears and eases up when one
-  culls off-screen, so it doesn't snap). The background skylines take a small
-  vertical parallax; sky/stars/orb stay fixed. See `CAMERA_WINDOW_*` /
-  `CAMERA_FLOOR_EASE` in `constants.ts` and `updateCamera` in `scene.ts`.
+- **Vertical follow camera.** A pure dead-zone window: the runner moves freely
+  between `CAMERA_WINDOW_TOP` and `CAMERA_WINDOW_BOTTOM` on screen (so ordinary
+  jumps don't scroll the view). The camera moves only when she leaves the window —
+  eased upward as she climbs past the top (`CAMERA_UP_EASE`), instant downward
+  when she falls past the bottom so she stays on screen — and never moves on its
+  own (no floor-clamp / easing heuristics, which read as the camera drifting
+  unprompted). Void below the floor is prevented by the *terrain*, not the camera:
+  every solid block extends down to one shared bottom a full screen below the
+  course's deepest surface (`flushTerrainBottoms` in `course.ts`). The background
+  skylines take a small vertical parallax; sky/stars/orb stay fixed. See
+  `CAMERA_WINDOW_*` / `CAMERA_UP_EASE` in `constants.ts` and `updateCamera` in
+  `scene.ts`.
 - Determinism holds: the layout is fixed; only which height the player travels is
   player-chosen, and that adds no RNG.
 
@@ -259,6 +267,15 @@ These guide authoring; none of them run at play time.
 - **Coins are hand-authored into patterns** (see Collectibles) as ordinary
   committed `coin` blocks, so the no-runtime-RNG / fully-deterministic rule holds
   by construction.
+- **Score = distance + coins.** Distance scores one point per cell travelled
+  (`DISTANCE_SCORE_FACTOR = 1/CELL` — 1 m per cell, Minecraft-style); each coin
+  collected adds `COIN_VALUE`. The final score and `best` are their sum, shown on
+  a ranked game-over screen: the score is the hero (largest), with distance /
+  coins / best on a quiet supporting line.
+- **Game-over juice (existing sprite only).** On death the run cycle stops and the
+  runner is launched into a knockback tumble — pop up, spin, drift back, fall —
+  while the camera freezes at the point of death. Coin pickups pop a small coin
+  that flips and sails backward off-screen, and the HUD coin counter punches.
 
 ## Open questions (to settle before/while authoring)
 
@@ -300,14 +317,24 @@ Done so far:
   high lines) across the intro and several loop patterns.
 - Vertical maps + follow camera: patterns can extend both UP into higher lanes and
   DOWN into lower routes (just taller/below-ground terrain/ledge geometry — no
-  branch/commit/merge), authored via `slab()` (a platform at any depth) and `gaps`
-  (a non-lethal floor opening to drop through). The camera is a standard dead-zone
-  window (`CAMERA_WINDOW_*`): jumps within it don't scroll, leaving it follows up
-  or down; clamped to the lowest map block (`updateCamera` in `scene.ts`). Skylines
-  take a small vertical parallax and overdraw below the screen so a down route
-  doesn't reveal a cut-off edge. Sample patterns `up-route-long` (ledge staircase
-  to a long coin-lined high lane) and `down-route-long` (a gap to a long lower
-  platform) lead the loop.
+  branch/commit/merge), authored via `terrain(x, w, rowCells)` (a solid block whose
+  top sits at any row, negative = below ground) and `gaps` (a non-lethal floor
+  opening to drop through). The camera is a pure dead-zone window (`CAMERA_WINDOW_*`,
+  `CAMERA_UP_EASE`): jumps within it don't scroll, leaving it eases up / snaps down,
+  and it never moves on its own (`updateCamera` in `scene.ts`). Void below the floor
+  is prevented by `flushTerrainBottoms` extending every solid block to one shared
+  bottom, not by a camera clamp. Skylines take a small vertical parallax. Sample
+  patterns `up-route-long` (ledge staircase to a long coin-lined high lane) and
+  `down-route-long` (a gap to a long lower platform) lead the loop.
+- Scoring + game-over: final score = distance (1 pt/cell) + `COIN_VALUE` per coin,
+  with a ranked game-over screen (score as the hero). Fall death is recovery-based
+  (`DOUBLE_JUMP_REACH` below the deepest reachable terrain), not a fixed cutoff.
+- Juice (existing sprite only): knockback death tumble, coin-pickup pop (coin flips
+  and flies off, HUD counter punch).
+- Rendering: terrain is drawn once in world space and scrolled by transform (the
+  fx layer too), rebuilt only when the block set changes — not redrawn per frame.
+  Solid blocks share one flushed bottom (`flushTerrainBottoms`), so connected
+  ground draws seam-free and no void shows below it.
 
 Remaining:
 
@@ -360,5 +387,7 @@ Status: the authored-course walker (intro + loop), distance-ramped scene,
 grid-derived physics, a wave-shaped sample loop, the unified one-`Block` model,
 climb-and-squeeze contact on a single body circle, the parallax ruined-city
 background, coins (collection + HUD + hand-authored placement, respawning each
-loop), and vertical maps with a follow camera are all in. Up next: the map
+loop), vertical maps with a pure dead-zone camera, recovery-based fall death,
+distance+coins scoring with a ranked game-over screen, transform-scrolled
+seam-free terrain, and game-over / coin-pickup juice are all in. Up next: the map
 builder.
