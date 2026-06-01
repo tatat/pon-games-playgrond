@@ -203,6 +203,55 @@ const REST_SHORT = 4 // brisk, used at the peak
  * trail teaches collection (just run through them). */
 const INTRO: Course = [
   pat('intro-flat', 14, { blocks: [coin(6, 1), coin(7, 1), coin(8, 1), coin(9, 1)] }),
+
+  // ── Camera test section (played once at game start) ──────────────────────
+  // Flat → hill → flat → valley → flat.
+  // 全ブロックの底辺を GROUND_Y + 7*CELL に統一 (depthCells = topRowCells + 7)。
+  // 平地も含めて auto-floor を抑制し slab(x, w, 0, 7) で敷く。
+
+  pat('cam-flat-lead', 6, { gaps: [[0, 6]], blocks: [slab(0, 6, 0, 7)] }),
+
+  // 山: 6 段の terrain 階段 → 6 セル頂上平地 → 崖
+  pat('cam-hill', 2 + 6 + 6 + REST_LONG, {
+    gaps: [[0, 2 + 6 + 6 + REST_LONG]],
+    blocks: [
+      slab(0, 2, 0, 7),
+      slab(2, 1, 1, 8),
+      slab(3, 1, 2, 9),
+      slab(4, 1, 3, 10),
+      slab(5, 1, 4, 11),
+      slab(6, 1, 5, 12),
+      slab(7, 1, 6, 13),
+      slab(8, 6, 6, 13),
+      slab(14, REST_LONG, 0, 7),
+      coin(9, 7),
+      coin(11, 7),
+      coin(13, 7),
+    ],
+  }),
+
+  pat('cam-flat-mid', 6, { gaps: [[0, 6]], blocks: [slab(0, 6, 0, 7)] }),
+
+  // 谷: 崖 → 6 セル谷底 → 6 段の terrain 階段で地面へ
+  pat('cam-valley', 2 + 6 + 6 + REST_LONG, {
+    gaps: [[0, 2 + 6 + 6 + REST_LONG]],
+    blocks: [
+      slab(0, 2, 0, 7),
+      slab(2, 6, -6, 1),
+      slab(8, 1, -5, 2),
+      slab(9, 1, -4, 3),
+      slab(10, 1, -3, 4),
+      slab(11, 1, -2, 5),
+      slab(12, 1, -1, 6),
+      slab(13, 1, 0, 7),
+      slab(14, REST_LONG, 0, 7),
+      coin(3, -5),
+      coin(5, -5),
+      coin(7, -5),
+    ],
+  }),
+
+  pat('cam-flat-settle', 10, { gaps: [[0, 10]], blocks: [slab(0, 10, 0, 7)] }),
 ]
 
 /** The endlessly repeating section (a wave: calm → ramp → peak → calm). The

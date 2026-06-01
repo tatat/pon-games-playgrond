@@ -4,7 +4,7 @@ import { Scene, type SceneDelta } from '../../engine/scene'
 import { useRuntimeStore } from '../../store/runtime'
 import { Background } from './background'
 import {
-  CAMERA_FLOOR_EASE,
+  CAMERA_UP_EASE,
   CAMERA_WINDOW_BOTTOM,
   CAMERA_WINDOW_TOP,
   COIN_COLOR,
@@ -13,7 +13,6 @@ import {
   DESIGN_W,
   DISTANCE_SCORE_FACTOR,
   DOUBLE_JUMP_VELOCITY,
-  FALL_DEATH_Y,
   GRAVITY,
   GROUND_Y,
   HAZARD_COLOR,
@@ -110,11 +109,8 @@ export class MainScene extends Scene {
    * function of distance and every run stays deterministic. */
   private distance = 0
   /** Vertical camera offset: the world y shown at the top of the screen. Applied
-   * as `worldLayer.y = -cameraY`; eased toward a dead-zone target each frame. */
+   * as `worldLayer.y = -cameraY`; driven by the dead-zone window each frame. */
   private cameraY = 0
-  /** Smoothed camera floor (lowest map-block bottom − screen height): the camera
-   * won't scroll below it. Rises instantly, recedes eased (see updateCamera). */
-  private camFloor = 0
 
   /** Live blocks on screen (terrain/ledge/hazard/pit/coin), screen-space x. */
   private blocks: Block[] = []
@@ -259,7 +255,6 @@ export class MainScene extends Scene {
     this.coins = 0
     this.distance = 0
     this.cameraY = 0
-    this.camFloor = 0
     this.feetY = GROUND_Y
     this.vy = 0
     this.onGround = true
@@ -356,7 +351,7 @@ export class MainScene extends Scene {
     // hazard), or a safety-net fall well below the screen. The circle's bottom is
     // the feet (`feetY`), same circle as landing — so a 1-cell pit kills one cell
     // down.
-    if (this.feetY > FALL_DEATH_Y || touchesLethal(this.blocks, this.playerX, this.feetY - R, R)) {
+    if (touchesLethal(this.blocks, this.playerX, this.feetY - R, R)) {
       this.die()
       return
     }
@@ -462,30 +457,24 @@ export class MainScene extends Scene {
     this.player.y = this.feetY - PLAYER_HIT_RADIUS
   }
 
-  /** Standard 2D platformer camera: a fixed on-screen dead-zone window. The runner
-   * moves freely within `[CAMERA_WINDOW_TOP, CAMERA_WINDOW_BOTTOM]` (so jumps don't
-   * scroll the view); the camera moves only when she leaves it, and just enough to
-   * hold her at the edge. Clamped to the map floor. Applied via
-   * `worldLayer.y = -cameraY`. */
+  /** Pure dead-zone camera. The runner moves freely within the on-screen window
+   * `[CAMERA_WINDOW_TOP, CAMERA_WINDOW_BOTTOM]` — the camera holds still. It moves
+   * ONLY when she leaves the window, and just enough to hold her at that edge:
+   * eased going up (climbing past the top), instant going down (so a fall keeps
+   * her on screen). No floor/recenter heuristics — the camera never moves on its
+   * own, only when the runner pushes a dead-zone edge. */
   private updateCamera(dtSec: number): void {
     const centreY = this.feetY - PLAYER_HIT_RADIUS
     const screenY = centreY - this.cameraY
     let cam = this.cameraY
-    if (screenY < CAMERA_WINDOW_TOP) cam = centreY - CAMERA_WINDOW_TOP
-    else if (screenY > CAMERA_WINDOW_BOTTOM) cam = centreY - CAMERA_WINDOW_BOTTOM
 
-    // Floor limit = lowest solid block's bottom − screen height. Rising limits
-    // apply immediately; lower limits ease so block culling cannot judder.
-    let maxBottom = Number.NEGATIVE_INFINITY
-    for (const b of this.blocks) {
-      if (b.type === 'pit' || b.type === 'coin') continue
-      maxBottom = Math.max(maxBottom, b.y + b.height)
-    }
-    if (Number.isFinite(maxBottom)) {
-      const floorLimit = maxBottom - DESIGN_H
-      if (floorLimit >= this.camFloor) this.camFloor = floorLimit
-      else this.camFloor += (floorLimit - this.camFloor) * Math.min(1, CAMERA_FLOOR_EASE * dtSec)
-      cam = Math.min(cam, this.camFloor)
+    if (screenY < CAMERA_WINDOW_TOP) {
+      // Rose past the top: ease up to hold her at the top edge.
+      const upTarget = centreY - CAMERA_WINDOW_TOP
+      cam += (upTarget - cam) * Math.min(1, CAMERA_UP_EASE * dtSec)
+    } else if (screenY > CAMERA_WINDOW_BOTTOM) {
+      // Fell past the bottom: snap down so she stays visible.
+      cam = centreY - CAMERA_WINDOW_BOTTOM
     }
 
     this.cameraY = cam

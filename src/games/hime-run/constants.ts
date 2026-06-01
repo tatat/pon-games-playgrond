@@ -125,10 +125,9 @@ export const COIN_COLOR = 0xffd34d
 export const COIN_RADIUS = 28
 
 // ── Vertical follow camera ───────────────────────────────────────────────────
-// Standard 2D platformer camera: a fixed on-screen dead-zone window. The runner
-// moves freely within it (so jumps DON'T scroll the view); the camera only moves
-// when she leaves the window, and exactly enough to keep her at its edge. Clamped
-// to the map floor so void never shows below the lowest block.
+// Pure dead-zone camera: a fixed on-screen window the runner moves freely within
+// (so jumps DON'T scroll the view). The camera moves only when she leaves the
+// window, just enough to hold her at the edge it never moves on its own.
 /** Resting screen y of the runner on flat ground (the window's bottom edge). */
 export const CAMERA_HOME_Y = GROUND_Y - PLAYER_HIT_RADIUS
 /** Bottom of the dead-zone window: fall past this and the camera follows down. */
@@ -136,11 +135,9 @@ export const CAMERA_WINDOW_BOTTOM = CAMERA_HOME_Y
 /** Top of the dead-zone window: rise past this (≈ a 4-cell jump) and the camera
  * follows up. Between the two edges the camera holds — jumps don't move it. */
 export const CAMERA_WINDOW_TOP = CAMERA_HOME_Y - 4 * CELL
-/** The camera won't reveal below the lowest map block (its bottom = the camera
- * floor). That limit rises instantly when a lower block appears (so a down route
- * is followed at once) but eases up at this per-second rate when a block culls
- * off-screen, so the floor receding doesn't snap/judder the view. */
-export const CAMERA_FLOOR_EASE = 6
+/** Per-second ease rate for the upward follow (holding her at the window top as
+ * she climbs). Downward follow is instant; this only softens the rise. */
+export const CAMERA_UP_EASE = 12
 
 // ── Collision / death ────────────────────────────────────────────────────────
 /** A safety net: if the runner somehow falls well below the screen end the run
