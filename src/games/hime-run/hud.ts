@@ -19,7 +19,10 @@ export class HUD extends Container {
   private readonly overlay: Graphics
   private readonly titleText: Text
   private readonly startText: Text
-  private readonly gameOverText: Text
+  /** Game-over screen: a header, the hero score, a one-line breakdown, a footer. */
+  private readonly gameOverGroup: Container
+  private readonly goScore: Text
+  private readonly goBreakdown: Text
 
   constructor() {
     super()
@@ -69,15 +72,54 @@ export class HUD extends Container {
     this.startText.zIndex = 101
     this.addChild(this.startText)
 
-    this.gameOverText = new Text({
-      text: '',
-      style: { fill: ACCENT, fontSize: 36, fontFamily: FONT, align: 'center', lineHeight: 48 },
+    // Game-over screen — a clear hierarchy rather than one stacked block: a big
+    // header up top, the score as the hero in the middle, supporting numbers on
+    // one quiet line, and the retry prompt as a footer.
+    const cx = DESIGN_W / 2
+    this.gameOverGroup = new Container()
+    this.gameOverGroup.zIndex = 101
+    this.gameOverGroup.visible = false
+    this.addChild(this.gameOverGroup)
+
+    const header = new Text({
+      text: 'GAME OVER',
+      style: { fill: ACCENT, fontSize: 104, fontWeight: '800', fontFamily: FONT },
     })
-    this.gameOverText.anchor.set(0.5)
-    this.gameOverText.position.set(DESIGN_W / 2, DESIGN_H / 2)
-    this.gameOverText.zIndex = 101
-    this.gameOverText.visible = false
-    this.addChild(this.gameOverText)
+    header.anchor.set(0.5)
+    header.position.set(cx, DESIGN_H * 0.31)
+
+    const scoreLabel = new Text({
+      text: 'SCORE',
+      style: { fill: WHITE, fontSize: 28, fontWeight: '700', fontFamily: FONT, letterSpacing: 6 },
+    })
+    scoreLabel.anchor.set(0.5)
+    scoreLabel.position.set(cx, DESIGN_H * 0.45)
+
+    // The hero: the final score, by far the largest number on screen.
+    this.goScore = new Text({
+      text: '0',
+      style: { fill: WHITE, fontSize: 128, fontWeight: '800', fontFamily: FONT },
+    })
+    this.goScore.anchor.set(0.5)
+    this.goScore.position.set(cx, DESIGN_H * 0.56)
+
+    // Supporting detail on one quiet line, dimmed so it sits under the score.
+    this.goBreakdown = new Text({
+      text: '',
+      style: { fill: WHITE, fontSize: 26, fontFamily: FONT, align: 'center' },
+    })
+    this.goBreakdown.alpha = 0.7
+    this.goBreakdown.anchor.set(0.5)
+    this.goBreakdown.position.set(cx, DESIGN_H * 0.69)
+
+    const retry = new Text({
+      text: 'Press SPACE / TAP to retry',
+      style: { fill: WHITE, fontSize: 26, fontFamily: FONT },
+    })
+    retry.anchor.set(0.5)
+    retry.position.set(cx, DESIGN_H * 0.86)
+
+    this.gameOverGroup.addChild(header, scoreLabel, this.goScore, this.goBreakdown, retry)
   }
 
   setScore(score: number): void {
@@ -99,25 +141,27 @@ export class HUD extends Container {
   }
 
   showTitle(best: number): void {
-    this.startText.text = best > 0 ? `${START_TEXT}\n\nBest ${best} m` : START_TEXT
+    this.startText.text = best > 0 ? `${START_TEXT}\n\nBest ${best}` : START_TEXT
     this.overlay.visible = true
     this.titleText.visible = true
     this.startText.visible = true
-    this.gameOverText.visible = false
+    this.gameOverGroup.visible = false
   }
 
   showPlaying(): void {
     this.overlay.visible = false
     this.titleText.visible = false
     this.startText.visible = false
-    this.gameOverText.visible = false
+    this.gameOverGroup.visible = false
   }
 
-  showGameOver(finalScore: number, best: number): void {
-    this.gameOverText.text = `GAME OVER\nScore: ${finalScore} m\nBest: ${best} m\n\nPress SPACE / TAP to retry`
+  showGameOver(distance: number, coins: number, score: number, best: number): void {
+    const coinBonus = score - distance
+    this.goScore.text = `${score}`
+    this.goBreakdown.text = `Distance ${distance} m      Coins ${coins} (+${coinBonus})      Best ${best}`
     this.overlay.visible = true
     this.titleText.visible = false
     this.startText.visible = false
-    this.gameOverText.visible = true
+    this.gameOverGroup.visible = true
   }
 }

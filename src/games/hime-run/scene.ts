@@ -9,6 +9,7 @@ import {
   CAMERA_WINDOW_TOP,
   COIN_COLOR,
   COIN_RADIUS,
+  COIN_VALUE,
   DEATH_DRIFT_VX,
   DEATH_POP_VY,
   DEATH_SPIN,
@@ -328,9 +329,11 @@ export class MainScene extends Scene {
     // it). Hold a mid-stride pose so the spinning frame reads cleanly.
     this.vy = DEATH_POP_VY
     this.setFrame(AIRBORNE_FRAME)
-    const final = Math.floor(this.score)
+    // Final score = distance (1 m/point) + a flat bonus per coin collected.
+    const distance = Math.floor(this.score)
+    const final = distance + this.coins * COIN_VALUE
     this.options.session.best = Math.max(this.options.session.best, final)
-    this.hud.showGameOver(final, this.options.session.best)
+    this.hud.showGameOver(distance, this.coins, final, this.options.session.best)
     this.options.onGameOver?.(final)
   }
 

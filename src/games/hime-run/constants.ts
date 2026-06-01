@@ -152,6 +152,8 @@ export const DOUBLE_JUMP_REACH =
 /** Score per world pixel advanced. One cell = one metre (Minecraft-style), so a
  * cell's width of travel scores 1 m. */
 export const DISTANCE_SCORE_FACTOR = 1 / CELL
+/** Points each collected coin adds to the final score (1 m distance = 1 point). */
+export const COIN_VALUE = 10
 
 // ── Death pop ────────────────────────────────────────────────────────────────
 // On game over the runner is launched up, spun, and drifts back, then falls under
