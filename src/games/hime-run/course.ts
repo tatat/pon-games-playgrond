@@ -1,4 +1,4 @@
-import { DESIGN_W } from '../../engine/constants'
+import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { CELL, GROUND_Y } from './constants'
 import type { Block } from './obstacles'
 
@@ -91,23 +91,29 @@ export class CourseWalker {
 
 /** Cells → px. */
 const c = (n: number): number => n * CELL
-/** Floor terrain thickness below the ground surface — a whole number of cells
- * (grid-aligned), deep enough to reach past the bottom of the screen. */
-const FLOOR_DEPTH = 2 * CELL
+/** Deepest walkable surface in the course — the cam-test valley's lower lane,
+ * 6 cells below the ground line. */
+const DEEPEST_SURFACE_Y = GROUND_Y + 6 * CELL
+/** Shared bottom edge for every solid-terrain block (floor / step / slab). Set
+ * one full screen below the deepest surface: all solid terrain extends down to
+ * this line, so every block bottom is flush and the camera can never reveal a gap
+ * beneath the lowest floor however far it follows the runner down. */
+const TERRAIN_BOTTOM = DEEPEST_SURFACE_Y + DESIGN_H
 
 /** A solid floor span sitting at ground level, `wCells` wide from `xCells`. */
 function floor(xCells: number, wCells: number): Block {
-  return { type: 'terrain', x: c(xCells), y: GROUND_Y, width: c(wCells), height: FLOOR_DEPTH }
-}
-/** A solid step/wall standing on the floor, `hCells` tall. */
-function terrain(xCells: number, wCells: number, hCells: number): Block {
   return {
     type: 'terrain',
     x: c(xCells),
-    y: GROUND_Y - c(hCells),
+    y: GROUND_Y,
     width: c(wCells),
-    height: c(hCells),
+    height: TERRAIN_BOTTOM - GROUND_Y,
   }
+}
+/** A solid step/wall whose top stands `hCells` above the ground line. */
+function terrain(xCells: number, wCells: number, hCells: number): Block {
+  const y = GROUND_Y - c(hCells)
+  return { type: 'terrain', x: c(xCells), y, width: c(wCells), height: TERRAIN_BOTTOM - y }
 }
 /** A one-way ledge floating with its top `elevCells` above the ground, one cell
  * tall (grid-aligned, not a thin slab). */
@@ -120,29 +126,25 @@ function ledge(xCells: number, wCells: number, elevCells: number): Block {
     height: CELL,
   }
 }
-/** The invisible lethal block one cell below the surface of a pit `wCells` wide.
- * One cell tall: at current fall speeds the runner can't tunnel through it in a
- * frame, and the recovery fall-death catches any deeper miss. */
+/** The invisible lethal block three cells below the surface of a pit `wCells`
+ * wide — the runner drops a few cells into the hole before it kills, which reads
+ * better than dying at the lip. One cell tall: at current fall speeds she can't
+ * tunnel through it in a frame, and the recovery fall-death catches any miss. */
 function pitBlock(xCells: number, wCells: number): Block {
   return {
     type: 'pit',
     x: c(xCells),
-    y: GROUND_Y + CELL,
+    y: GROUND_Y + 3 * CELL,
     width: c(wCells),
     height: CELL,
   }
 }
-/** A solid platform `depthCells` thick whose TOP sits `topRowCells` cells above
- * the ground line; a negative `topRowCells` places it below the ground for a
- * lower (down-route) lane. */
-function slab(xCells: number, wCells: number, topRowCells: number, depthCells: number): Block {
-  return {
-    type: 'terrain',
-    x: c(xCells),
-    y: GROUND_Y - c(topRowCells),
-    width: c(wCells),
-    height: c(depthCells),
-  }
+/** A solid platform whose TOP sits `topRowCells` cells above the ground line; a
+ * negative `topRowCells` places it below the ground for a lower (down-route) lane.
+ * Extends down to the shared TERRAIN_BOTTOM like every other solid block. */
+function slab(xCells: number, wCells: number, topRowCells: number): Block {
+  const y = GROUND_Y - c(topRowCells)
+  return { type: 'terrain', x: c(xCells), y, width: c(wCells), height: TERRAIN_BOTTOM - y }
 }
 /**
  * A collectible coin occupying grid cell (`xCells`, `rowCells`) — a full
@@ -206,53 +208,46 @@ const INTRO: Course = [
   pat('intro-flat', 14, { blocks: [coin(6, 1), coin(7, 1), coin(8, 1), coin(9, 1)] }),
 
   // ── Camera test section (played once at game start) ──────────────────────
-  // Flat → hill → flat → valley → flat.
-  // 全ブロックの底辺を GROUND_Y + 7*CELL に統一 (depthCells = topRowCells + 7)。
-  // 平地も含めて auto-floor を抑制し slab(x, w, 0, 7) で敷く。
+  // Flat → hill → flat → valley → flat. Every solid block shares TERRAIN_BOTTOM,
+  // so the auto-floor and the steps/slabs all end on the same line.
 
-  pat('cam-flat-lead', 6, { gaps: [[0, 6]], blocks: [slab(0, 6, 0, 7)] }),
+  pat('cam-flat-lead', 6),
 
-  // 山: 6 段の terrain 階段 → 6 セル頂上平地 → 崖
+  // 山: 6 段の terrain 階段 → 6 セル頂上平地 → 崖（auto-floor の上に立つ solid な丘）
   pat('cam-hill', 2 + 6 + 6 + REST_LONG, {
-    gaps: [[0, 2 + 6 + 6 + REST_LONG]],
     blocks: [
-      slab(0, 2, 0, 7),
-      slab(2, 1, 1, 8),
-      slab(3, 1, 2, 9),
-      slab(4, 1, 3, 10),
-      slab(5, 1, 4, 11),
-      slab(6, 1, 5, 12),
-      slab(7, 1, 6, 13),
-      slab(8, 6, 6, 13),
-      slab(14, REST_LONG, 0, 7),
+      terrain(2, 1, 1),
+      terrain(3, 1, 2),
+      terrain(4, 1, 3),
+      terrain(5, 1, 4),
+      terrain(6, 1, 5),
+      terrain(7, 1, 6),
+      terrain(8, 6, 6),
       coin(9, 7),
       coin(11, 7),
       coin(13, 7),
     ],
   }),
 
-  pat('cam-flat-mid', 6, { gaps: [[0, 6]], blocks: [slab(0, 6, 0, 7)] }),
+  pat('cam-flat-mid', 6),
 
-  // 谷: 崖 → 6 セル谷底 → 6 段の terrain 階段で地面へ
+  // 谷: 崖 → 6 セル谷底 → 6 段の階段で地面へ。地面より下を掘るので gap + slab。
   pat('cam-valley', 2 + 6 + 6 + REST_LONG, {
-    gaps: [[0, 2 + 6 + 6 + REST_LONG]],
+    gaps: [[2, 13]],
     blocks: [
-      slab(0, 2, 0, 7),
-      slab(2, 6, -6, 1),
-      slab(8, 1, -5, 2),
-      slab(9, 1, -4, 3),
-      slab(10, 1, -3, 4),
-      slab(11, 1, -2, 5),
-      slab(12, 1, -1, 6),
-      slab(13, 1, 0, 7),
-      slab(14, REST_LONG, 0, 7),
+      slab(2, 6, -6),
+      slab(8, 1, -5),
+      slab(9, 1, -4),
+      slab(10, 1, -3),
+      slab(11, 1, -2),
+      slab(12, 1, -1),
       coin(3, -5),
       coin(5, -5),
       coin(7, -5),
     ],
   }),
 
-  pat('cam-flat-settle', 10, { gaps: [[0, 10]], blocks: [slab(0, 10, 0, 7)] }),
+  pat('cam-flat-settle', 10),
 ]
 
 /** The endlessly repeating section (a wave: calm → ramp → peak → calm). The
@@ -286,9 +281,9 @@ const LOOP: Course = [
   pat('down-route-long', 28 + REST_LONG, {
     gaps: [[3, 24]],
     blocks: [
-      slab(3, 19, -2, 2), // lower lane, cells 3-21, two cells down
-      slab(22, 1, -1, 2), // step up
-      slab(23, 1, 0, 2), // back to ground level
+      slab(3, 19, -2), // lower lane, cells 3-21, two cells down
+      slab(22, 1, -1), // step up
+      slab(23, 1, 0), // back to ground level
       coin(4, -1),
       coin(6, -1),
       coin(8, -1),

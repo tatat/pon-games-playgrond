@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DESIGN_W } from '../../engine/constants'
+import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { type Course, CourseWalker, SAMPLE_COURSE, SAMPLE_LOOP_START } from './course'
 import type { Block } from './obstacles'
 
@@ -129,6 +129,18 @@ describe('SAMPLE_COURSE', () => {
       const farthest = Math.max(0, ...p.blocks.map((b) => b.x + b.width))
       expect(p.length).toBeGreaterThanOrEqual(farthest)
     }
+  })
+
+  it('aligns every solid-terrain block to a common bottom, ≥1 screen below the deepest surface', () => {
+    const terrain = SAMPLE_COURSE.flatMap((p) => p.blocks).filter((b) => b.type === 'terrain')
+    expect(terrain.length).toBeGreaterThan(0)
+    const bottoms = new Set(terrain.map((b) => b.y + b.height))
+    expect(bottoms.size).toBe(1) // all flush on one line
+    const [bottom] = [...bottoms]
+    const deepestSurface = Math.max(...terrain.map((b) => b.y))
+    // The shared bottom sits at least a full screen below the lowest surface, so
+    // the camera never reveals a gap beneath the floor however far it scrolls down.
+    expect((bottom ?? 0) - deepestSurface).toBeGreaterThanOrEqual(DESIGN_H)
   })
 
   it('re-emits coins every loop, so they respawn (memorization track)', () => {
