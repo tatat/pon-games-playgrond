@@ -91,29 +91,28 @@ export class CourseWalker {
 
 /** Cells → px. */
 const c = (n: number): number => n * CELL
-/** Deepest walkable surface in the course — the cam-test valley's lower lane,
- * 6 cells below the ground line. */
-const DEEPEST_SURFACE_Y = GROUND_Y + 6 * CELL
-/** Shared bottom edge for every solid-terrain block (floor / step / slab). Set
- * one full screen below the deepest surface: all solid terrain extends down to
- * this line, so every block bottom is flush and the camera can never reveal a gap
- * beneath the lowest floor however far it follows the runner down. */
-const TERRAIN_BOTTOM = DEEPEST_SURFACE_Y + DESIGN_H
+
+// Solid-terrain blocks (`floor`, `terrain`) are authored by their TOP only; their
+// height is filled in later by `flushTerrainBottoms`, which extends every solid
+// block down to one shared bottom line (one screen below the course's deepest
+// surface). So the camera can never reveal a gap under the lowest floor, and
+// authors never think about block depth — only where the walkable top sits.
+const TOP_ONLY = 0 // placeholder height; set by flushTerrainBottoms
 
 /** A solid floor span sitting at ground level, `wCells` wide from `xCells`. */
 function floor(xCells: number, wCells: number): Block {
+  return { type: 'terrain', x: c(xCells), y: GROUND_Y, width: c(wCells), height: TOP_ONLY }
+}
+/** A solid block whose TOP sits `rowCells` cells above the ground line — a step,
+ * wall, plateau, or (with a negative `rowCells`) a lower down-route lane. */
+function terrain(xCells: number, wCells: number, rowCells: number): Block {
   return {
     type: 'terrain',
     x: c(xCells),
-    y: GROUND_Y,
+    y: GROUND_Y - c(rowCells),
     width: c(wCells),
-    height: TERRAIN_BOTTOM - GROUND_Y,
+    height: TOP_ONLY,
   }
-}
-/** A solid step/wall whose top stands `hCells` above the ground line. */
-function terrain(xCells: number, wCells: number, hCells: number): Block {
-  const y = GROUND_Y - c(hCells)
-  return { type: 'terrain', x: c(xCells), y, width: c(wCells), height: TERRAIN_BOTTOM - y }
 }
 /** A one-way ledge floating with its top `elevCells` above the ground, one cell
  * tall (grid-aligned, not a thin slab). */
@@ -139,12 +138,21 @@ function pitBlock(xCells: number, wCells: number): Block {
     height: CELL,
   }
 }
-/** A solid platform whose TOP sits `topRowCells` cells above the ground line; a
- * negative `topRowCells` places it below the ground for a lower (down-route) lane.
- * Extends down to the shared TERRAIN_BOTTOM like every other solid block. */
-function slab(xCells: number, wCells: number, topRowCells: number): Block {
-  const y = GROUND_Y - c(topRowCells)
-  return { type: 'terrain', x: c(xCells), y, width: c(wCells), height: TERRAIN_BOTTOM - y }
+
+/** Extend every solid-terrain block down to one shared bottom — a full screen
+ * below the course's deepest walkable surface — so all block bottoms are flush
+ * and the camera never reveals a void beneath the floor, however deep a route
+ * goes. Derived from the actual course, so adding a deeper valley just works. */
+function flushTerrainBottoms(course: Course): Course {
+  let deepest = GROUND_Y
+  for (const p of course) {
+    for (const b of p.blocks) if (b.type === 'terrain') deepest = Math.max(deepest, b.y)
+  }
+  const bottom = deepest + DESIGN_H
+  for (const p of course) {
+    for (const b of p.blocks) if (b.type === 'terrain') b.height = bottom - b.y
+  }
+  return course
 }
 /**
  * A collectible coin occupying grid cell (`xCells`, `rowCells`) — a full
@@ -206,48 +214,6 @@ const REST_SHORT = 4 // brisk, used at the peak
  * trail teaches collection (just run through them). */
 const INTRO: Course = [
   pat('intro-flat', 14, { blocks: [coin(6, 1), coin(7, 1), coin(8, 1), coin(9, 1)] }),
-
-  // ── Camera test section (played once at game start) ──────────────────────
-  // Flat → hill → flat → valley → flat. Every solid block shares TERRAIN_BOTTOM,
-  // so the auto-floor and the steps/slabs all end on the same line.
-
-  pat('cam-flat-lead', 6),
-
-  // 山: 6 段の terrain 階段 → 6 セル頂上平地 → 崖（auto-floor の上に立つ solid な丘）
-  pat('cam-hill', 2 + 6 + 6 + REST_LONG, {
-    blocks: [
-      terrain(2, 1, 1),
-      terrain(3, 1, 2),
-      terrain(4, 1, 3),
-      terrain(5, 1, 4),
-      terrain(6, 1, 5),
-      terrain(7, 1, 6),
-      terrain(8, 6, 6),
-      coin(9, 7),
-      coin(11, 7),
-      coin(13, 7),
-    ],
-  }),
-
-  pat('cam-flat-mid', 6),
-
-  // 谷: 崖 → 6 セル谷底 → 6 段の階段で地面へ。地面より下を掘るので gap + slab。
-  pat('cam-valley', 2 + 6 + 6 + REST_LONG, {
-    gaps: [[2, 13]],
-    blocks: [
-      slab(2, 6, -6),
-      slab(8, 1, -5),
-      slab(9, 1, -4),
-      slab(10, 1, -3),
-      slab(11, 1, -2),
-      slab(12, 1, -1),
-      coin(3, -5),
-      coin(5, -5),
-      coin(7, -5),
-    ],
-  }),
-
-  pat('cam-flat-settle', 10),
 ]
 
 /** The endlessly repeating section (a wave: calm → ramp → peak → calm). The
@@ -281,9 +247,9 @@ const LOOP: Course = [
   pat('down-route-long', 28 + REST_LONG, {
     gaps: [[3, 24]],
     blocks: [
-      slab(3, 19, -2), // lower lane, cells 3-21, two cells down
-      slab(22, 1, -1), // step up
-      slab(23, 1, 0), // back to ground level
+      terrain(3, 19, -2), // lower lane, cells 3-21, two cells down
+      terrain(22, 1, -1), // step up
+      terrain(23, 1, 0), // back to ground level
       coin(4, -1),
       coin(6, -1),
       coin(8, -1),
@@ -353,7 +319,8 @@ const LOOP: Course = [
   pat('hop-final', 1 + REST_LONG + 1, { blocks: [terrain(0, 1, 1)] }),
 ]
 
-/** Full course: the intro, then the loop. */
-export const SAMPLE_COURSE: Course = [...INTRO, ...LOOP]
+/** Full course: the intro, then the loop, with all solid-terrain bottoms flushed
+ * to one shared line (see flushTerrainBottoms). */
+export const SAMPLE_COURSE: Course = flushTerrainBottoms([...INTRO, ...LOOP])
 /** Index the walker wraps to — the first loop pattern, just past the intro. */
 export const SAMPLE_LOOP_START = INTRO.length
