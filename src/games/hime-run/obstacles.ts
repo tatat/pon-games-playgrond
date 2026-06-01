@@ -22,18 +22,8 @@ export interface Block {
   height: number
 }
 
-/** Solid bodies the runner stands on top of and is blocked by from the side. */
-export const isSolid = (t: BlockType): boolean => t === 'terrain'
-/** One-way surfaces: landable from above, pass-through from below. */
-export const isOneway = (t: BlockType): boolean => t === 'ledge'
 /** Lethal on contact. */
 export const isLethal = (t: BlockType): boolean => t === 'hazard' || t === 'pit'
-
-/** Top y of a block's surface. */
-export const topY = (b: Block): number => b.y
-
-/** Bottom y of a block. */
-export const bottomY = (b: Block): number => b.y + b.height
 
 // ── One collision primitive: the runner is a circle, everything is circle-vs-rect.
 // Landing, side-blocking (climb-and-squeeze), lethal/pit death and coins all ask
