@@ -9,6 +9,9 @@ import {
   CAMERA_WINDOW_TOP,
   COIN_COLOR,
   COIN_RADIUS,
+  DEATH_DRIFT_VX,
+  DEATH_POP_VY,
+  DEATH_SPIN,
   DESIGN_H,
   DESIGN_W,
   DISTANCE_SCORE_FACTOR,
@@ -243,9 +246,13 @@ export class MainScene extends Scene {
 
     if (this.phase === 'playing') {
       this.stepPlaying(dtSec)
+    } else if (this.phase === 'gameover') {
+      this.stepDeath(dtSec)
     }
 
-    this.updateCamera(dtSec)
+    // Freeze the camera on game over so the death tumble plays against a still
+    // world (her flying feetY would otherwise yank the dead-zone camera around).
+    if (this.phase !== 'gameover') this.updateCamera(dtSec)
     this.background.update(this.distance, this.worldLayer.y)
     this.advanceAnimation(dtSec)
     this.syncPlayer()
@@ -271,6 +278,7 @@ export class MainScene extends Scene {
     this.onGround = true
     this.jumpsUsed = 0
     this.playerX = PLAYER_X
+    this.player.rotation = 0 // clear any death-tumble spin from a prior run
     this.recoverDelayLeft = 0
     // Fresh walker so the fixed course restarts from pattern 0 every run; step(0)
     // fills the screen with the opening patterns under the player.
@@ -297,10 +305,23 @@ export class MainScene extends Scene {
   private die(): void {
     this.phase = 'gameover'
     this.gameOverAtMs = this.elapsed * 1000
+    // Launch the knockback tumble: pop up, spin, drift back (stepDeath integrates
+    // it). Hold a mid-stride pose so the spinning frame reads cleanly.
+    this.vy = DEATH_POP_VY
+    this.setFrame(AIRBORNE_FRAME)
     const final = Math.floor(this.score)
     this.options.session.best = Math.max(this.options.session.best, final)
     this.hud.showGameOver(final, this.options.session.best)
     this.options.onGameOver?.(final)
+  }
+
+  /** Game-over tumble: the runner arcs up under gravity, spins, and drifts back.
+   * No collision — she falls past the ground behind the game-over overlay. */
+  private stepDeath(dtSec: number): void {
+    this.vy += GRAVITY * dtSec
+    this.feetY += this.vy * dtSec
+    this.playerX += DEATH_DRIFT_VX * dtSec
+    this.player.rotation += DEATH_SPIN * dtSec
   }
 
   // ── Per-frame simulation while playing ──────────────────────────────────────
@@ -481,6 +502,9 @@ export class MainScene extends Scene {
   // ── Rendering ───────────────────────────────────────────────────────────────
 
   private advanceAnimation(dtSec: number): void {
+    // Game over: stop the run cycle — hold the frame she died on instead of
+    // running in place under the overlay.
+    if (this.phase === 'gameover') return
     if (this.phase === 'playing' && !this.onGround) {
       this.setFrame(AIRBORNE_FRAME)
       return

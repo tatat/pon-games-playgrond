@@ -153,5 +153,15 @@ export const DOUBLE_JUMP_REACH =
  * cell's width of travel scores 1 m. */
 export const DISTANCE_SCORE_FACTOR = 1 / CELL
 
+// ── Death pop ────────────────────────────────────────────────────────────────
+// On game over the runner is launched up, spun, and drifts back, then falls under
+// gravity (GRAVITY) — a quick knockback tumble reusing the run sprite.
+/** Upward launch velocity at death (px/s, negative = up). */
+export const DEATH_POP_VY = -900
+/** Backward drift while tumbling (px/s, negative = left, opposite run direction). */
+export const DEATH_DRIFT_VX = -150
+/** Tumble spin rate (rad/s, negative = backwards somersault). */
+export const DEATH_SPIN = -7
+
 /** Re-export for layout maths inside the scene. */
 export { DESIGN_H, DESIGN_W }
