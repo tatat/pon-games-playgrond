@@ -87,8 +87,9 @@ export class HUD extends Container {
     this.addChild(this.gameOverGroup)
 
     // Vertically centred stack: header → label → hero score → breakdown →
-    // retry → select, sized so the block's top and bottom margins match (~120px
-    // each) rather than piling weight at the bottom of the screen.
+    // retry. The select button hangs a fixed gap below the retry prompt
+    // (measured to the button's frame, see below), so it isn't part of this
+    // centring.
     const header = new Text({
       text: 'GAME OVER',
       style: { fill: ACCENT, fontSize: 104, fontWeight: '800', fontFamily: FONT },
@@ -128,9 +129,13 @@ export class HUD extends Container {
     retry.position.set(cx, DESIGN_H * 0.72)
 
     // A distinct control back to the stage-select screen — separate from the
-    // tap-anywhere retry, so leaving a run is a deliberate choice.
+    // tap-anywhere retry, so leaving a run is a deliberate choice. Spaced a
+    // fixed gap below the retry prompt, measured from the retry text's bottom to
+    // the button's frame (top edge) rather than between text centres, so the
+    // visible breathing room is the value set here.
+    const SELECT_GAP = 28
     const select = this.makeSelectButton(options.onStageSelect)
-    select.position.set(cx, DESIGN_H * 0.8)
+    select.position.set(cx, retry.y + retry.height / 2 + SELECT_GAP + select.height / 2)
 
     this.gameOverGroup.addChild(header, scoreLabel, this.goScore, this.goBreakdown, retry, select)
   }
