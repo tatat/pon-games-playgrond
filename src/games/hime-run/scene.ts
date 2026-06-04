@@ -43,7 +43,7 @@ import {
   TERRAIN_COLOR,
   TERRAIN_LIP_COLOR,
 } from './constants'
-import { type Block, CourseWalker } from './course'
+import { AuthoredSource, type Block, CourseWalker } from './course'
 import { HUD } from './hud'
 import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
 import { SAMPLE_COURSE, SAMPLE_LOOP_START } from './sample-course'
@@ -141,7 +141,7 @@ export class MainScene extends Scene {
   private terrainDirty = true
   /** Walks the authored course, emitting blocks as the world scrolls. Rebuilt on
    * each run start so the fixed course always plays from the top. */
-  private walker = new CourseWalker(SAMPLE_COURSE, SAMPLE_LOOP_START)
+  private walker = new CourseWalker(new AuthoredSource(SAMPLE_COURSE, SAMPLE_LOOP_START))
   private gameOverAtMs = 0
 
   /** Tracks the jump button's held state across frames so a release can cut
@@ -300,7 +300,7 @@ export class MainScene extends Scene {
     this.recoverDelayLeft = 0
     // Fresh walker so the fixed course restarts from pattern 0 every run; step(0)
     // fills the screen with the opening patterns under the player.
-    this.walker = new CourseWalker(SAMPLE_COURSE, SAMPLE_LOOP_START)
+    this.walker = new CourseWalker(new AuthoredSource(SAMPLE_COURSE, SAMPLE_LOOP_START))
     this.blocks = this.toWorld(this.walker.step(0))
     this.terrainDirty = true
     this.blockGfx.x = 0
