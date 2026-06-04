@@ -136,14 +136,26 @@ wall 3–4 = double-jump, pit + ledge stepping stones, ground spike, hill, valle
 tunnel). Each primitive's cell parameters stay inside ranges the measured jump
 physics can clear, so every generated section is solvable.
 
+**Difficulty is carried by the existing speed ramp alone — the source does not
+scale difficulty.** The runner already accelerates over `SPEED_RAMP_DISTANCE`, and
+the same primitive is harder to clear the faster the world scrolls (less reaction
+time), so a flat-difficulty course plus that ramp gives the escalation for free.
+This drops the trickiest undecided part of the design (a cursor→parameter curve)
+and keeps `next()` trivially argument-free: the source holds no cursor and emits a
+uniformly-sampled primitive per call.
+
 - Selection and parameters come from the seeded `Rng` (`engine/rng`); same seed →
-  same course.
-- Difficulty scales with the source's **own generated-cell cursor** (cells emitted
-  so far), not the player's runtime `distance` — `next()` stays argument-free and
-  the walker emits ahead of the player, so the generation cursor is the only value
-  available and keeps generation deterministic. It drives denser placement, shorter
-  rest beats, and taller walls, plateauing at the cell equivalent of
-  `SPEED_RAMP_DISTANCE` so difficulty tops out in step with the speed ramp.
+  same course. (Uniform sampling now, light weighting later if the mix feels off.)
+- **Every primitive must be clearable across the whole speed range, and its binding
+  case differs by primitive.** A horizontal gap (pit) is cleared by one jump's
+  reach = speed × airtime, so its worst case is the **slowest** speed (least reach)
+  — gap widths are bound by `SPEED_START`. A reaction-timing demand (dodge a hazard,
+  fire the double jump just before a wall) has the least margin at the **fastest**
+  speed — those are bound by `SPEED_MAX`. So there is no single "worst speed"; each
+  primitive's safe range must hold at both ends. The concrete cell values are taken
+  from the hand-tuned sample course, which already plays from distance 0 at
+  `SPEED_START`, so its vocabulary is safe across the range by construction. Verify
+  any new value with instrumentation, not feel.
 - A rest beat separates primitives so no two demands chain into an impossible one.
 - The parallax background keeps its own fixed per-layer seeds — the stage seed only
   drives the course.
@@ -186,8 +198,9 @@ restart-scoped state, if needed, is passed to `MainScene` directly.
    Node 26 runs it with no extra tooling.) Then: manifest, stage loader,
    `OpeningScene` list, `MainScene(stage)` wiring, `index.ts` boots `OpeningScene`,
    per-stage best store.
-3. **Random** — `RandomSource` (primitives + difficulty curve), random entry +
-   seed UI, determinism tests.
+3. **Random** — `RandomSource` (safe primitives, uniform sampling, no difficulty
+   scaling — the speed ramp carries difficulty), random entry + seed UI,
+   determinism tests.
 4. **(Future) Builder export** — the builder writes `stages/*.json`; no runtime
    change.
 
