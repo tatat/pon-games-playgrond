@@ -86,19 +86,22 @@ export class HUD extends Container {
     this.gameOverGroup.visible = false
     this.addChild(this.gameOverGroup)
 
+    // Vertically centred stack: header → label → hero score → breakdown →
+    // retry → select, sized so the block's top and bottom margins match (~120px
+    // each) rather than piling weight at the bottom of the screen.
     const header = new Text({
       text: 'GAME OVER',
       style: { fill: ACCENT, fontSize: 104, fontWeight: '800', fontFamily: FONT },
     })
     header.anchor.set(0.5)
-    header.position.set(cx, DESIGN_H * 0.31)
+    header.position.set(cx, DESIGN_H * 0.24)
 
     const scoreLabel = new Text({
       text: 'SCORE',
       style: { fill: WHITE, fontSize: 28, fontWeight: '700', fontFamily: FONT, letterSpacing: 6 },
     })
     scoreLabel.anchor.set(0.5)
-    scoreLabel.position.set(cx, DESIGN_H * 0.45)
+    scoreLabel.position.set(cx, DESIGN_H * 0.36)
 
     // The hero: the final score, by far the largest number on screen.
     this.goScore = new Text({
@@ -106,7 +109,7 @@ export class HUD extends Container {
       style: { fill: WHITE, fontSize: 128, fontWeight: '800', fontFamily: FONT },
     })
     this.goScore.anchor.set(0.5)
-    this.goScore.position.set(cx, DESIGN_H * 0.56)
+    this.goScore.position.set(cx, DESIGN_H * 0.48)
 
     // Supporting detail on one quiet line, dimmed so it sits under the score.
     this.goBreakdown = new Text({
@@ -115,19 +118,19 @@ export class HUD extends Container {
     })
     this.goBreakdown.alpha = 0.7
     this.goBreakdown.anchor.set(0.5)
-    this.goBreakdown.position.set(cx, DESIGN_H * 0.69)
+    this.goBreakdown.position.set(cx, DESIGN_H * 0.63)
 
     const retry = new Text({
       text: 'Press SPACE / TAP to retry',
       style: { fill: WHITE, fontSize: 26, fontFamily: FONT },
     })
     retry.anchor.set(0.5)
-    retry.position.set(cx, DESIGN_H * 0.81)
+    retry.position.set(cx, DESIGN_H * 0.72)
 
     // A distinct control back to the stage-select screen — separate from the
     // tap-anywhere retry, so leaving a run is a deliberate choice.
     const select = this.makeSelectButton(options.onStageSelect)
-    select.position.set(cx, DESIGN_H * 0.91)
+    select.position.set(cx, DESIGN_H * 0.8)
 
     this.gameOverGroup.addChild(header, scoreLabel, this.goScore, this.goBreakdown, retry, select)
   }
