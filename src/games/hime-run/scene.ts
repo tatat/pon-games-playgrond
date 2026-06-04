@@ -46,7 +46,7 @@ import {
 import { AuthoredSource, type Block, CourseWalker } from './course'
 import { HUD } from './hud'
 import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
-import { SAMPLE_COURSE, SAMPLE_LOOP_START } from './sample-course'
+import { type LoadedStageCourse, loadStageCourse } from './stage'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
@@ -139,9 +139,12 @@ export class MainScene extends Scene {
   /** Set when the block set changes (emit/cull/coin pickup); the terrain geometry
    * is only rebuilt on those frames, otherwise it just scrolls via transform. */
   private terrainDirty = true
-  /** Walks the authored course, emitting blocks as the world scrolls. Rebuilt on
-   * each run start so the fixed course always plays from the top. */
-  private walker = new CourseWalker(new AuthoredSource(SAMPLE_COURSE, SAMPLE_LOOP_START))
+  /** The validated stage course (loaded from JSON in `onEnter`). Source of truth
+   * for rebuilding the walker on each run start. */
+  private loaded!: LoadedStageCourse
+  /** Walks the loaded course, emitting blocks as the world scrolls. Rebuilt on each
+   * run start so the course always plays from the top. */
+  private walker!: CourseWalker
   private gameOverAtMs = 0
 
   /** Tracks the jump button's held state across frames so a release can cut
@@ -224,6 +227,10 @@ export class MainScene extends Scene {
       tap.off('pointercancel', onRelease)
     })
 
+    // Load the stage course (grid Course JSON) and build the walker from it.
+    this.loaded = await loadStageCourse('sample.json', signal)
+    signal.throwIfAborted()
+    this.walker = new CourseWalker(new AuthoredSource(this.loaded.course, this.loaded.loopStart))
     // Fill the screen with the opening patterns so the player starts on ground.
     this.blocks = this.toWorld(this.walker.step(0))
     this.redrawBlocks()
@@ -298,9 +305,9 @@ export class MainScene extends Scene {
     this.playerX = PLAYER_X
     this.player.rotation = 0 // clear any death-tumble spin from a prior run
     this.recoverDelayLeft = 0
-    // Fresh walker so the fixed course restarts from pattern 0 every run; step(0)
+    // Fresh walker so the course restarts from pattern 0 every run; step(0)
     // fills the screen with the opening patterns under the player.
-    this.walker = new CourseWalker(new AuthoredSource(SAMPLE_COURSE, SAMPLE_LOOP_START))
+    this.walker = new CourseWalker(new AuthoredSource(this.loaded.course, this.loaded.loopStart))
     this.blocks = this.toWorld(this.walker.step(0))
     this.terrainDirty = true
     this.blockGfx.x = 0

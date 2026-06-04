@@ -1,0 +1,1116 @@
+{
+  "version": 1,
+  "name": "Sample",
+  "loopStart": 1,
+  "sections": [
+    {
+      "name": "intro-flat",
+      "width": 14,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 14,
+          "h": 16
+        },
+        {
+          "type": "coin",
+          "x": 6,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 7,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 8,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 9,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "tunnel",
+      "width": 16,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 16,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 2,
+          "y": 3,
+          "w": 8,
+          "h": 1
+        },
+        {
+          "type": "terrain",
+          "x": 4,
+          "y": 6,
+          "w": 4,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 3,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 8,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 3,
+          "y": 4,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 5,
+          "y": 4,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 7,
+          "y": 4,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 4,
+          "y": 7,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 5,
+          "y": 7,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 6,
+          "y": 7,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 7,
+          "y": 7,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "cam-flat-lead",
+      "width": 6,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 16
+        }
+      ]
+    },
+    {
+      "name": "cam-hill",
+      "width": 20,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 20,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 2,
+          "y": 1,
+          "w": 1,
+          "h": 17
+        },
+        {
+          "type": "terrain",
+          "x": 3,
+          "y": 2,
+          "w": 1,
+          "h": 18
+        },
+        {
+          "type": "terrain",
+          "x": 4,
+          "y": 3,
+          "w": 1,
+          "h": 19
+        },
+        {
+          "type": "terrain",
+          "x": 5,
+          "y": 4,
+          "w": 1,
+          "h": 20
+        },
+        {
+          "type": "terrain",
+          "x": 6,
+          "y": 5,
+          "w": 1,
+          "h": 21
+        },
+        {
+          "type": "terrain",
+          "x": 7,
+          "y": 6,
+          "w": 1,
+          "h": 22
+        },
+        {
+          "type": "terrain",
+          "x": 8,
+          "y": 6,
+          "w": 6,
+          "h": 22
+        },
+        {
+          "type": "coin",
+          "x": 9,
+          "y": 7,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 11,
+          "y": 7,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 13,
+          "y": 7,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "cam-flat-mid",
+      "width": 6,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 16
+        }
+      ]
+    },
+    {
+      "name": "cam-valley",
+      "width": 20,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 2,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 13,
+          "y": 0,
+          "w": 7,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 2,
+          "y": -6,
+          "w": 6,
+          "h": 10
+        },
+        {
+          "type": "terrain",
+          "x": 8,
+          "y": -5,
+          "w": 1,
+          "h": 11
+        },
+        {
+          "type": "terrain",
+          "x": 9,
+          "y": -4,
+          "w": 1,
+          "h": 12
+        },
+        {
+          "type": "terrain",
+          "x": 10,
+          "y": -3,
+          "w": 1,
+          "h": 13
+        },
+        {
+          "type": "terrain",
+          "x": 11,
+          "y": -2,
+          "w": 1,
+          "h": 14
+        },
+        {
+          "type": "terrain",
+          "x": 12,
+          "y": -1,
+          "w": 1,
+          "h": 15
+        },
+        {
+          "type": "coin",
+          "x": 3,
+          "y": -5,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 5,
+          "y": -5,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 7,
+          "y": -5,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "cam-flat-settle",
+      "width": 10,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 10,
+          "h": 16
+        }
+      ]
+    },
+    {
+      "name": "hazard-hop",
+      "width": 7,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 7,
+          "h": 16
+        },
+        {
+          "type": "hazard",
+          "x": 0,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 0,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 1,
+          "y": 3,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 2,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "up-route-long",
+      "width": 32,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 32,
+          "h": 16
+        },
+        {
+          "type": "ledge",
+          "x": 1,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 3,
+          "y": 3,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 5,
+          "y": 4,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 7,
+          "y": 5,
+          "w": 12,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 7,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 8,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 9,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 10,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 11,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 12,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 13,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 14,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 15,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 16,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 17,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 18,
+          "y": 6,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "down-route-long",
+      "width": 34,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 3,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 24,
+          "y": 0,
+          "w": 10,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 3,
+          "y": -2,
+          "w": 19,
+          "h": 14
+        },
+        {
+          "type": "terrain",
+          "x": 22,
+          "y": -1,
+          "w": 1,
+          "h": 15
+        },
+        {
+          "type": "terrain",
+          "x": 23,
+          "y": 0,
+          "w": 1,
+          "h": 16
+        },
+        {
+          "type": "coin",
+          "x": 4,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 6,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 8,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 10,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 12,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 14,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 16,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 18,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 20,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "hop-low",
+      "width": 7,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 7,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 1,
+          "w": 1,
+          "h": 17
+        },
+        {
+          "type": "coin",
+          "x": 0,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 1,
+          "y": 3,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 2,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "pit-small",
+      "width": 8,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 2,
+          "y": 0,
+          "w": 6,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 0,
+          "y": -3,
+          "w": 2,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "hop-max-single",
+      "width": 7,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 7,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 2,
+          "w": 1,
+          "h": 18
+        }
+      ]
+    },
+    {
+      "name": "wall-double",
+      "width": 8,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 8,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 3,
+          "w": 1,
+          "h": 19
+        }
+      ]
+    },
+    {
+      "name": "pit-ledge",
+      "width": 9,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 4,
+          "y": 0,
+          "w": 5,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 0,
+          "y": -3,
+          "w": 4,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 1,
+          "y": 1,
+          "w": 2,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 1,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 2,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 3,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "pit-steps",
+      "width": 13,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 8,
+          "y": 0,
+          "w": 5,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 0,
+          "y": -3,
+          "w": 8,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 2,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 5,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "hop-two-beat",
+      "width": 10,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 10,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 1,
+          "w": 1,
+          "h": 17
+        },
+        {
+          "type": "terrain",
+          "x": 4,
+          "y": 1,
+          "w": 1,
+          "h": 17
+        }
+      ]
+    },
+    {
+      "name": "pit-then-hop",
+      "width": 11,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 2,
+          "y": 0,
+          "w": 9,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 0,
+          "y": -3,
+          "w": 2,
+          "h": 1
+        },
+        {
+          "type": "terrain",
+          "x": 5,
+          "y": 2,
+          "w": 1,
+          "h": 18
+        }
+      ]
+    },
+    {
+      "name": "pit-wide-steps",
+      "width": 17,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 11,
+          "y": 0,
+          "w": 6,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 0,
+          "y": -3,
+          "w": 11,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 2,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 5,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 8,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "pit-steps-climb",
+      "width": 17,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 11,
+          "y": 0,
+          "w": 6,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 0,
+          "y": -3,
+          "w": 11,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 2,
+          "y": 1,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 5,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 8,
+          "y": 3,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 2,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 5,
+          "y": 3,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 8,
+          "y": 4,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "rhythm-stair",
+      "width": 13,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 13,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 1,
+          "w": 1,
+          "h": 17
+        },
+        {
+          "type": "terrain",
+          "x": 4,
+          "y": 2,
+          "w": 1,
+          "h": 18
+        },
+        {
+          "type": "terrain",
+          "x": 8,
+          "y": 2,
+          "w": 1,
+          "h": 18
+        }
+      ]
+    },
+    {
+      "name": "wall-max-double",
+      "width": 8,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 8,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 4,
+          "w": 1,
+          "h": 20
+        },
+        {
+          "type": "coin",
+          "x": 0,
+          "y": 5,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 1,
+          "y": 5,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "wall-then-pit",
+      "width": 12,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 5,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 7,
+          "y": 0,
+          "w": 5,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 5,
+          "y": -3,
+          "w": 2,
+          "h": 1
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 3,
+          "w": 1,
+          "h": 19
+        }
+      ]
+    },
+    {
+      "name": "ledge-easy",
+      "width": 10,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 4,
+          "y": 0,
+          "w": 6,
+          "h": 16
+        },
+        {
+          "type": "pit",
+          "x": 0,
+          "y": -3,
+          "w": 4,
+          "h": 1
+        },
+        {
+          "type": "ledge",
+          "x": 1,
+          "y": 1,
+          "w": 2,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 1,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        },
+        {
+          "type": "coin",
+          "x": 2,
+          "y": 2,
+          "w": 1,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "name": "hop-final",
+      "width": 8,
+      "blocks": [
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 0,
+          "w": 8,
+          "h": 16
+        },
+        {
+          "type": "terrain",
+          "x": 0,
+          "y": 1,
+          "w": 1,
+          "h": 17
+        }
+      ]
+    }
+  ]
+}
