@@ -6,8 +6,8 @@ const WHITE = 0xf5f3ff
 const ACCENT = 0xff9ec4
 const FONT = 'system-ui, sans-serif'
 
-const TITLE_TEXT = 'Hime Run'
-const START_TEXT = 'Press SPACE / TAP to start\n\nHold to jump higher · tap again to double-jump'
+const START_PROMPT = 'Press SPACE / TAP to start'
+const START_HINT = 'Hold to jump higher · tap again to double-jump'
 
 export interface HUDOptions {
   /** Fired by the game-over "stage select" button (and its key, via the scene). */
@@ -22,8 +22,15 @@ export class HUD extends Container {
   /** Coin readout scale; punched to >1 on pickup, eased back in update(). */
   private coinScale = 1
   private readonly overlay: Graphics
-  private readonly titleText: Text
-  private readonly startText: Text
+  /** Pre-run "ready" beat: a STAGE eyebrow, the stage name as hero, an optional
+   * best line, then the start prompt + controls hint. Laid out (centred) per
+   * `showTitle` so it balances with or without the best line. */
+  private readonly titleGroup: Container
+  private readonly stageLabel: Text
+  private readonly stageName: Text
+  private readonly bestLine: Text
+  private readonly startPrompt: Text
+  private readonly startHint: Text
   /** Game-over screen: a header, the hero score, a one-line breakdown, a footer. */
   private readonly gameOverGroup: Container
   private readonly goScore: Text
@@ -59,23 +66,52 @@ export class HUD extends Container {
     this.overlay.zIndex = 100
     this.addChild(this.overlay)
 
-    this.titleText = new Text({
-      text: TITLE_TEXT,
-      style: { fill: WHITE, fontSize: 88, fontWeight: '800', fontFamily: FONT },
-    })
-    this.titleText.anchor.set(0.5)
-    this.titleText.position.set(DESIGN_W / 2, DESIGN_H * 0.4)
-    this.titleText.zIndex = 101
-    this.addChild(this.titleText)
+    // Ready beat — a clear hierarchy (mirrors the game-over screen) instead of
+    // one stacked text block: the stage is the hero, not a re-run of the game
+    // title (which already headlines the select screen). All members are created
+    // here; `showTitle` fills text and lays them out centred.
+    this.titleGroup = new Container()
+    this.titleGroup.zIndex = 101
+    this.titleGroup.visible = false
+    this.addChild(this.titleGroup)
 
-    this.startText = new Text({
-      text: START_TEXT,
-      style: { fill: WHITE, fontSize: 26, fontFamily: FONT, align: 'center', lineHeight: 36 },
+    this.stageLabel = new Text({
+      text: 'STAGE',
+      style: { fill: ACCENT, fontSize: 28, fontWeight: '700', fontFamily: FONT, letterSpacing: 6 },
     })
-    this.startText.anchor.set(0.5)
-    this.startText.position.set(DESIGN_W / 2, DESIGN_H * 0.62)
-    this.startText.zIndex = 101
-    this.addChild(this.startText)
+
+    this.stageName = new Text({
+      text: '',
+      style: { fill: WHITE, fontSize: 76, fontWeight: '800', fontFamily: FONT },
+    })
+
+    this.bestLine = new Text({
+      text: '',
+      style: { fill: WHITE, fontSize: 26, fontFamily: FONT },
+    })
+    this.bestLine.alpha = 0.8
+
+    this.startPrompt = new Text({
+      text: START_PROMPT,
+      style: { fill: WHITE, fontSize: 30, fontWeight: '700', fontFamily: FONT },
+    })
+
+    this.startHint = new Text({
+      text: START_HINT,
+      style: { fill: WHITE, fontSize: 22, fontFamily: FONT },
+    })
+    this.startHint.alpha = 0.7
+
+    for (const t of [
+      this.stageLabel,
+      this.stageName,
+      this.bestLine,
+      this.startPrompt,
+      this.startHint,
+    ]) {
+      t.anchor.set(0.5)
+      this.titleGroup.addChild(t)
+    }
 
     // Game-over screen — a clear hierarchy rather than one stacked block: a big
     // header up top, the score as the hero in the middle, supporting numbers on
@@ -192,19 +228,37 @@ export class HUD extends Container {
   }
 
   showTitle(stageName: string, best: number): void {
-    const lines = [`Stage: ${stageName}`, START_TEXT]
-    if (best > 0) lines.push(`Best ${best}`)
-    this.startText.text = lines.join('\n\n')
+    this.stageName.text = stageName
+    const showBest = best > 0
+    this.bestLine.text = showBest ? `Best ${best}` : ''
+    this.bestLine.visible = showBest
+
+    // Centre the visible lines as one block (gap = space *before* each line), so
+    // the beat balances whether or not the best line is present. The larger gap
+    // before the prompt separates "which stage" from "how to play".
+    const lines: { node: Text; gap: number }[] = [
+      { node: this.stageLabel, gap: 0 },
+      { node: this.stageName, gap: 8 },
+    ]
+    if (showBest) lines.push({ node: this.bestLine, gap: 16 })
+    lines.push({ node: this.startPrompt, gap: 52 }, { node: this.startHint, gap: 16 })
+
+    const total = lines.reduce((h, l) => h + l.gap + l.node.height, 0)
+    let y = DESIGN_H / 2 - total / 2
+    for (const l of lines) {
+      y += l.gap
+      l.node.position.set(DESIGN_W / 2, y + l.node.height / 2)
+      y += l.node.height
+    }
+
     this.overlay.visible = true
-    this.titleText.visible = true
-    this.startText.visible = true
+    this.titleGroup.visible = true
     this.gameOverGroup.visible = false
   }
 
   showPlaying(): void {
     this.overlay.visible = false
-    this.titleText.visible = false
-    this.startText.visible = false
+    this.titleGroup.visible = false
     this.gameOverGroup.visible = false
   }
 
@@ -213,8 +267,7 @@ export class HUD extends Container {
     this.goScore.text = `${score}`
     this.goBreakdown.text = `Distance ${distance} m      Coins ${coins} (+${coinBonus})      Best ${best}`
     this.overlay.visible = true
-    this.titleText.visible = false
-    this.startText.visible = false
+    this.titleGroup.visible = false
     this.gameOverGroup.visible = true
   }
 }
