@@ -129,13 +129,15 @@ export class HUD extends Container {
     retry.position.set(cx, DESIGN_H * 0.72)
 
     // A distinct control back to the stage-select screen — separate from the
-    // tap-anywhere retry, so leaving a run is a deliberate choice. Spaced a
-    // fixed gap below the retry prompt, measured from the retry text's bottom to
-    // the button's frame (top edge) rather than between text centres, so the
-    // visible breathing room is the value set here.
-    const SELECT_GAP = 28
+    // tap-anywhere retry, so leaving a run is a deliberate choice. Gap below the
+    // retry prompt (its bottom → the button's top frame edge) is set equal to
+    // the gap *above* the prompt (breakdown bottom → retry top), so the retry
+    // line sits with matching breathing room on both sides. The breakdown is the
+    // same font size as retry, so its half-height equals retry's — that lets us
+    // derive the above-gap without measuring the breakdown (it is empty here).
+    const retryGap = retry.y - this.goBreakdown.y - retry.height
     const select = this.makeSelectButton(options.onStageSelect)
-    select.position.set(cx, retry.y + retry.height / 2 + SELECT_GAP + select.height / 2)
+    select.position.set(cx, retry.y + retry.height / 2 + retryGap + select.height / 2)
 
     this.gameOverGroup.addChild(header, scoreLabel, this.goScore, this.goBreakdown, retry, select)
   }
