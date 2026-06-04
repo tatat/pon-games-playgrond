@@ -10,18 +10,6 @@ import { OpeningScene } from './opening-scene'
 import { MainScene, type MainSceneOptions } from './scene'
 import type { StageDef } from './stage'
 
-/** An explicit `?seed=` from the SPA URL, or undefined. The portal folds `?seed=`
- * into `ctx.config.seed` but defaults it to `Date.now()` when absent, so the only
- * way to tell a *pinned* seed from a fresh-session seed is to read the URL here.
- * Used to pin the random entry's seed over the persisted last-used one. */
-function urlSeed(): number | undefined {
-  if (typeof window === 'undefined') return undefined
-  const raw = new URLSearchParams(window.location.search).get('seed')
-  if (raw === null) return undefined
-  const n = Number.parseInt(raw, 10)
-  return Number.isFinite(n) ? n : undefined
-}
-
 export const himeRunGame: GameModule = {
   async start(app: Application, ctx: GameContext, signal: AbortSignal): Promise<GameHandle> {
     const rng = new Rng(ctx.config.seed)
@@ -39,9 +27,8 @@ export const himeRunGame: GameModule = {
     try {
       // Best score is per stage and persisted in the hime-run store, so nothing
       // needs to be threaded across runs here.
-      const pinnedSeed = urlSeed()
       const showOpening = (): Promise<void> =>
-        sm.changeTo(new OpeningScene({ onSelect: startStage, pinnedSeed }))
+        sm.changeTo(new OpeningScene({ onSelect: startStage }))
 
       // Fire-and-forget swap back to select (from a button/key or load-failure
       // recovery). Terminal-catches so a rejected swap (e.g. manifest re-fetch

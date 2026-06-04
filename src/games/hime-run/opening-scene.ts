@@ -23,6 +23,19 @@ const ROW_PAD = 24
 const ROW_RADIUS = 10
 const LIST_CENTER_Y = DESIGN_H * 0.58
 
+// Random-seed stepper: a fixed-length odometer of tap-to-increment digits, so the
+// seed is set with the same pointer the rest of the menu uses (no keyboard text
+// entry, works the same on desktop and mobile). The digit count caps the seed
+// space — 6 digits = 1,000,000 reproducible seeds, plenty to replay / share.
+const SEED_DIGITS = 6
+const SEED_MOD = 10 ** SEED_DIGITS
+const DIGIT_W = 34
+const DIGIT_H = 42
+const DIGIT_GAP = 6
+const DIGIT_RADIUS = 6
+/** Gap between the digit cluster and the reroll pill on its right. */
+const STEPPER_GAP = 16
+
 /** A slow parallax drift so the backdrop isn't dead on the menu (px/s of faux
  * forward travel fed to the same scroll the run uses). */
 const BACKDROP_DRIFT = 40
@@ -30,9 +43,6 @@ const BACKDROP_DRIFT = 40
 export interface OpeningSceneOptions {
   /** Fired when the player commits to a stage. The owner swaps in `MainScene`. */
   onSelect(stage: StageDef): void
-  /** A seed pinned via the URL `?seed=`, if any. When set it is the random entry's
-   * starting seed, overriding the persisted last-used one. */
-  pinnedSeed?: number
 }
 
 interface Row {
@@ -42,9 +52,9 @@ interface Row {
 }
 
 /** Title + stage-select for hime-run. Lists the manifest courses, then a seeded
- * random entry (name + seed + reroll) as the last row. ↑/↓ move the highlight,
- * SPACE/Enter or a tap commits, R rerolls the random seed. Reuses the ruined-dusk
- * parallax backdrop. */
+ * random entry whose seed is set with a tap-to-increment digit stepper (plus a
+ * reroll). ↑/↓ move the highlight, SPACE/Enter or a tap commits, R rerolls. Reuses
+ * the ruined-dusk parallax backdrop. */
 export class OpeningScene extends Scene {
   private background!: Background
   private courses: CourseStageDef[] = []
@@ -53,10 +63,11 @@ export class OpeningScene extends Scene {
   private activated = false
   private elapsed = 0
   private hint!: Text
-  /** Current seed shown on the random row (pinned > persisted > default). */
-  private randomSeed = DEFAULT_RANDOM_SEED
-  /** The random row's seed readout, updated on reroll. */
-  private randomSeedLabel!: Text
+  /** The random seed as independent decimal digits (most significant first). Each
+   * digit taps up 0→9→0 with no carry, like a combination lock. */
+  private digits: number[] = []
+  /** The per-digit readouts, updated on tap / reroll. */
+  private digitTexts: Text[] = []
 
   constructor(private readonly options: OpeningSceneOptions) {
     super()
@@ -66,6 +77,20 @@ export class OpeningScene extends Scene {
   /** Row index of the synthesised random entry (always last). */
   private get randomIndex(): number {
     return this.courses.length
+  }
+
+  /** The seed the digit stepper currently spells. */
+  private seedValue(): number {
+    return this.digits.reduce((acc, d) => acc * 10 + d, 0)
+  }
+
+  /** Set the stepper digits from a seed (clamped into the digit space). */
+  private setSeed(seed: number): void {
+    const s = ((Math.trunc(seed) % SEED_MOD) + SEED_MOD) % SEED_MOD
+    this.digits = Array.from(
+      { length: SEED_DIGITS },
+      (_, i) => Math.floor(s / 10 ** (SEED_DIGITS - 1 - i)) % 10,
+    )
   }
 
   async onEnter(signal: AbortSignal): Promise<void> {
@@ -92,7 +117,7 @@ export class OpeningScene extends Scene {
     this.addChild(subtitle)
 
     this.hint = new Text({
-      text: '↑ ↓ choose · SPACE / Enter or tap to play · R rerolls the random seed',
+      text: '↑ ↓ choose · SPACE / Enter or tap to play · tap digits or R to set the random seed',
       style: { fill: WHITE, fontSize: 22, fontFamily: FONT, align: 'center' },
     })
     this.hint.anchor.set(0.5)
@@ -100,10 +125,9 @@ export class OpeningScene extends Scene {
     this.hint.zIndex = 10
     this.addChild(this.hint)
 
-    // The random entry starts on the pinned URL seed, else the persisted last seed,
-    // else a fixed default — so a first-ever visit is reproducible.
-    this.randomSeed =
-      this.options.pinnedSeed ?? useHimeRunStore.getState().lastRandomSeed ?? DEFAULT_RANDOM_SEED
+    // The random entry starts on the persisted last seed, else a fixed default —
+    // so a first-ever visit is reproducible.
+    this.setSeed(useHimeRunStore.getState().lastRandomSeed ?? DEFAULT_RANDOM_SEED)
 
     // Load the course catalog and build the list (courses, then the random row).
     const manifest = await loadStageManifest(signal)
@@ -154,15 +178,20 @@ export class OpeningScene extends Scene {
       return { view, bg }
     }
 
-    // Course rows: name (left) + persisted best (right), best hidden when 0.
-    this.courses.forEach((stage, i) => {
-      const { view, bg } = placeRow(i)
+    const makeLabel = (text: string): Text => {
       const label = new Text({
-        text: stage.name,
+        text,
         style: { fill: WHITE, fontSize: 30, fontWeight: '700', fontFamily: FONT },
       })
       label.anchor.set(0, 0.5)
       label.position.set(ROW_PAD, ROW_H / 2)
+      return label
+    }
+
+    // Course rows: name (left) + persisted best (right), best hidden when 0.
+    this.courses.forEach((stage, i) => {
+      const { view, bg } = placeRow(i)
+      const label = makeLabel(stage.name)
       view.addChild(label)
 
       const best = bests[stage.id] ?? 0
@@ -177,15 +206,10 @@ export class OpeningScene extends Scene {
       this.rows.push({ view, bg, label })
     })
 
-    // Random row: name (left) + seed readout and a reroll button (right).
+    // Random row: name (left) + the digit stepper and a reroll pill (right).
     {
       const { view, bg } = placeRow(this.randomIndex)
-      const label = new Text({
-        text: 'Random',
-        style: { fill: WHITE, fontSize: 30, fontWeight: '700', fontFamily: FONT },
-      })
-      label.anchor.set(0, 0.5)
-      label.position.set(ROW_PAD, ROW_H / 2)
+      const label = makeLabel('Random')
       view.addChild(label)
 
       // Reroll pill, right-aligned; consumes its own tap so the row's tap-to-play
@@ -194,19 +218,45 @@ export class OpeningScene extends Scene {
       reroll.position.set(ROW_W - ROW_PAD - reroll.width / 2, ROW_H / 2)
       view.addChild(reroll)
 
-      this.randomSeedLabel = new Text({
-        text: this.seedText(),
-        style: { fill: ACCENT, fontSize: 24, fontWeight: '700', fontFamily: FONT },
+      // Digit stepper sits to the left of the reroll pill, right-aligned.
+      const clusterW = SEED_DIGITS * DIGIT_W + (SEED_DIGITS - 1) * DIGIT_GAP
+      const clusterRight = ROW_W - ROW_PAD - reroll.width - STEPPER_GAP
+      const clusterLeft = clusterRight - clusterW
+      this.digitTexts = this.digits.map((d, i) => {
+        const cx = clusterLeft + DIGIT_W / 2 + i * (DIGIT_W + DIGIT_GAP)
+        const { cell, text } = this.makeDigit(d, () => this.tapDigit(i))
+        cell.position.set(cx, ROW_H / 2)
+        view.addChild(cell)
+        return text
       })
-      this.randomSeedLabel.anchor.set(1, 0.5)
-      // Sit to the left of the reroll pill with a comfortable gap.
-      this.randomSeedLabel.position.set(ROW_W - ROW_PAD - reroll.width - 16, ROW_H / 2)
-      view.addChild(this.randomSeedLabel)
 
       this.rows.push({ view, bg, label })
     }
 
     this.redrawRows()
+  }
+
+  /** One tap-to-increment digit cell. The returned `text` is the readout to
+   * update; `cell` is the positioned, tappable container. */
+  private makeDigit(value: number, onTap: () => void): { cell: Container; text: Text } {
+    const bg = new Graphics()
+      .roundRect(-DIGIT_W / 2, -DIGIT_H / 2, DIGIT_W, DIGIT_H, DIGIT_RADIUS)
+      .fill({ color: 0x000000, alpha: 0.35 })
+      .stroke({ color: ACCENT, width: 2, alpha: 0.7 })
+    const text = new Text({
+      text: String(value),
+      style: { fill: WHITE, fontSize: 28, fontWeight: '700', fontFamily: FONT },
+    })
+    text.anchor.set(0.5)
+    const cell = new Container()
+    cell.addChild(bg, text)
+    cell.eventMode = 'static'
+    cell.cursor = 'pointer'
+    cell.on('pointertap', (e: FederatedPointerEvent) => {
+      e.stopPropagation()
+      onTap()
+    })
+    return { cell, text }
   }
 
   /** A small "⟳ reroll" pill (centred on its own position). */
@@ -235,17 +285,27 @@ export class OpeningScene extends Scene {
     return btn
   }
 
-  private seedText(): string {
-    return `seed ${this.randomSeed}`
+  /** Tap a digit up 0→9→0 (no carry), persist, and refresh its readout. */
+  private tapDigit(i: number): void {
+    if (this.activated) return
+    this.setSelected(this.randomIndex)
+    const next = ((this.digits[i] ?? 0) + 1) % 10
+    this.digits[i] = next
+    const text = this.digitTexts[i]
+    if (text) text.text = String(next)
+    useHimeRunStore.getState().setLastRandomSeed(this.seedValue())
   }
 
-  /** Replace the random seed with a fresh one (deterministic via the scene rng, so
-   * no `Math.random()`), persist it, and update the readout. */
+  /** Replace the seed with a fresh one (deterministic via the scene rng, so no
+   * `Math.random()`), persist it, and refresh every digit. */
   private reroll(): void {
     if (this.activated) return
-    this.randomSeed = this.rng.intRange(1, 0x7ffffffe)
-    useHimeRunStore.getState().setLastRandomSeed(this.randomSeed)
-    this.randomSeedLabel.text = this.seedText()
+    this.setSeed(this.rng.intRange(0, SEED_MOD - 1))
+    this.digits.forEach((d, i) => {
+      const text = this.digitTexts[i]
+      if (text) text.text = String(d)
+    })
+    useHimeRunStore.getState().setLastRandomSeed(this.seedValue())
   }
 
   private setSelected(i: number): void {
@@ -280,10 +340,8 @@ export class OpeningScene extends Scene {
     const stage = this.stageAt(this.selected)
     if (!stage) return
     this.activated = true
-    if (stage.kind === 'random') {
-      // Remember the played seed so the random entry reopens on it next session.
-      useHimeRunStore.getState().setLastRandomSeed(stage.seed)
-    }
+    // The shown random seed is already persisted on every tap / reroll, so the
+    // played seed reopens next session with no extra write here.
     this.options.onSelect(stage)
   }
 
@@ -291,7 +349,7 @@ export class OpeningScene extends Scene {
    * synthesised random stage (all seeds share `RANDOM_BEST_KEY` for best). */
   private stageAt(i: number): StageDef | undefined {
     if (i === this.randomIndex) {
-      return { kind: 'random', id: RANDOM_BEST_KEY, name: 'Random', seed: this.randomSeed }
+      return { kind: 'random', id: RANDOM_BEST_KEY, name: 'Random', seed: this.seedValue() }
     }
     return this.courses[i]
   }

@@ -160,12 +160,22 @@ uniformly-sampled primitive per call.
 - The parallax background keeps its own fixed per-layer seeds — the stage seed only
   drives the course.
 
-Seed flow: `?seed=` reaches the game as `ctx.config.seed`. `index.ts` passes that
-numeric seed into stage-selection state (today it only feeds the `Rng`, which
-exposes no original-seed getter). The random entry shows `seed: NNNN` with a reroll
-control. Precedence: a URL `?seed=` pins and overrides the persisted last-used seed;
-absent a URL seed, the persisted seed is shown; reroll replaces it. No on-canvas
-text entry.
+Seed flow: the random entry's seed is set on the select screen itself, with no URL
+parameter. The seed is a fixed-length decimal (6 digits = 1,000,000 reproducible
+seeds) shown as a row of tap-to-increment digit cells — each tap cycles that digit
+0→9→0 with no carry (a combination-lock odometer), driven by the same pointer the
+rest of the menu uses, so it works identically on desktop and mobile with no
+keyboard text entry. A reroll control fills all digits from the scene `Rng` (range
+0–`10^digits−1`, so a rerolled seed stays re-enterable by hand). The shown seed
+starts from the persisted last-used seed, falling back to a fixed default on a
+first-ever visit; each tap and reroll persists it (so the shown seed — which is
+what plays — reopens next session).
+
+(`?seed=` is deliberately *not* used: the portal folds `?seed=` into
+`ctx.config.seed` but defaults it to `Date.now()`, so the game can't tell a pinned
+seed from a fresh-session one without re-reading the URL — a layering break the
+in-screen stepper avoids. `ctx.config.seed` still seeds the scene `Rng` that drives
+reroll.)
 
 ## Persistence
 
@@ -180,9 +190,12 @@ restart-scoped state, if needed, is passed to `MainScene` directly.
 
 - Ruined-dusk look; the parallax background is reused.
 - A vertical list: each authored stage as a row (name + best), the random entry
-  last (name + `seed: NNNN` + reroll).
+  last (name + a tap-to-increment 6-digit seed stepper + reroll).
 - Input: ↑/↓ to move, `Space`/`Enter` to select, pointer tap, virtual keypad on
-  mobile (Option = pause, reused from the rest of the game).
+  mobile (Option = pause, reused from the rest of the game). The seed digits and
+  reroll are pointer-driven (tap a digit to step it); `R` rerolls when the random
+  row is highlighted. No keyboard digit entry, so the seed is set the same way on
+  every device.
 - A simple list now; add scrolling once the stage count grows.
 
 ## Phasing
