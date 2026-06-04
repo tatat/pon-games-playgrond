@@ -1,26 +1,41 @@
 import { resolveAssetUrl } from '../../engine/assets'
 import { type LoadedStageCourse, parseStageCourse } from './stage-course'
+import { RANDOM_BEST_KEY } from './store'
 
 export type { LoadedStageCourse, StageCourseJson } from './stage-course'
 
 /** On-disk stage-manifest schema version. */
 export const STAGE_MANIFEST_VERSION = 1
 
-/** A selectable stage. Today every stage is an authored course file; phase 3 adds
- * seed-based random stages, which is when this gains a source distinction. */
-export interface StageDef {
+/** A manifest-listed stage backed by an authored course JSON file. */
+export interface CourseStageDef {
+  kind: 'course'
   id: string
   name: string
   /** Course JSON filename under `stages/`. */
   file: string
 }
 
+/** A seed-based random stage (not in the manifest — the select screen synthesises
+ * it). All seeds share one persisted best bucket (`RANDOM_BEST_KEY`), so its `id`
+ * is that key. */
+export interface RandomStageDef {
+  kind: 'random'
+  id: string
+  name: string
+  seed: number
+}
+
+/** A selectable stage: an authored course or a seeded random run. Both resolve to
+ * a `SectionSource` in `MainScene`. */
+export type StageDef = CourseStageDef | RandomStageDef
+
 /** The stage catalog the select screen lists. The manifest is the authoritative
  * source of each stage's `id` and display `name` (a `name` inside a course JSON is
- * advisory). */
+ * advisory). It carries only authored courses; the random entry is added in code. */
 export interface StageManifest {
   version: number
-  stages: StageDef[]
+  stages: CourseStageDef[]
 }
 
 export function parseStageManifest(data: unknown): StageManifest {
@@ -47,7 +62,12 @@ export function parseStageManifest(data: unknown): StageManifest {
       if (!/^[\w-]+\.json$/.test(file)) {
         throw new Error(`hime-run manifest: stage ${i} file "${file}" must be a .json basename`)
       }
-      return { id, name, file }
+      // `RANDOM_BEST_KEY` is reserved for the synthesised random stage's shared best
+      // bucket; a course claiming it would alias their persisted bests together.
+      if (id === RANDOM_BEST_KEY) {
+        throw new Error(`hime-run manifest: stage ${i} id "${id}" is reserved`)
+      }
+      return { kind: 'course', id, name, file }
     }),
   }
 }

@@ -15,6 +15,10 @@ import { ceiling, coin, hazard, ledge, pat, terrain } from './grid-authoring'
 // slowest speed's jump reach ≈3 cells; reaction timing by the fastest speed).
 // A trailing REST beat ends every primitive so two demands never chain.
 
+/** Seed the random entry starts on when nothing is persisted and no `?seed=` is
+ * pinned — a fixed value so a first-ever visit is reproducible. */
+export const DEFAULT_RANDOM_SEED = 1
+
 /** Trailing breather (cells) after each primitive, so the next one is approached
  * from clean flat ground. Matches the sample course's calm REST_LONG. */
 const REST = 6

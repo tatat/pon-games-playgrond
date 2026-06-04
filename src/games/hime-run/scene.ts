@@ -43,10 +43,11 @@ import {
   TERRAIN_COLOR,
   TERRAIN_LIP_COLOR,
 } from './constants'
-import { AuthoredSource, type Block, CourseWalker } from './course'
+import { AuthoredSource, type Block, CourseWalker, type SectionSource } from './course'
 import { HUD } from './hud'
 import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
-import { type LoadedStageCourse, loadStageCourse, type StageDef } from './stage'
+import { RandomSource } from './random-source'
+import { loadStageCourse, type StageDef } from './stage'
 import { useHimeRunStore } from './store'
 
 type Phase = 'title' | 'playing' | 'gameover'
@@ -139,10 +140,11 @@ export class MainScene extends Scene {
   /** Set when the block set changes (emit/cull/coin pickup); the terrain geometry
    * is only rebuilt on those frames, otherwise it just scrolls via transform. */
   private terrainDirty = true
-  /** The validated stage course (loaded from JSON in `onEnter`). Source of truth
-   * for rebuilding the walker on each run start. */
-  private loaded!: LoadedStageCourse
-  /** Walks the loaded course, emitting blocks as the world scrolls. Rebuilt on each
+  /** Builds a fresh section source for the stage — an authored course (loaded from
+   * JSON in `onEnter`) or a seeded random generator. Called on each run start so a
+   * retry replays the stage identically (same course / same seed). */
+  private makeSource!: () => SectionSource
+  /** Walks the stage source, emitting blocks as the world scrolls. Rebuilt on each
    * run start so the course always plays from the top. */
   private walker!: CourseWalker
   private gameOverAtMs = 0
@@ -229,10 +231,17 @@ export class MainScene extends Scene {
       tap.off('pointercancel', onRelease)
     })
 
-    // Load the stage course (grid Course JSON) and build the walker from it.
-    this.loaded = await loadStageCourse(this.options.stage.file, signal)
-    signal.throwIfAborted()
-    this.walker = new CourseWalker(new AuthoredSource(this.loaded.course, this.loaded.loopStart))
+    // Resolve the stage's section source: an authored course needs its JSON loaded
+    // and validated first; a random stage resolves synchronously from its seed.
+    const stage = this.options.stage
+    if (stage.kind === 'course') {
+      const loaded = await loadStageCourse(stage.file, signal)
+      signal.throwIfAborted()
+      this.makeSource = () => new AuthoredSource(loaded.course, loaded.loopStart)
+    } else {
+      this.makeSource = () => new RandomSource(stage.seed)
+    }
+    this.walker = new CourseWalker(this.makeSource())
     // Fill the screen with the opening patterns so the player starts on ground.
     this.blocks = this.toWorld(this.walker.step(0))
     this.redrawBlocks()
@@ -311,9 +320,9 @@ export class MainScene extends Scene {
     this.playerX = PLAYER_X
     this.player.rotation = 0 // clear any death-tumble spin from a prior run
     this.recoverDelayLeft = 0
-    // Fresh walker so the course restarts from pattern 0 every run; step(0)
+    // Fresh source + walker so the stage restarts from the top every run; step(0)
     // fills the screen with the opening patterns under the player.
-    this.walker = new CourseWalker(new AuthoredSource(this.loaded.course, this.loaded.loopStart))
+    this.walker = new CourseWalker(this.makeSource())
     this.blocks = this.toWorld(this.walker.step(0))
     this.terrainDirty = true
     this.blockGfx.x = 0

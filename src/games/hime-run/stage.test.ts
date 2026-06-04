@@ -73,7 +73,12 @@ describe('parseStageManifest', () => {
   it('accepts a valid manifest', () => {
     const m = parseStageManifest(validManifest)
     expect(m.stages).toHaveLength(1)
-    expect(m.stages[0]).toEqual({ id: 'sample', name: 'Sample', file: 'sample.json' })
+    expect(m.stages[0]).toEqual({
+      kind: 'course',
+      id: 'sample',
+      name: 'Sample',
+      file: 'sample.json',
+    })
   })
 
   it('rejects an unsupported version', () => {
@@ -90,6 +95,15 @@ describe('parseStageManifest', () => {
       parseStageManifest({
         version: STAGE_MANIFEST_VERSION,
         stages: [{ id: 'x', name: 'X' }],
+      }),
+    ).toThrow()
+  })
+
+  it('rejects a course claiming the reserved random-best id', () => {
+    expect(() =>
+      parseStageManifest({
+        version: STAGE_MANIFEST_VERSION,
+        stages: [{ id: 'random', name: 'X', file: 'x.json' }],
       }),
     ).toThrow()
   })
