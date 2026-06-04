@@ -46,7 +46,7 @@ import {
 import { AuthoredSource, type Block, CourseWalker } from './course'
 import { HUD } from './hud'
 import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
-import { type LoadedStageCourse, loadStageCourse } from './stage'
+import { type LoadedStageCourse, loadStageCourse, type StageDef } from './stage'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
@@ -84,6 +84,8 @@ export interface HimeSession {
 }
 
 export interface MainSceneOptions {
+  /** The stage to play — its course JSON is loaded in `onEnter`. */
+  stage: StageDef
   session: HimeSession
   onScoreChange?: (score: number) => void
   onGameOver?: (score: number) => void
@@ -228,7 +230,7 @@ export class MainScene extends Scene {
     })
 
     // Load the stage course (grid Course JSON) and build the walker from it.
-    this.loaded = await loadStageCourse('sample.json', signal)
+    this.loaded = await loadStageCourse(this.options.stage.file, signal)
     signal.throwIfAborted()
     this.walker = new CourseWalker(new AuthoredSource(this.loaded.course, this.loaded.loopStart))
     // Fill the screen with the opening patterns so the player starts on ground.
@@ -237,7 +239,7 @@ export class MainScene extends Scene {
     this.blockGfx.x = -this.distance
     this.syncPlayer()
     this.redrawShadow()
-    this.hud.showTitle(this.options.session.best)
+    this.hud.showTitle(this.options.stage.name, this.options.session.best)
   }
 
   override onUpdate(dt: SceneDelta): void {

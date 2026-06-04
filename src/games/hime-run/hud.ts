@@ -140,8 +140,10 @@ export class HUD extends Container {
     }
   }
 
-  showTitle(best: number): void {
-    this.startText.text = best > 0 ? `${START_TEXT}\n\nBest ${best}` : START_TEXT
+  showTitle(stageName: string, best: number): void {
+    const lines = [`Stage: ${stageName}`, START_TEXT]
+    if (best > 0) lines.push(`Best ${best}`)
+    this.startText.text = lines.join('\n\n')
     this.overlay.visible = true
     this.titleText.visible = true
     this.startText.visible = true
