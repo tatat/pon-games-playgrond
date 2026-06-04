@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js'
+import { Container, type FederatedPointerEvent, Graphics, Text } from 'pixi.js'
 import { DESIGN_H, DESIGN_W } from '../../engine/constants'
 import { COIN_COLOR } from './constants'
 
@@ -8,6 +8,11 @@ const FONT = 'system-ui, sans-serif'
 
 const TITLE_TEXT = 'Hime Run'
 const START_TEXT = 'Press SPACE / TAP to start\n\nHold to jump higher · tap again to double-jump'
+
+export interface HUDOptions {
+  /** Fired by the game-over "stage select" button (and its key, via the scene). */
+  onStageSelect(): void
+}
 
 /** Score readout plus the title / game-over overlays. The runner's distance is
  * pushed in via `setScore`; the scene toggles the three screen states. */
@@ -24,7 +29,7 @@ export class HUD extends Container {
   private readonly goScore: Text
   private readonly goBreakdown: Text
 
-  constructor() {
+  constructor(options: HUDOptions) {
     super()
     this.zIndex = 100
 
@@ -117,9 +122,45 @@ export class HUD extends Container {
       style: { fill: WHITE, fontSize: 26, fontFamily: FONT },
     })
     retry.anchor.set(0.5)
-    retry.position.set(cx, DESIGN_H * 0.86)
+    retry.position.set(cx, DESIGN_H * 0.81)
 
-    this.gameOverGroup.addChild(header, scoreLabel, this.goScore, this.goBreakdown, retry)
+    // A distinct control back to the stage-select screen — separate from the
+    // tap-anywhere retry, so leaving a run is a deliberate choice.
+    const select = this.makeSelectButton(options.onStageSelect)
+    select.position.set(cx, DESIGN_H * 0.91)
+
+    this.gameOverGroup.addChild(header, scoreLabel, this.goScore, this.goBreakdown, retry, select)
+  }
+
+  /** A small pill button (centred on its own position) that returns to stage
+   * select. Sits inside the game-over group, so it is only interactive while
+   * that screen is visible. Consumes its own tap so the full-screen tap-to-retry
+   * behind it doesn't also fire. */
+  private makeSelectButton(onTap: () => void): Container {
+    const PAD_X = 28
+    const H = 52
+    const RADIUS = 8
+    const label = new Text({
+      text: 'STAGE SELECT  (M)',
+      style: { fill: WHITE, fontSize: 24, fontWeight: '700', fontFamily: FONT },
+    })
+    label.anchor.set(0.5)
+
+    const w = label.width + PAD_X * 2
+    const bg = new Graphics()
+      .roundRect(-w / 2, -H / 2, w, H, RADIUS)
+      .fill({ color: 0x000000, alpha: 0.35 })
+      .stroke({ color: ACCENT, width: 2, alpha: 0.9 })
+
+    const btn = new Container()
+    btn.addChild(bg, label)
+    btn.eventMode = 'static'
+    btn.cursor = 'pointer'
+    btn.on('pointertap', (e: FederatedPointerEvent) => {
+      e.stopPropagation()
+      onTap()
+    })
+    return btn
   }
 
   setScore(score: number): void {

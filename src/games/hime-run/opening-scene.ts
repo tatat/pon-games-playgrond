@@ -5,6 +5,7 @@ import { Scene, type SceneDelta } from '../../engine/scene'
 import { useRuntimeStore } from '../../store/runtime'
 import { Background } from './background'
 import { loadStageManifest, type StageDef } from './stage'
+import { useHimeRunStore } from './store'
 
 const WHITE = 0xf5f3ff
 const ACCENT = 0xff9ec4
@@ -132,6 +133,17 @@ export class OpeningScene extends Scene {
       label.anchor.set(0, 0.5)
       label.position.set(ROW_PAD, ROW_H / 2)
       view.addChild(label)
+
+      // Persisted best, right-aligned with matching clearance from the right
+      // edge. Hidden when 0 (never played) so an unplayed row reads clean.
+      const best = useHimeRunStore.getState().bests[stage.id] ?? 0
+      const bestLabel = new Text({
+        text: best > 0 ? `Best ${best}` : '',
+        style: { fill: ACCENT, fontSize: 24, fontWeight: '700', fontFamily: FONT },
+      })
+      bestLabel.anchor.set(1, 0.5)
+      bestLabel.position.set(ROW_W - ROW_PAD, ROW_H / 2)
+      view.addChild(bestLabel)
 
       view.on('pointerover', () => this.setSelected(i))
       view.on('pointertap', () => {

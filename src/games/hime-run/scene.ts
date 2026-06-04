@@ -47,6 +47,7 @@ import { AuthoredSource, type Block, CourseWalker } from './course'
 import { HUD } from './hud'
 import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
 import { type LoadedStageCourse, loadStageCourse, type StageDef } from './stage'
+import { useHimeRunStore } from './store'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
@@ -78,18 +79,15 @@ const AIRBORNE_FRAME = 1
  * that ended the run doesn't instantly start the next one. */
 const RESTART_ARM_MS = 350
 
-/** Survives across restarts (each retry builds a fresh `MainScene`). */
-export interface HimeSession {
-  best: number
-}
-
 export interface MainSceneOptions {
   /** The stage to play — its course JSON is loaded in `onEnter`. */
   stage: StageDef
-  session: HimeSession
   onScoreChange?: (score: number) => void
   onGameOver?: (score: number) => void
   onRequestRestart?: () => void
+  /** Leave the run and return to the stage-select screen. Wired to a distinct
+   * game-over control (button + key), never to Option (which stays pause). */
+  onBackToSelect?: () => void
 }
 
 export class MainScene extends Scene {
@@ -125,7 +123,7 @@ export class MainScene extends Scene {
   private score = 0
   private lastReportedScore = 0
   /** Coins collected this run. Run-local (reset each `startGame`); coins respawn
-   * every loop, so this is NOT persisted in `HimeSession`. */
+   * every loop, so this is run-local and never persisted. */
   private coins = 0
   /** Distance travelled this run (px). Drives the speed ramp, so speed is a pure
    * function of distance and every run stays deterministic. */
@@ -194,10 +192,12 @@ export class MainScene extends Scene {
     // Coin-pickup fx sit above the runner and scroll with the terrain.
     this.worldLayer.addChild(this.fxLayer)
 
-    this.hud = new HUD()
+    this.hud = new HUD({ onStageSelect: () => this.options.onBackToSelect?.() })
     this.addChild(this.hud)
 
-    this.bindInput({ jump: ['Space', 'ArrowUp', 'KeyW'] })
+    // `jump` drives start / jump / retry; `back` (game-over only) returns to the
+    // stage-select screen. Option stays bound to pause via the keypad.
+    this.bindInput({ jump: ['Space', 'ArrowUp', 'KeyW'], back: ['KeyM'] })
 
     const keypad = this.use(
       makeVirtualKeypad(this.input, this.layout, {
@@ -239,7 +239,7 @@ export class MainScene extends Scene {
     this.blockGfx.x = -this.distance
     this.syncPlayer()
     this.redrawShadow()
-    this.hud.showTitle(this.options.stage.name, this.options.session.best)
+    this.hud.showTitle(this.options.stage.name, this.bestScore())
   }
 
   override onUpdate(dt: SceneDelta): void {
@@ -259,6 +259,10 @@ export class MainScene extends Scene {
       ) {
         this.options.onRequestRestart?.()
       }
+    }
+    // Return to stage select from the game-over screen (distinct from retry).
+    if (this.phase === 'gameover' && this.input.wasJustPressed('back')) {
+      this.options.onBackToSelect?.()
     }
     // Releasing while still rising cuts the ascent → variable jump height.
     if (this.phase === 'playing' && this.jumpHeld && !jumpDown && this.vy < 0) {
@@ -339,8 +343,8 @@ export class MainScene extends Scene {
     // Final score = distance (1 m/point) + a flat bonus per coin collected.
     const distance = Math.floor(this.score)
     const final = distance + this.coins * COIN_VALUE
-    this.options.session.best = Math.max(this.options.session.best, final)
-    this.hud.showGameOver(distance, this.coins, final, this.options.session.best)
+    useHimeRunStore.getState().submitBest(this.stageId, final)
+    this.hud.showGameOver(distance, this.coins, final, this.bestScore())
     this.options.onGameOver?.(final)
   }
 
@@ -663,6 +667,16 @@ export class MainScene extends Scene {
    * compare like-for-like with each block's world x — no per-frame block mutation. */
   private get playerWorldX(): number {
     return this.playerX + this.distance
+  }
+
+  /** Persistence key for this stage's best (the manifest stage id). */
+  private get stageId(): string {
+    return this.options.stage.id
+  }
+
+  /** This stage's persisted best (0 if never played). */
+  private bestScore(): number {
+    return useHimeRunStore.getState().bests[this.stageId] ?? 0
   }
 
   /** Draw every block by type at its world x. Called only when the block set
