@@ -130,33 +130,47 @@ is deferred with no penalty.
 
 ## Random generation
 
-`RandomSource` builds each section from a library of **safe parameterized
-primitives** derived from the sample course's vocabulary (flat-rest, hop 1–2,
-wall 3–4 = double-jump, pit + ledge stepping stones, ground spike, hill, valley,
-tunnel). Each primitive's cell parameters stay inside ranges the measured jump
-physics can clear, so every generated section is solvable.
+`RandomSource` is **generative, not a catalogue**. There are no pre-shaped pieces
+to shuffle: the terrain is a left-to-right walk that edits one running surface
+height (in cells) column by column, and coins/hazards are derived from the shape
+that walk produces. Hills, walls, valleys, pits and tunnels are not units picked
+from a bag — they **emerge** from sequences of local moves (`run`, `step`, `wall`,
+`gap`, `bridged gap`, `hazard`, `tunnel`), so two occurrences of the same feature
+are never the same shape. The walk carries its surface height **across section
+seams**, so sections flow into one another instead of resetting to flat ground.
 
-**Difficulty is carried by the existing speed ramp alone — the source does not
-scale difficulty.** The runner already accelerates over `SPEED_RAMP_DISTANCE`, and
-the same primitive is harder to clear the faster the world scrolls (less reaction
-time), so a flat-difficulty course plus that ramp gives the escalation for free.
-This drops the trickiest undecided part of the design (a cursor→parameter curve)
-and keeps `next()` trivially argument-free: the source holds no cursor and emits a
-uniformly-sampled primitive per call.
+**Solvability is an invariant of the walk, not a property borrowed from hand-tuned
+data.** Every move is constrained to stay inside the measured jump reach, so any
+reachable sequence is clearable by construction. The binding cases (constants.ts):
 
-- Selection and parameters come from the seeded `Rng` (`engine/rng`); same seed →
-  same course. (Uniform sampling now, light weighting later if the mix feels off.)
-- **Every primitive must be clearable across the whole speed range, and its binding
-  case differs by primitive.** A horizontal gap (pit) is cleared by one jump's
-  reach = speed × airtime, so its worst case is the **slowest** speed (least reach)
-  — gap widths are bound by `SPEED_START`. A reaction-timing demand (dodge a hazard,
-  fire the double jump just before a wall) has the least margin at the **fastest**
-  speed — those are bound by `SPEED_MAX`. So there is no single "worst speed"; each
-  primitive's safe range must hold at both ends. The concrete cell values are taken
-  from the hand-tuned sample course, which already plays from distance 0 at
-  `SPEED_START`, so its vocabulary is safe across the range by construction. Verify
-  any new value with instrumentation, not feel.
-- A rest beat separates primitives so no two demands chain into an impossible one.
+- A **vertical wall** — an up-step between adjacent surface columns — is capped at
+  4 cells (the double jump's ceiling); ≤2 is a single jump. Down-steps (cliffs) are
+  free, since falling is always safe, and are used to descend a plateau quickly.
+  Reaction-timing demands (wall, hazard) have the least margin at the **fastest**
+  speed — they are bound by `SPEED_MAX`.
+- A **bare gap** of empty columns is capped at 3 — one jump carries ≈3.3 cells at
+  `SPEED_START` (the slowest, shortest-reach case), so gaps are bound by the slow
+  end. Wider holes are **bridged** by ledge stepping stones so no sub-gap exceeds 3.
+- The surface stays inside a `[HMIN, HMAX]` band the camera and a climb-back can
+  both reach. Gaps and tunnels are placed only at/above ground (the lethal pit sits
+  below the surface; a tunnel's roof must clear the runner's head).
+
+These invariants are asserted directly in `random-source.test.ts` by reconstructing
+the continuous surface from the emitted blocks (across seams) — not by trusting that
+a primitive was "safe". Verify any retune with that instrumentation, not feel.
+
+**Difficulty is carried by the existing speed ramp alone — the walk does not scale
+difficulty by distance.** The runner accelerates over `SPEED_RAMP_DISTANCE`, and the
+same terrain is harder to clear the faster the world scrolls, so a flat-difficulty
+course plus that ramp gives the escalation for free. What the walk *does* vary is
+**texture**: an `intensity` value drifts in a bounded random walk per section,
+weighting the move mix so the stream breathes between calm, sparse stretches and
+busy, demanding ones rather than a flat uniform shuffle. Move weights also depend on
+the current height — breathers and holes favour ground level; high ground resolves
+into descents — so the surface rolls instead of pinning to an extreme.
+
+- All selection and parameters come from the seeded `Rng` (`engine/rng`); same seed
+  → same blocks.
 - The parallax background keeps its own fixed per-layer seeds — the stage seed only
   drives the course.
 
