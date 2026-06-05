@@ -73,6 +73,12 @@ Block {
   `sections.length > 0`, `0 ≤ loopStart < sections.length`.
 - Export is grid-coordinate, 1:1 with the course (each Section → one runtime
   pattern; coordinates stay in cells). Import is the inverse.
+- Export writes the **`BuilderDoc` verbatim** — editor-only fields (`id`, the
+  section box `height` / `y`) are **not** stripped by the builder. Dropping them is
+  the **runtime's** job: the game's loader reads only the fields it needs
+  (`name` / `width` / `blocks`, and `type` / `x` / `y` / `w` / `h`) and ignores the
+  rest. So the saved doc and the shipped course are the same file; there is no
+  separate export schema.
 
 ## UI/UX
 

@@ -53,6 +53,14 @@ export default function Home() {
             Pattern Gallery
           </Link>
         </li>
+        <li>
+          <Link
+            to="/tools/hime-run-builder"
+            style={{ color: '#cfcfd4', textDecoration: 'underline', fontSize: '1.125rem' }}
+          >
+            Hime Run Builder (tool)
+          </Link>
+        </li>
       </ul>
     </div>
   )
