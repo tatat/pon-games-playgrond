@@ -104,7 +104,7 @@ export const MAX_JUMPS = 2
  * JUMP_VELOCITY −1050) carries ≈3.3 cells. */
 export const SPEED_START = 360
 /** Top scroll speed (px/s) the ramp climbs to. */
-export const SPEED_MAX = 660
+export const SPEED_MAX = 800
 /** Distance travelled (px) at which speed reaches SPEED_MAX. */
 export const SPEED_RAMP_DISTANCE = 24000
 
