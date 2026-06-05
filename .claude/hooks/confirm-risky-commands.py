@@ -272,7 +272,7 @@ def is_aws_write(tokens: list[str]) -> bool:
     return not any(subcommand.startswith(p) for p in AWS_READONLY_PREFIXES)
 
 
-OPERATORS = frozenset({"|", "||", "&", "&&", ";", ";;", "|&", "\n"})
+OPERATORS = frozenset({"|", "||", "&", "&&", ";", ";;", "|&"})
 
 # A newline is a shell statement separator, but shlex treats it as whitespace and
 # drops it — so `cd /tmp\ngh pr edit …` would tokenize to one segment headed by the
@@ -280,6 +280,8 @@ OPERATORS = frozenset({"|", "||", "&", "&&", ";", ";;", "|&", "\n"})
 # space-padded so shlex returns an UNQUOTED newline as its own token (a separator),
 # while a newline INSIDE quotes (e.g. a heredoc body in "$(…)") stays embedded in
 # its token and is restored. shlex still does all the quote tracking.
+# Backslash-newline continuations are stripped first so `git \<newline>push` is not
+# split at the continuation point.
 _NL_SENTINEL = "\x00NLSEP\x00"
 
 
@@ -287,16 +289,18 @@ def split_segments(cmd: str) -> list[list[str]] | None:
     """Split a shell command into segments at pipe/semicolon/and operators and
     unquoted newlines, respecting quoting. Returns None if it cannot be parsed."""
     try:
-        tokens = shlex.split(cmd.replace("\n", f" {_NL_SENTINEL} "))
+        tokens = shlex.split(cmd.replace("\\\n", " ").replace("\n", f" {_NL_SENTINEL} "))
     except ValueError:
         return None
     segments: list[list[str]] = []
     current: list[str] = []
     for tok in tokens:
-        # Standalone sentinel = an unquoted newline (separator); a sentinel embedded
-        # in a token came from a quoted newline, so restore it.
-        tok = "\n" if tok == _NL_SENTINEL else tok.replace(f" {_NL_SENTINEL} ", "\n")
-        if tok in OPERATORS:
+        # Detect unquoted newlines BEFORE restoring: an exact sentinel match means
+        # shlex saw it as a standalone (unquoted) token. A sentinel embedded in a
+        # larger token came from a quoted newline and should be restored, not split.
+        is_sep = tok == _NL_SENTINEL
+        tok = "\n" if is_sep else tok.replace(f" {_NL_SENTINEL} ", "\n")
+        if is_sep or tok in OPERATORS:
             if current:
                 segments.append(current)
             current = []
@@ -597,6 +601,16 @@ def _run_tests() -> None:
     # newline-separated read-only statements stay silent
     assert not ask("cd /tmp\nls -la")
     assert not ask("git status\ngit diff")
+
+    # regression: quoted single newline must not be treated as a separator
+    # (it is a value, not a shell statement separator — gh pr create here is an
+    # argument to echo, not a separate shell statement)
+    assert not ask("echo \"\n\" gh pr create")
+    assert not ask("echo \"\n\" ls")
+
+    # regression: backslash-newline continuation must not split the command
+    assert ask("git \\\npush origin main")  # still one segment -> ask
+    assert not ask("git \\\nstatus")  # still one segment -> safe
 
     print("All tests passed.")
 
