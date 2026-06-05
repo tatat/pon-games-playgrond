@@ -159,10 +159,11 @@ These invariants are asserted directly in `random-source.test.ts` by reconstruct
 the continuous surface from the emitted blocks (across seams) — not by trusting that
 a primitive was "safe". Verify any retune with that instrumentation, not feel.
 
-**Difficulty is carried by the existing speed ramp alone — the walk does not scale
-difficulty by distance.** The runner accelerates over `SPEED_RAMP_DISTANCE`, and the
-same terrain is harder to clear the faster the world scrolls, so a flat-difficulty
-course plus that ramp gives the escalation for free. What the walk *does* vary is
+**Difficulty is carried by the existing speed staircase alone — the walk does not
+scale difficulty by distance.** Speed steps up every `SPEED_STEP_DISTANCE` of travel
+(by `SPEED_STEP_INC`, up to `SPEED_MAX`), and the same terrain is harder to clear the
+faster the world scrolls, so a flat-difficulty course plus that staircase gives the
+escalation for free. What the walk *does* vary is
 **texture**: an `intensity` value drifts in a bounded random walk per section,
 weighting the move mix so the stream breathes between calm, sparse stretches and
 busy, demanding ones rather than a flat uniform shuffle. Move weights also depend on

@@ -122,7 +122,7 @@ reach measured from the integrator (apex = `JUMP_VELOCITY²/2·GRAVITY`):
 With the climb-and-squeeze contact rule these numbers are guidance, not hard
 gates (missing a clear pushes you, it doesn't kill you). Constants: `CELL`,
 `GRAVITY`, `JUMP_VELOCITY`, `DOUBLE_JUMP_VELOCITY`, `JUMP_CUT`, `MAX_JUMPS`,
-`SPEED_START`/`SPEED_MAX`/`SPEED_RAMP_DISTANCE`, `PLAYER_X`. The body circle is measured from the sprite art — the
+`SPEED_START`/`SPEED_MAX`/`SPEED_STEP_DISTANCE`/`SPEED_STEP_INC`, `PLAYER_X`. The body circle is measured from the sprite art — the
 inscribed circle of the silhouette (pixels opaque in ANY run frame), seated so its
 bottom is the foot line — and lives as `PLAYER_HIT_FRAME_CX/CY/R` (source coords)
 → `PLAYER_HIT_RADIUS` (world). Its bottom equals the feet, so there is no collider
@@ -262,13 +262,15 @@ These guide authoring; none of them run at play time.
 
 ## Decided
 
-- **Speed: ramps with distance.** Scroll speed climbs from `SPEED_START` to
-  `SPEED_MAX`, reaching the cap at `SPEED_RAMP_DISTANCE` px of travel — faster the
-  further you get, as a difficulty curve. This does **not** break determinism or
-  the memorization track: the course *layout* is fixed, and speed is a pure
-  function of distance, so the same distance always plays at the same speed and a
-  given run is fully reproducible. (The layout repeats via the loop; the speed at
-  a given distance does not depend on which loop you're in, only on distance.)
+- **Speed: a staircase keyed to distance.** Scroll speed steps up from
+  `SPEED_START` toward `SPEED_MAX`, gaining `SPEED_STEP_INC` every
+  `SPEED_STEP_DISTANCE` px of travel — faster the further you get, as a difficulty
+  curve, with each step a felt beat rather than an imperceptible drift. This does
+  **not** break determinism or the memorization track: the course *layout* is fixed,
+  and speed is a pure function of distance, so the same distance always plays at the
+  same speed and a given run is fully reproducible. (The layout repeats via the
+  loop; the speed at a given distance does not depend on which loop you're in, only
+  on distance.)
 - **Coins are hand-authored into patterns** (see Collectibles) as ordinary
   committed `coin` blocks, so the no-runtime-RNG / fully-deterministic rule holds
   by construction.

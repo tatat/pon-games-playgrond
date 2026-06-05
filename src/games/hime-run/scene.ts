@@ -38,8 +38,9 @@ import {
   PLAYER_RECOVER_SPEED,
   PLAYER_X,
   SPEED_MAX,
-  SPEED_RAMP_DISTANCE,
   SPEED_START,
+  SPEED_STEP_DISTANCE,
+  SPEED_STEP_INC,
   TERRAIN_COLOR,
   TERRAIN_LIP_COLOR,
 } from './constants'
@@ -374,10 +375,11 @@ export class MainScene extends Scene {
     this.vy += GRAVITY * dtSec
     this.feetY += this.vy * dtSec
 
-    // Scroll the world; speed ramps with distance (pure function of distance, so
-    // the run stays deterministic). Advance distance and score by the same dx.
-    const t = Math.min(1, this.distance / SPEED_RAMP_DISTANCE)
-    const speed = SPEED_START + (SPEED_MAX - SPEED_START) * t
+    // Scroll the world; speed climbs in discrete steps keyed to distance (a pure
+    // function of distance, so the same place always plays at the same speed).
+    // Advance distance and score by the same dx.
+    const step = Math.floor(this.distance / SPEED_STEP_DISTANCE)
+    const speed = Math.min(SPEED_MAX, SPEED_START + step * SPEED_STEP_INC)
     const dx = speed * dtSec
     this.distance += dx
     this.score += dx * DISTANCE_SCORE_FACTOR
