@@ -8,7 +8,7 @@ import { GROUND_Y } from './constants'
 //   ledge   — one-way: pass up through from below, land/stand on from above.
 //   hazard  — lethal on touch, visible (warning colour).
 //   pit     — lethal on touch, invisible (sits at the bottom of a hole).
-//   coin    — non-colliding collectible (collection wired later).
+//   coin    — non-colliding collectible (picked up on touch, scores).
 export type BlockType = 'terrain' | 'ledge' | 'hazard' | 'pit' | 'coin'
 
 export interface Block {

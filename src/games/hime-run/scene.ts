@@ -38,15 +38,18 @@ import {
   PLAYER_RECOVER_SPEED,
   PLAYER_X,
   SPEED_MAX,
-  SPEED_RAMP_DISTANCE,
   SPEED_START,
+  SPEED_STEP_DISTANCE,
+  SPEED_STEP_INC,
   TERRAIN_COLOR,
   TERRAIN_LIP_COLOR,
 } from './constants'
-import { type Block, CourseWalker } from './course'
+import { AuthoredSource, type Block, CourseWalker, type SectionSource } from './course'
 import { HUD } from './hud'
 import { circleRectMTV, coinAt, touchesLethal } from './obstacles'
-import { SAMPLE_COURSE, SAMPLE_LOOP_START } from './sample-course'
+import { RandomSource } from './random-source'
+import { loadStageCourse, type StageDef } from './stage'
+import { useHimeRunStore } from './store'
 
 type Phase = 'title' | 'playing' | 'gameover'
 
@@ -78,16 +81,15 @@ const AIRBORNE_FRAME = 1
  * that ended the run doesn't instantly start the next one. */
 const RESTART_ARM_MS = 350
 
-/** Survives across restarts (each retry builds a fresh `MainScene`). */
-export interface HimeSession {
-  best: number
-}
-
 export interface MainSceneOptions {
-  session: HimeSession
+  /** The stage to play — its course JSON is loaded in `onEnter`. */
+  stage: StageDef
   onScoreChange?: (score: number) => void
   onGameOver?: (score: number) => void
   onRequestRestart?: () => void
+  /** Leave the run and return to the stage-select screen. Wired to a distinct
+   * game-over control (button + key), never to Option (which stays pause). */
+  onBackToSelect?: () => void
 }
 
 export class MainScene extends Scene {
@@ -123,7 +125,7 @@ export class MainScene extends Scene {
   private score = 0
   private lastReportedScore = 0
   /** Coins collected this run. Run-local (reset each `startGame`); coins respawn
-   * every loop, so this is NOT persisted in `HimeSession`. */
+   * every loop, so this is run-local and never persisted. */
   private coins = 0
   /** Distance travelled this run (px). Drives the speed ramp, so speed is a pure
    * function of distance and every run stays deterministic. */
@@ -139,9 +141,13 @@ export class MainScene extends Scene {
   /** Set when the block set changes (emit/cull/coin pickup); the terrain geometry
    * is only rebuilt on those frames, otherwise it just scrolls via transform. */
   private terrainDirty = true
-  /** Walks the authored course, emitting blocks as the world scrolls. Rebuilt on
-   * each run start so the fixed course always plays from the top. */
-  private walker = new CourseWalker(SAMPLE_COURSE, SAMPLE_LOOP_START)
+  /** Builds a fresh section source for the stage — an authored course (loaded from
+   * JSON in `onEnter`) or a seeded random generator. Called on each run start so a
+   * retry replays the stage identically (same course / same seed). */
+  private makeSource!: () => SectionSource
+  /** Walks the stage source, emitting blocks as the world scrolls. Rebuilt on each
+   * run start so the course always plays from the top. */
+  private walker!: CourseWalker
   private gameOverAtMs = 0
 
   /** Tracks the jump button's held state across frames so a release can cut
@@ -189,10 +195,12 @@ export class MainScene extends Scene {
     // Coin-pickup fx sit above the runner and scroll with the terrain.
     this.worldLayer.addChild(this.fxLayer)
 
-    this.hud = new HUD()
+    this.hud = new HUD({ onStageSelect: () => this.options.onBackToSelect?.() })
     this.addChild(this.hud)
 
-    this.bindInput({ jump: ['Space', 'ArrowUp', 'KeyW'] })
+    // `jump` drives start / jump / retry; `back` (game-over only) returns to the
+    // stage-select screen. Option stays bound to pause via the keypad.
+    this.bindInput({ jump: ['Space', 'ArrowUp', 'KeyW'], back: ['KeyM'] })
 
     const keypad = this.use(
       makeVirtualKeypad(this.input, this.layout, {
@@ -224,13 +232,24 @@ export class MainScene extends Scene {
       tap.off('pointercancel', onRelease)
     })
 
+    // Resolve the stage's section source: an authored course needs its JSON loaded
+    // and validated first; a random stage resolves synchronously from its seed.
+    const stage = this.options.stage
+    if (stage.kind === 'course') {
+      const loaded = await loadStageCourse(stage.file, signal)
+      signal.throwIfAborted()
+      this.makeSource = () => new AuthoredSource(loaded.course, loaded.loopStart)
+    } else {
+      this.makeSource = () => new RandomSource(stage.seed)
+    }
+    this.walker = new CourseWalker(this.makeSource())
     // Fill the screen with the opening patterns so the player starts on ground.
     this.blocks = this.toWorld(this.walker.step(0))
     this.redrawBlocks()
     this.blockGfx.x = -this.distance
     this.syncPlayer()
     this.redrawShadow()
-    this.hud.showTitle(this.options.session.best)
+    this.hud.showTitle(this.options.stage.name, this.bestScore())
   }
 
   override onUpdate(dt: SceneDelta): void {
@@ -250,6 +269,10 @@ export class MainScene extends Scene {
       ) {
         this.options.onRequestRestart?.()
       }
+    }
+    // Return to stage select from the game-over screen (distinct from retry).
+    if (this.phase === 'gameover' && this.input.wasJustPressed('back')) {
+      this.options.onBackToSelect?.()
     }
     // Releasing while still rising cuts the ascent → variable jump height.
     if (this.phase === 'playing' && this.jumpHeld && !jumpDown && this.vy < 0) {
@@ -298,9 +321,9 @@ export class MainScene extends Scene {
     this.playerX = PLAYER_X
     this.player.rotation = 0 // clear any death-tumble spin from a prior run
     this.recoverDelayLeft = 0
-    // Fresh walker so the fixed course restarts from pattern 0 every run; step(0)
+    // Fresh source + walker so the stage restarts from the top every run; step(0)
     // fills the screen with the opening patterns under the player.
-    this.walker = new CourseWalker(SAMPLE_COURSE, SAMPLE_LOOP_START)
+    this.walker = new CourseWalker(this.makeSource())
     this.blocks = this.toWorld(this.walker.step(0))
     this.terrainDirty = true
     this.blockGfx.x = 0
@@ -330,8 +353,8 @@ export class MainScene extends Scene {
     // Final score = distance (1 m/point) + a flat bonus per coin collected.
     const distance = Math.floor(this.score)
     const final = distance + this.coins * COIN_VALUE
-    this.options.session.best = Math.max(this.options.session.best, final)
-    this.hud.showGameOver(distance, this.coins, final, this.options.session.best)
+    useHimeRunStore.getState().submitBest(this.stageId, final)
+    this.hud.showGameOver(distance, this.coins, final, this.bestScore())
     this.options.onGameOver?.(final)
   }
 
@@ -352,10 +375,11 @@ export class MainScene extends Scene {
     this.vy += GRAVITY * dtSec
     this.feetY += this.vy * dtSec
 
-    // Scroll the world; speed ramps with distance (pure function of distance, so
-    // the run stays deterministic). Advance distance and score by the same dx.
-    const t = Math.min(1, this.distance / SPEED_RAMP_DISTANCE)
-    const speed = SPEED_START + (SPEED_MAX - SPEED_START) * t
+    // Scroll the world; speed climbs in discrete steps keyed to distance (a pure
+    // function of distance, so the same place always plays at the same speed).
+    // Advance distance and score by the same dx.
+    const step = Math.floor(this.distance / SPEED_STEP_DISTANCE)
+    const speed = Math.min(SPEED_MAX, SPEED_START + step * SPEED_STEP_INC)
     const dx = speed * dtSec
     this.distance += dx
     this.score += dx * DISTANCE_SCORE_FACTOR
@@ -654,6 +678,16 @@ export class MainScene extends Scene {
    * compare like-for-like with each block's world x — no per-frame block mutation. */
   private get playerWorldX(): number {
     return this.playerX + this.distance
+  }
+
+  /** Persistence key for this stage's best (the manifest stage id). */
+  private get stageId(): string {
+    return this.options.stage.id
+  }
+
+  /** This stage's persisted best (0 if never played). */
+  private bestScore(): number {
+    return useHimeRunStore.getState().bests[this.stageId] ?? 0
   }
 
   /** Draw every block by type at its world x. Called only when the block set

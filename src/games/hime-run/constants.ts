@@ -94,19 +94,23 @@ export const JUMP_CUT = 0.45
 export const MAX_JUMPS = 2
 
 // ── Speed ────────────────────────────────────────────────────────────────────
-// Scroll speed ramps up with distance travelled: faster the further you get. The
-// course layout is fixed, so the ramp keeps every run deterministic — speed is a
-// pure function of distance, so the same distance always plays at the same speed
-// (the memorization track stays learnable; only the tempo rises as a difficulty
-// curve). It climbs from SPEED_START to SPEED_MAX, reaching the cap at
-// SPEED_RAMP_DISTANCE px of travel.
+// Scroll speed climbs in DISCRETE STEPS keyed to distance travelled: every
+// SPEED_STEP_DISTANCE of travel, speed jumps by SPEED_STEP_INC, up to SPEED_MAX.
+// A staircase (not a smooth ramp) for two reasons: each step is a felt beat of
+// "now it's faster" rather than an imperceptible drift, and — because speed is a
+// pure function of distance — the same place always plays at the same speed, so
+// the track stays learnable (a time-based ramp would make a spot's speed depend on
+// when you reached it). Only the tempo rises; the layout is fixed.
 /** Starting scroll speed (px/s). At this speed one jump (airtime ≈0.875s at
  * JUMP_VELOCITY −1050) carries ≈3.3 cells. */
 export const SPEED_START = 360
-/** Top scroll speed (px/s) the ramp climbs to. */
-export const SPEED_MAX = 660
-/** Distance travelled (px) at which speed reaches SPEED_MAX. */
-export const SPEED_RAMP_DISTANCE = 24000
+/** Top scroll speed (px/s) the staircase climbs to. */
+export const SPEED_MAX = 800
+/** Travel (px) per speed step. 4800px = 50 m (CELL px per metre). */
+export const SPEED_STEP_DISTANCE = 4800
+/** Speed added (px/s) at each step. With the values above the staircase reaches
+ * SPEED_MAX after 20 steps = 96000px = 1000 m. */
+export const SPEED_STEP_INC = 22
 
 // ── Blocks ─────────────────────────────────────────────────────────────────
 // Everything in the world is one Block with a `type` (see obstacles.ts). These
