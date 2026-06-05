@@ -488,6 +488,9 @@ export class EditorCanvas {
   }
 
   private onPointerDown = (e: FederatedPointerEvent): void => {
+    // Only the primary button edits (button 0 = left mouse / touch / pen). Ignore
+    // right/middle clicks so they don't paint while opening a context menu etc.
+    if (e.button !== 0) return
     const { col, row } = this.localCell(e)
     if (this.tool === 'select') {
       this.cb.onSelectBlock(this.pickBlock(col, row))

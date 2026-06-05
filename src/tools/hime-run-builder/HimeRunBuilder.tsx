@@ -177,6 +177,9 @@ export function HimeRunBuilder() {
       }
       app = instance
       instance.canvas.style.touchAction = 'none'
+      // Suppress the browser context menu so a right-click on the grid doesn't pop
+      // it (the canvas ignores non-primary buttons for editing — see onPointerDown).
+      instance.canvas.addEventListener('contextmenu', (e) => e.preventDefault())
       mountRef.current.appendChild(instance.canvas)
 
       const canvas = new EditorCanvas(
