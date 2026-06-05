@@ -6,6 +6,7 @@ import {
   Graphics,
   Rectangle,
 } from 'pixi.js'
+import { clamp } from '../../engine/util/math'
 import {
   COIN_COLOR,
   HAZARD_COLOR,
@@ -57,9 +58,9 @@ const OOB_BG = 0x0a0e18
 const GRID_LINE = 0x26304c
 const GROUND_LINE = 0x6f7ba6
 const BOX_EDGE = 0x46527e
-const SELECT_COLOR = 0xffe06b
+export const SELECT_COLOR = 0xffe06b
 const PLACE_PREVIEW = 0x8fb6ff
-const ERASE_PREVIEW = 0xff6b78
+export const ERASE_PREVIEW = 0xff6b78
 const HOVER_COLOR = 0x8ea0d8
 
 /** Liang–Barsky clip of a segment to an axis-aligned rect; null if fully outside.
@@ -193,12 +194,20 @@ export class EditorCanvas {
     topRow?: number
     bottomRow?: number
   }): void {
-    let sectionChanged = false
+    // Geometry inputs drive the cell size, offsets, mask, hit area and the grid /
+    // block layers; tool & selection only affect the overlay. Detect a geometry
+    // change so a tool/selection-only update can skip the layout recompute and
+    // redraw just the overlay (avoids a needless LayoutBox round-trip to React).
+    const geometryChanged =
+      (next.doc !== undefined && next.doc !== this.doc) ||
+      (next.activeSection !== undefined && next.activeSection !== this.activeSection) ||
+      (next.topRow !== undefined && next.topRow !== this.topRow) ||
+      (next.bottomRow !== undefined && next.bottomRow !== this.bottomRow)
+    const sectionChanged =
+      next.activeSection !== undefined && next.activeSection !== this.activeSection
+
     if (next.doc) this.doc = next.doc
-    if (next.activeSection !== undefined && next.activeSection !== this.activeSection) {
-      this.activeSection = next.activeSection
-      sectionChanged = true
-    }
+    if (next.activeSection !== undefined) this.activeSection = next.activeSection
     if (next.tool !== undefined) this.tool = next.tool
     if (next.selection !== undefined) this.selection = next.selection
     if (next.topRow !== undefined) this.topRow = next.topRow
@@ -208,8 +217,13 @@ export class EditorCanvas {
       this.scrollY = 0
       this.drag = null
     }
-    this.recomputeLayout()
-    this.drawAll()
+
+    if (geometryChanged) {
+      this.recomputeLayout()
+      this.drawAll()
+    } else {
+      this.drawOverlay()
+    }
   }
 
   destroy(): void {
@@ -271,18 +285,13 @@ export class EditorCanvas {
     const availW = Math.max(1, a.right - a.left)
     const availH = Math.max(1, a.bottom - a.top)
     // Fixed cell size (fits the default range); a larger range scrolls, not shrinks.
-    this.cellPx = Math.max(
-      MIN_CELL_PX,
-      Math.min(MAX_CELL_PX, Math.floor(availH / DEFAULT_VISIBLE_ROWS)),
-    )
+    this.cellPx = clamp(Math.floor(availH / DEFAULT_VISIBLE_ROWS), MIN_CELL_PX, MAX_CELL_PX)
     const worldH = this.visibleRows * this.cellPx
     this.offsetY = a.top + Math.max(0, Math.floor((availH - worldH) / 2))
-    const maxScrollY = Math.max(0, worldH - availH)
-    this.scrollY = Math.max(0, Math.min(maxScrollY, this.scrollY))
+    this.scrollY = clamp(this.scrollY, 0, Math.max(0, worldH - availH))
     const worldW = (this.section?.width ?? 0) * this.cellPx
     this.offsetX = a.left + Math.max(0, Math.floor((availW - worldW) / 2))
-    const maxScrollX = Math.max(0, worldW - availW)
-    this.scrollX = Math.max(0, Math.min(maxScrollX, this.scrollX))
+    this.scrollX = clamp(this.scrollX, 0, Math.max(0, worldW - availW))
 
     // Clip the world and the input to the drawable rect.
     this.maskGfx.clear().rect(a.left, a.top, availW, availH).fill(0xffffff)
@@ -296,12 +305,11 @@ export class EditorCanvas {
   private emitLayout(): void {
     const a = this.avail
     const width = this.section?.width ?? 0
-    const cl = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
     this.cb.onLayout({
-      left: cl(this.colToX(0), a.left, a.right),
-      right: cl(this.colToX(width), a.left, a.right),
-      top: cl(this.rowTopY(this.topRow), a.top, a.bottom),
-      bottom: cl(this.rowTopY(this.bottomRow - 1), a.top, a.bottom),
+      left: clamp(this.colToX(0), a.left, a.right),
+      right: clamp(this.colToX(width), a.left, a.right),
+      top: clamp(this.rowTopY(this.topRow), a.top, a.bottom),
+      bottom: clamp(this.rowTopY(this.bottomRow - 1), a.top, a.bottom),
       screenW: this.screenW,
       screenH: this.screenH,
     })
@@ -372,12 +380,20 @@ export class EditorCanvas {
     for (const b of blocks) this.drawBlock(g, b)
   }
 
+  /** Screen-px rect for an inclusive cell box, given the current cell size and
+   * scroll/centring offsets. The one place cells → pixels for drawing. */
+  private rectToScreen(r: CellRect): { x: number; y: number; w: number; h: number } {
+    return {
+      x: this.colToX(r.c0),
+      y: this.rowTopY(r.r1),
+      w: (r.c1 - r.c0 + 1) * this.cellPx,
+      h: (r.r1 - r.r0 + 1) * this.cellPx,
+    }
+  }
+
   private drawBlock(g: Graphics, b: Block): void {
     const r = blockRect(b)
-    const x = this.colToX(r.c0)
-    const y = this.rowTopY(r.r1)
-    const w = (r.c1 - r.c0 + 1) * this.cellPx
-    const h = (r.r1 - r.r0 + 1) * this.cellPx
+    const { x, y, w, h } = this.rectToScreen(r)
 
     switch (b.type) {
       case 'terrain':
@@ -428,11 +444,7 @@ export class EditorCanvas {
     if (this.selection !== null) {
       const b = this.section?.blocks[this.selection]
       if (b) {
-        const r = blockRect(b)
-        const x = this.colToX(r.c0)
-        const y = this.rowTopY(r.r1)
-        const w = (r.c1 - r.c0 + 1) * this.cellPx
-        const h = (r.r1 - r.r0 + 1) * this.cellPx
+        const { x, y, w, h } = this.rectToScreen(blockRect(b))
         g.rect(x - 1, y - 1, w + 2, h + 2).stroke({ width: 2.5, color: SELECT_COLOR })
       }
     }
@@ -441,10 +453,7 @@ export class EditorCanvas {
     if (this.drag) {
       const rect = this.pendingRect()
       if (rect) {
-        const x = this.colToX(rect.c0)
-        const y = this.rowTopY(rect.r1)
-        const w = (rect.c1 - rect.c0 + 1) * this.cellPx
-        const h = (rect.r1 - rect.r0 + 1) * this.cellPx
+        const { x, y, w, h } = this.rectToScreen(rect)
         const color = this.tool === 'erase' ? ERASE_PREVIEW : PLACE_PREVIEW
         g.rect(x, y, w, h).fill({ color, alpha: 0.28 })
         g.rect(x, y, w, h).stroke({ width: 1.5, color })
@@ -472,11 +481,10 @@ export class EditorCanvas {
   }
 
   private clampCol(col: number): number {
-    const width = this.section?.width ?? 1
-    return Math.max(0, Math.min(width - 1, col))
+    return clamp(col, 0, (this.section?.width ?? 1) - 1)
   }
   private clampRow(row: number): number {
-    return Math.max(this.bottomRow, Math.min(this.topRow, row))
+    return clamp(row, this.bottomRow, this.topRow)
   }
 
   private onPointerDown = (e: FederatedPointerEvent): void => {

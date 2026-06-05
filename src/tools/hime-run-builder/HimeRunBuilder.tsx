@@ -1,9 +1,17 @@
-import { Application } from 'pixi.js'
+import { Application, Color } from 'pixi.js'
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 // Side-effect import: keep Pixi's graphics render pipe out of the tree-shaker's
 // reach in production builds (same reason GameMount imports it).
 import '../../engine/pixi-pipes'
+import { clamp } from '../../engine/util/math'
+import {
+  COIN_COLOR,
+  HAZARD_COLOR,
+  HAZARD_DARK_COLOR,
+  LEDGE_COLOR,
+  TERRAIN_COLOR,
+} from '../../games/hime-run/constants'
 import type { Block } from '../../games/hime-run/obstacles'
 import { parseStageCourse } from '../../games/hime-run/stage-course'
 import {
@@ -18,23 +26,30 @@ import {
   parseBuilderDoc,
   placeBlock,
 } from './doc'
-import { EditorCanvas, type LayoutBox, type Tool } from './editor-canvas'
+import {
+  EditorCanvas,
+  ERASE_PREVIEW,
+  type LayoutBox,
+  SELECT_COLOR,
+  type Tool,
+} from './editor-canvas'
 
 const AUTOSAVE_KEY = 'hime-run-builder:doc'
 /** Largest section width (cells) the width control will grow to. */
 const WIDTH_MAX = 200
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
-// Palette entries (label + swatch) in placement order. `select`/`erase` bracket
-// the five block types.
+// Palette entries (label + swatch) in placement order. Swatches are derived from
+// the single source of truth for each colour (game block colours + the editor's
+// select/erase colours) so they can't drift from what the canvas draws.
+const swatchHex = (n: number): string => new Color(n).toHex()
 const TOOLS: { tool: Tool; label: string; swatch: string }[] = [
-  { tool: 'select', label: 'Select', swatch: '#ffe06b' },
-  { tool: 'terrain', label: 'Terrain', swatch: '#2a3358' },
-  { tool: 'ledge', label: 'Ledge', swatch: '#6be8c8' },
-  { tool: 'hazard', label: 'Hazard', swatch: '#ff3b4e' },
-  { tool: 'pit', label: 'Pit', swatch: '#7a1326' },
-  { tool: 'coin', label: 'Coin', swatch: '#ffd34d' },
-  { tool: 'erase', label: 'Erase', swatch: '#ff6b78' },
+  { tool: 'select', label: 'Select', swatch: swatchHex(SELECT_COLOR) },
+  { tool: 'terrain', label: 'Terrain', swatch: swatchHex(TERRAIN_COLOR) },
+  { tool: 'ledge', label: 'Ledge', swatch: swatchHex(LEDGE_COLOR) },
+  { tool: 'hazard', label: 'Hazard', swatch: swatchHex(HAZARD_COLOR) },
+  { tool: 'pit', label: 'Pit', swatch: swatchHex(HAZARD_DARK_COLOR) },
+  { tool: 'coin', label: 'Coin', swatch: swatchHex(COIN_COLOR) },
+  { tool: 'erase', label: 'Erase', swatch: swatchHex(ERASE_PREVIEW) },
 ]
 
 function loadInitialDoc(): BuilderDoc {
@@ -616,7 +631,7 @@ function DimControl({
   onChange: (value: number) => void
   vertical?: boolean
 }) {
-  const set = (v: number) => onChange(Math.max(min, Math.min(max, v)))
+  const set = (v: number) => onChange(clamp(v, min, max))
   const minus = (
     <button
       type="button"
