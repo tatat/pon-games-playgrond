@@ -272,19 +272,30 @@ def is_aws_write(tokens: list[str]) -> bool:
     return not any(subcommand.startswith(p) for p in AWS_READONLY_PREFIXES)
 
 
-OPERATORS = frozenset({"|", "||", "&", "&&", ";", ";;", "|&"})
+OPERATORS = frozenset({"|", "||", "&", "&&", ";", ";;", "|&", "\n"})
+
+# A newline is a shell statement separator, but shlex treats it as whitespace and
+# drops it — so `cd /tmp\ngh pr edit …` would tokenize to one segment headed by the
+# harmless `cd`, hiding the `gh` write. We stand a sentinel in for every newline,
+# space-padded so shlex returns an UNQUOTED newline as its own token (a separator),
+# while a newline INSIDE quotes (e.g. a heredoc body in "$(…)") stays embedded in
+# its token and is restored. shlex still does all the quote tracking.
+_NL_SENTINEL = "\x00NLSEP\x00"
 
 
 def split_segments(cmd: str) -> list[list[str]] | None:
-    """Split a shell command into segments at pipe/semicolon/and operators,
-    respecting quoting. Returns None if the command cannot be parsed."""
+    """Split a shell command into segments at pipe/semicolon/and operators and
+    unquoted newlines, respecting quoting. Returns None if it cannot be parsed."""
     try:
-        tokens = shlex.split(cmd)
+        tokens = shlex.split(cmd.replace("\n", f" {_NL_SENTINEL} "))
     except ValueError:
         return None
     segments: list[list[str]] = []
     current: list[str] = []
     for tok in tokens:
+        # Standalone sentinel = an unquoted newline (separator); a sentinel embedded
+        # in a token came from a quoted newline, so restore it.
+        tok = "\n" if tok == _NL_SENTINEL else tok.replace(f" {_NL_SENTINEL} ", "\n")
         if tok in OPERATORS:
             if current:
                 segments.append(current)
@@ -573,6 +584,19 @@ def _run_tests() -> None:
     # regression: pipe should not cause risky segment to be missed
     assert ask("git push origin main | cat")
     assert ask("cat foo | gh pr create")
+
+    # regression: a newline separator must not hide a later risky statement (shlex
+    # drops the newline, so `cd …\n<risky>` once merged into one harmless segment)
+    assert ask("cd /tmp\ngh pr create")
+    assert ask("cd /tmp\ngh pr edit 14 --body x")
+    assert ask("cd /tmp\ngit push origin main")
+    assert ask("echo hi\nsudo rm -rf /var/x")
+    assert ask("ls\nrm -rf build/\necho done")
+    # a quoted (heredoc-body) newline is NOT a separator: the gh write is still seen
+    assert ask("cd /tmp\ngh pr edit 14 --body \"$(cat <<'EOF'\nline a\nline b\nEOF\n)\"")
+    # newline-separated read-only statements stay silent
+    assert not ask("cd /tmp\nls -la")
+    assert not ask("git status\ngit diff")
 
     print("All tests passed.")
 
