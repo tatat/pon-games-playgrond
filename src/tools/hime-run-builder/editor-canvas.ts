@@ -124,6 +124,9 @@ interface DragState {
   startRow: number
   col: number
   row: number
+  /** The tool this drag commits with — the active tool for a left drag, always
+   * `erase` for a right drag. */
+  tool: Tool
 }
 
 /**
@@ -454,7 +457,7 @@ export class EditorCanvas {
       const rect = this.pendingRect()
       if (rect) {
         const { x, y, w, h } = this.rectToScreen(rect)
-        const color = this.tool === 'erase' ? ERASE_PREVIEW : PLACE_PREVIEW
+        const color = this.drag.tool === 'erase' ? ERASE_PREVIEW : PLACE_PREVIEW
         g.rect(x, y, w, h).fill({ color, alpha: 0.28 })
         g.rect(x, y, w, h).stroke({ width: 1.5, color })
       }
@@ -488,17 +491,18 @@ export class EditorCanvas {
   }
 
   private onPointerDown = (e: FederatedPointerEvent): void => {
-    // Only the primary button edits (button 0 = left mouse / touch / pen). Ignore
-    // right/middle clicks so they don't paint while opening a context menu etc.
-    if (e.button !== 0) return
+    // Left (button 0 = left mouse / touch / pen) paints with the active tool; right
+    // (button 2) erases regardless of the active tool. Ignore other buttons.
+    if (e.button !== 0 && e.button !== 2) return
+    const tool: Tool = e.button === 2 ? 'erase' : this.tool
     const { col, row } = this.localCell(e)
-    if (this.tool === 'select') {
+    if (tool === 'select') {
       this.cb.onSelectBlock(this.pickBlock(col, row))
       return
     }
     const c = this.clampCol(col)
     const r = this.clampRow(row)
-    this.drag = { startCol: c, startRow: r, col: c, row: r }
+    this.drag = { startCol: c, startRow: r, col: c, row: r, tool }
     this.drawOverlay()
   }
 
@@ -517,8 +521,9 @@ export class EditorCanvas {
   private onPointerUp = (): void => {
     if (!this.drag) return
     const rect = this.pendingRect()
+    const tool = this.drag.tool
     this.drag = null
-    if (rect) this.commit(rect)
+    if (rect) this.commit(rect, tool)
     this.drawOverlay()
   }
 
@@ -538,24 +543,24 @@ export class EditorCanvas {
   /** The cell box the current drag covers, with per-tool height locking. */
   private pendingRect(): CellRect | null {
     if (!this.drag) return null
-    const { startCol, startRow, col, row } = this.drag
+    const { startCol, startRow, col, row, tool } = this.drag
     const c0 = Math.min(startCol, col)
     const c1 = Math.max(startCol, col)
     // terrain & erase paint a free rectangle; the strip tools are one cell tall.
-    if (this.tool === 'terrain' || this.tool === 'erase') {
+    if (tool === 'terrain' || tool === 'erase') {
       return { c0, c1, r0: Math.min(startRow, row), r1: Math.max(startRow, row) }
     }
     return { c0, c1, r0: startRow, r1: startRow }
   }
 
-  private commit(rect: CellRect): void {
-    if (this.tool === 'select') return
+  private commit(rect: CellRect, tool: Tool): void {
+    if (tool === 'select') return
     const blocks = this.section?.blocks ?? []
-    if (this.tool === 'erase') {
+    if (tool === 'erase') {
       this.cb.onEditBlocks(eraseRect(blocks, rect))
       return
     }
-    if (this.tool === 'coin') {
+    if (tool === 'coin') {
       // A coin trail: one 1×1 coin per column at the drawn row.
       let next = [...blocks]
       for (let c = rect.c0; c <= rect.c1; c++) {
@@ -565,7 +570,7 @@ export class EditorCanvas {
       return
     }
     // terrain / ledge / hazard / pit: one block spanning the rect.
-    this.cb.onEditBlocks(placeBlock(blocks, rectBlock(this.tool, rect)))
+    this.cb.onEditBlocks(placeBlock(blocks, rectBlock(tool, rect)))
   }
 
   /** Topmost block (last drawn) whose cell box contains the cell, or null. */
