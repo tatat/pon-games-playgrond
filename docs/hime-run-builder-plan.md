@@ -1,8 +1,43 @@
 # hime-run map builder — plan (data structure & UI/UX)
 
-Status: design for the visual pattern/course editor (`/tools/hime-run-builder`).
+Status: shipped — first milestone of the visual pattern/course editor
+(`/tools/hime-run-builder`). The core authoring loop is in; the items under
+[Not yet built](#not-yet-built) remain as the next slice of this same design.
 
 **Scope:** the editor's **data structure** and **UI/UX**.
+
+## Implementation status
+
+The design below is the full plan; this section records what the first milestone
+actually ships. It does **not** narrow the plan — the unbuilt parts stay as written
+and are simply deferred.
+
+**Built**
+
+- Data structure — `BuilderDoc` / `BuilderSection` (with `id`, `y`, `height`) /
+  cell-coordinate `Block`, saved & exported verbatim (the runtime drops the
+  editor-only fields).
+- Coordinates — grid in, grid out (the game's own px→grid refactor noted under
+  [Coordinates](#coordinates) is still separate and pending).
+- Place / erase / **deterministic split** (placing overrides; right-drag erases).
+- Sections — add / delete / reorder / resize (`width` / `height` / `y`) / the
+  intro | loop divider (`loopStart`).
+- Brushes — terrain / ledge / hazard / pit / coin (drag to size).
+- Canvas — cell grid with emphasized ground line, fixed cell size, horizontal +
+  vertical scroll, centered, controls kept outside the editable grid.
+- Open / save (localStorage autosave) + Import / Export JSON. Undo / redo.
+
+**Not yet built**
+
+- `Block.id` (the field in [Data structure](#data-structure) is reserved for the
+  Select / repetition work below).
+- **Select** tool — move / resize / delete, marquee, arrow-nudge, click-cycle.
+- **Repetition** — duplicate / alt-drag, interval drag-stamp.
+- **Sections** — split / merge.
+- **Toolbar** — zoom, snap toggle, play / preview.
+- **Guides** — jump-arc, chained-jump, neighbour-section, loop-seam.
+- **Preview** — the real game rendered in the canvas.
+- **Validation** — inline advisory checks.
 
 ## Coordinates
 
@@ -73,6 +108,12 @@ Block {
   `sections.length > 0`, `0 ≤ loopStart < sections.length`.
 - Export is grid-coordinate, 1:1 with the course (each Section → one runtime
   pattern; coordinates stay in cells). Import is the inverse.
+- Export writes the **`BuilderDoc` verbatim** — editor-only fields (`id`, the
+  section box `height` / `y`) are **not** stripped by the builder. Dropping them is
+  the **runtime's** job: the game's loader reads only the fields it needs
+  (`name` / `width` / `blocks`, and `type` / `x` / `y` / `w` / `h`) and ignores the
+  rest. So the saved doc and the shipped course are the same file; there is no
+  separate export schema.
 
 ## UI/UX
 

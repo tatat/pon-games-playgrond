@@ -7,4 +7,5 @@ export default [
   route('rally-runner', 'routes/rally-runner.tsx'),
   route('hime-run', 'routes/hime-run.tsx'),
   route('pattern-gallery', 'routes/pattern-gallery.tsx'),
+  route('tools/hime-run-builder', 'routes/hime-run-builder.tsx'),
 ] satisfies RouteConfig
